@@ -37,8 +37,6 @@ void signalHandler(int sig)
 
 int main()
 {
-  //signal(SIGINT , signalHandler);
-
   struct sigaction act;
   act.sa_handler = signalHandler;
   sigemptyset(&act.sa_mask);
@@ -62,26 +60,18 @@ int main()
   dig->setTriggerPolarity(triggerpolaritymode);
   if (dig->init()>=0) {
     printf("test:  handle=%d\n",dig->handle);
-    printf("start: dig->getInfo()\n");
     dig->getInfo();
-    printf("final: dig->getInfo()\n");
 
     dig->setPolarizationType(polarization);//rango de polarizacion
     printf("polarization: %d\n",polarization);
     
-    printf("start: setNSamples(acqsamples, ptriggersize)\n");
     dig->setNSamples(acqsamples, ptriggersize);//samples por evento y post trigger size
-    printf("start: dig->setTrigmV(vthreshold)\n");
-    //dig->setTrigmV(vthreshold);//threshold en milivolts
+    dig->setTrigmV(vthreshold);//threshold en milivolts
 
     int bunch_size=nevents;  //numero de eventos
     int NBunch=bunches; //numero de grupos de eventos
-    
-    //obtener algunos parametros
-    //int* myLvl;CAEN_DGTZ_GetIOLevel (sig, myLvl);printf("myLvl=%d\n",*myLvl);
 
     //Medición
-    printf("\ndig->newFile(\"data_from_digitizer.root\")\n");
     dig->newFile("data_from_digitizer.root");
     sigaction(SIGINT, &act, 0); 
     for (int k=0;k<NBunch;k++)
