@@ -306,7 +306,7 @@ public:
       std::cout<<"starting calibration\n";
       readTempAll();
       ret = CAEN_DGTZ_Calibrate(handle);
-      std::cout<<"Done. ret: "<<ret<<std::endl;
+      std::cout<<"Done. ret: "<<ret<<std::endl<<std::endl;
       sleep(5);
     }
     else

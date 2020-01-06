@@ -66,13 +66,13 @@ int main()
 
   dig->setModel(model);
   dig->setTriggerPolarity(triggerpolaritymode);
-  printf("Digitizer initialization...\n\n"
+  printf("\nDigitizer initialization...\n"
           "----------------------------------------------------------\n");
   if (dig->init()>=0) {
     dig->getInfo();
     printf("----------------------------------------------------------\n\n");
 
-    printf("Digitizer Configuration...\n\n"
+    printf("Digitizer Configuration...\n"
           "----------------------------------------------------------\n");
     dig->setPolarizationType(polarization);//rango de polarizacion
     printf("polarization: %d\n",polarization);
@@ -85,13 +85,13 @@ int main()
     printf("----------------------------------------------------------\n\n");
 
     //Medición
-    printf("Starting Data Adquisition...\n\n"
+    printf("Starting Data Adquisition...\n"
           "----------------------------------------------------------\n");
     dig->newFile("data_from_digitizer.root");
     sigaction(SIGINT, &act, 0); 
     for (int k=0;k<NBunch;k++)
     {
-      std::cout<<"On bunch: "<<k<<std::endl<<std::endl;
+      std::cout<<"On bunch: "<<k<<std::endl;
       
       printf("start: triggerSource=%d\n",triggerSource);
       stage = 1;
