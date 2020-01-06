@@ -287,8 +287,8 @@ public:
       uint32_t configured_trigger_size = 0;
       ret = CAEN_DGTZ_GetPostTriggerSize(handle, &configured_trigger_size);
       std::cout<<"New postTrigger Size= "
-        <<configured_trigger_size-calibracion<< "\% | Equal to: "
-        << kSamples*(configured_trigger_size-calibracion)/100
+        <<configured_trigger_size+calibracion<< "\% | Equal to: "
+        << kSamples*(configured_trigger+size-calibracion)/100
         <<" samples."<<std::endl;
     }
       
