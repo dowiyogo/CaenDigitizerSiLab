@@ -281,14 +281,14 @@ public:
     else{
       //El posttrigger size se calibra segun error de 75 muestras de desfase, propio del Digitizer
       int calibracion = (75*100)/configured_kSamples;
-      ret = CAEN_DGTZ_SetPostTriggerSize(handle,(trigger_size+calibracion));
+      ret = CAEN_DGTZ_SetPostTriggerSize(handle,(trigger_size-calibracion));
 
       //Se agrega variable para leer el posttrigger size configurado en el digitizer.
       uint32_t configured_trigger_size = 0;
       ret = CAEN_DGTZ_GetPostTriggerSize(handle, &configured_trigger_size);
       std::cout<<"New postTrigger Size= "
-        <<configured_trigger_size+calibracion<< "\% | Equal to: "
-        << kSamples*(configured_trigger_size+calibracion)/100
+        <<configured_trigger_size-calibracion<< "\% | Equal to: "
+        << kSamples*(configured_trigger_size-calibracion)/100
         <<" samples."<<std::endl;
     }
       
