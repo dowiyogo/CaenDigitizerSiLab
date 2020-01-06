@@ -67,13 +67,13 @@ int main()
   dig->setModel(model);
   dig->setTriggerPolarity(triggerpolaritymode);
   printf("Digitizer initialization...\n\n"
-          "----------------------------------------------------------\n")
+          "----------------------------------------------------------\n");
   if (dig->init()>=0) {
     dig->getInfo();
-    printf("----------------------------------------------------------\n\n")
+    printf("----------------------------------------------------------\n\n");
 
     printf("Digitizer Configuration...\n\n"
-          "----------------------------------------------------------\n")
+          "----------------------------------------------------------\n");
     dig->setPolarizationType(polarization);//rango de polarizacion
     printf("polarization: %d\n",polarization);
     
@@ -82,11 +82,11 @@ int main()
 
     int bunch_size=nevents;  //numero de eventos
     int NBunch=bunches; //numero de grupos de eventos
-    printf("----------------------------------------------------------\n\n")
+    printf("----------------------------------------------------------\n\n");
 
     //Medición
     printf("Starting Data Adquisition...\n\n"
-          "----------------------------------------------------------\n")
+          "----------------------------------------------------------\n");
     dig->newFile("data_from_digitizer.root");
     sigaction(SIGINT, &act, 0); 
     for (int k=0;k<NBunch;k++)
@@ -98,8 +98,8 @@ int main()
       dig->readEvents(bunch_size,false,k*bunch_size,timeout,triggerSource); //lectura con selftrigger y timeout
       dig->storeData();
       dig->storeTempAll();
-      printf("Done.\n----------------------------------------------------------\n\n")
-      printf("Final Calibration...\n")
+      printf("Done.\n----------------------------------------------------------\n\n");
+      printf("Final Calibration...\n");
       dig->calibrate();
 
     }
