@@ -45,7 +45,7 @@ int32_t CaenDigitizerSiLab::init()
   {
     calibrate();
   }
-  std::cout<<"number of samnples per acq: "<<kSamples<<std::endl;
+  //std::cout<<"number of samnples per acq: "<<kSamples<<std::endl;
   ret = CAEN_DGTZ_SetRecordLength(handle,kSamples); // samples a grabar por acquisition windows CAMBIAR es decir tamaño de buffer
   
   if (kModel==5740){
@@ -56,12 +56,8 @@ int32_t CaenDigitizerSiLab::init()
   }
 
 
-  //adc2mv -> (ADC*2.0/( (1<<14) - 1.0 ) + 2.0*0x1000/0xffff - 1.0 -1.0)*1000
-  //trigthresh = th2int(0.5);//threshold in volts.
-  //trigthresh=15318;
-  trigthresh=mV2adc(-5);
-  //trigthresh=15000;//-43mV
-  std::cout<<"trigthreshold: "<<trigthresh<<std::endl;
+  trigthresh=mV2adc(10);
+  //std::cout<<"trigthreshold: "<< adc2mV(trigthresh)<<std::endl;
 
   uint32_t dat=0;
   uint32_t reg = 0x1088;
@@ -176,7 +172,7 @@ int32_t CaenDigitizerSiLab::getInfo()
   ret = CAEN_DGTZ_GetInfo(handle, &BoardInfo);
   printf("\nConnected to CAEN Digitizer Model %s\n", BoardInfo.ModelName);
   printf("\tROC FPGA Release is %s\n", BoardInfo.ROC_FirmwareRel);
-  printf("\tAMC FPGA Release is %s\n", BoardInfo.AMC_FirmwareRel);
+  printf("\tAMC FPGA Release is %s\n\n", BoardInfo.AMC_FirmwareRel);
   return 0;
 }
 
@@ -267,9 +263,6 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t events,bool automatic,int32_t st
 
 int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t start_event,double tm, uint32_t triggerSource)
 {
-  printf("int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t start_event,double tm, uint32_t triggerSource)\n");
-  printf("locvar: triggerSource=%d\n",triggerSource);
-  
   timeval ti,tf;
   double time_elapsed = 0.0;
   int32_t count=0;
@@ -286,7 +279,6 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
     //ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,(0x3f<<2)); //Adjacent channels paired.
     if(triggerSource == 8)
     {
-      printf("if(triggerSource == 8)\n");
       /* 
       ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_DISABLED,0x00);
       ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY);
@@ -296,26 +288,20 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
 
       CAEN_DGTZ_IOLevel_t myLevel={};
       CAEN_DGTZ_GetIOLevel (handle, &myLevel);
-      printf("\nGetIOLevel = %d (antes)\n",myLevel);
       
       CAEN_DGTZ_SetIOLevel (handle, CAEN_DGTZ_IOLevel_NIM);
       
       CAEN_DGTZ_GetIOLevel (handle, &myLevel);
-      printf("\nGetIOLevel = %d (despues)\n",myLevel);
-      
-      //printf("myLvl=%d\n",int(*myLevel));
       
     }
     else if ((0<=triggerSource)&&(triggerSource<=7)&&(kModel!=5740))
     {
-      printf("else if ((0<=triggerSource)&&(triggerSource<=7)&&(kModel!=5740))\n");
       ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
       ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,0x1<<triggerSource);
     }
     else
     {
       if(kModel==5740){
-        printf("if(kModel==5740)\n");
         ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
         ret = CAEN_DGTZ_SetGroupSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,(0x1<<0));
       }
@@ -336,7 +322,6 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
   startSWAcq();
 
   ret = CAEN_DGTZ_ReadRegister(handle,0x810C,&dat);
-  //printf("\n hola line %d, reg: %x\n",__LINE__,dat);
   gettimeofday(&ti,NULL);
   while ((count<maxEvents)&&(time_elapsed<tm)&&(quit!=1))
   {
@@ -463,11 +448,11 @@ int32_t  CaenDigitizerSiLab::setMajorCoincidence(int32_t blkmask, int32_t wd,int
 int32_t CaenDigitizerSiLab::finish()
 {
   ret = CAEN_DGTZ_FreeReadoutBuffer(&buffer);	//Frees memory allocated by the CAEN_DGTZ_MallocReadoutBuffer
-  std::cout<<"freebuffer ret.: "<<ret<<std::endl;
+  std::cout<<"Free Readout Buffer. ret.: "<<ret<<std::endl;
 	if (ret==0)
   {
     ret = CAEN_DGTZ_CloseDigitizer(handle);
-    std::cout<<"closeDigitizer ret.: "<<ret<<std::endl;
+    std::cout<<"Digitizer Comunication Closed. ret.: "<<ret<<std::endl;
     return ret;
   }
   return -1;

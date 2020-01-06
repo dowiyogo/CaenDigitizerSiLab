@@ -42,8 +42,17 @@ int main()
   sigemptyset(&act.sa_mask);
   act.sa_flags = 0;
   
-  printf("Exit: Ctrl+c\n");
-  printf("Force Exit: Ctrl+\\\n");
+
+  printf("#############################################################\n
+          #                                                           #\n
+          #         C A E N    D I G I T I Z E R    S I L A B         #\n
+          #                          UTFSM                            #\n
+          #                                                           #\n
+          #############################################################\n
+          \n
+          Exit: Ctrl+c\n
+          Force Exit: Ctrl+\\\n\n");
+
   //benchmark mide el desempeño del programa, no es vital
   bench = new TBenchmark();
   bench->Start("example");
@@ -58,10 +67,14 @@ int main()
 
   dig->setModel(model);
   dig->setTriggerPolarity(triggerpolaritymode);
+  printf("Digitizer initialization...\n\n
+          ----------------------------------------------------------\n")
   if (dig->init()>=0) {
-    printf("test:  handle=%d\n",dig->handle);
     dig->getInfo();
+    printf("----------------------------------------------------------\n\n")
 
+    printf("Digitizer Configuration...\n\n
+          ----------------------------------------------------------\n")
     dig->setPolarizationType(polarization);//rango de polarizacion
     printf("polarization: %d\n",polarization);
     
@@ -70,8 +83,11 @@ int main()
 
     int bunch_size=nevents;  //numero de eventos
     int NBunch=bunches; //numero de grupos de eventos
+    printf("----------------------------------------------------------\n\n")
 
     //Medición
+    printf("Starting Data Adquisition...\n\n
+          ----------------------------------------------------------\n")
     dig->newFile("data_from_digitizer.root");
     sigaction(SIGINT, &act, 0); 
     for (int k=0;k<NBunch;k++)
@@ -83,9 +99,10 @@ int main()
       dig->readEvents(bunch_size,false,k*bunch_size,timeout,triggerSource); //lectura con selftrigger y timeout
       dig->storeData();
       dig->storeTempAll();
+      printf("Done.\n----------------------------------------------------------\n\n")
+      printf("Final Calibration...\n")
       dig->calibrate();
-      
-      printf("test:  handle=%d\n",dig->handle);
+
     }
     dig->closeLastFile();
 
