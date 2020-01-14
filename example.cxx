@@ -81,6 +81,7 @@ int main()
     dig->setTrigmV(vthreshold);//threshold en milivolts
 
     int bunch_size=nevents;  //numero de eventos
+    printf("Max Events: %d\n",nevents);
     int NBunch=bunches; //numero de grupos de eventos
     printf("----------------------------------------------------------\n\n");
 
