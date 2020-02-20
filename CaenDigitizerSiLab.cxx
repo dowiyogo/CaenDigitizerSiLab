@@ -297,11 +297,8 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
     else if ((0<=triggerSource)&&(triggerSource<=7)&&(kModel!=5740))
     {
       ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
-      //ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,0x1<<triggerSource);
-      ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,0x1<<0);
-      ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,0x1<<1);
-      ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,0x1<<2);
-      ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,0x1<<3);
+      ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,0x1<<triggerSource);
+     //ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,0x0F);
     }
     else
     {
@@ -323,10 +320,9 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
   //setCoincidence(4);
   //setCoincidence(6);
   //setMajorCoincidence(0xe,1,0);
-
-  setCoincidence(0);
-  setCoincidence(2);
-  setMajorCoincidence(0x0011, 1,1);
+  //setCoincidence(0);
+  //setCoincidence(2);
+  //setMajorCoincidence(0xF, 0,0);
   startSWAcq();
 
   ret = CAEN_DGTZ_ReadRegister(handle,0x810C,&dat);
