@@ -1,4 +1,5 @@
 #include "CaenDigitizerSiLab.h"
+#include "CAENDigitizer.h"
 
 ClassImp(CaenDigitizerSiLab)
 
@@ -9,8 +10,8 @@ int32_t CaenDigitizerSiLab::init()
   acqmode = CAEN_DGTZ_SW_CONTROLLED;
   buffer = NULL;
   evtptr = NULL;
-  ret = CAEN_DGTZ_OpenDigitizer(CAEN_DGTZ_USB,0,0,0,&handle);
-  if(ret != CAEN_DGTZ_Success) {
+  ret = CAEN_DGTZ_OpenDigitizer(CAEN_DGTZ_USB,0,0,0,&handle);//CAEN_DGTZ_USB,0,0,0,&handle);
+  if(ret !=0){// != CAEN_DGTZ_Success) {
     printf("Can't open digitizer\n");
     return -1;
   }
