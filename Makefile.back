@@ -1,4 +1,3 @@
-
 lib = CaenDigitizerSiLab
 SRCS = $(lib).cxx # source files
 OBJS = $(SRCS:.cxx=.o)
@@ -19,32 +18,29 @@ HEADERS := $(lib).h
 
 all: lib$(lib).so.1.0.1 link example
 
-example: example.o configuration.o CaenDigitizerSiLab.o CaenDigitizerSiLabDict.o
-	$(CXX) $(LDFLAGS) $^ -L. -lCaenDigitizerSiLab -lCAENDigitizer $(LIBS) -o $@
+example: example.o configuration.o
+	$(CXX) $(LIBS) -L. -lCaenDigitizerSiLab -lCAENDigitizer $(LDFLAGS)  $^ -o $@
 
 example.o : example.cxx
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c $^ -o $@
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c  $^ -o $@
 
 configuration.o: configuration.C
-	$(CXX) $(INCLUDES) $(CXXFLAGS) -c $^ -o $@
-	#$(CXX) -c -Wall -DLINUX -DUNIX $^ -o $@
-	#$(CXX) $(INCLUDES) -Wall -DLINUX -DUNIX -c $^ -o $@
+	$(CXX) $(INCLUDES) $(CXXFLAGS) -c  $^ -o $@
+		#$(CXX) -c -Wall -DLINUX -DUNIX $^ -o $@
+		#$(CXX) $(INCLUDES) -Wall -DLINUX -DUNIX -c $^ -o $@
 
-$(lib)Dict.cxx: configuration.h $(HEADERS) LinkDef.h
+$(lib)Dict.cxx:  configuration.h $(HEADERS) LinkDef.h
 	rootcling -f $(lib)Dict.cxx $^
 
-CaenDigitizerSiLabDict.o: CaenDigitizerSiLabDict.cxx
-	$(CXX) $(CXXFLAGS) -c $^ -o $@
-
-lib$(lib).so.1.0.1 : $(OBJS) CaenDigitizerSiLabDict.o
-	$(CXX) $(LDFLAGS) $(LIBS) $(CXXFLAGS) -shared -Wl,-soname,lib$(lib).so.1 $^ -lc -o $@
+lib$(lib).so.1.0.1 : $(OBJS) $(lib)Dict.cxx
+	$(CXX) $(LDFLAGS) $(LIBS) $(CXXFLAGS)  -shared -Wl,-soname,lib$(lib).so.1  $^ -lc -o $@
 
 %.o : %.cxx
 	$(CXX) $(CXXFLAGS) -g -c -Wall -fPIC $^ -o $@
 
 .PHONY: CLEAN link
 clean:
-	rm -f *.o *.d *.pcm *.root *.txt CaenDigitizerSiLabDict.cxx CaenDigitizerSiLabDict.o example
+	rm -f *.o *.d *.pcm *.root *.txt CaenDigitizerSiLabDict.cxx example
 
 link:
 	ln -sf libCaenDigitizerSiLab.so.1.0.1 libCaenDigitizerSiLab.so.1

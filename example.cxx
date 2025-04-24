@@ -1,10 +1,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 ////  Desarrollado por Orlando Soto.
 ////  Comentado, analizado y reparado por Jairo González.
-////  Documentación disponible en:
-////  http://silab.fis.utfsm.cl/wiki/Manuales_Equipos_Lab
+////  Actualizado por Rene Rios.
+////  
+//// 
 ////
-////  SiLab 2018
+////  SiLab 2018 / X-PLUS 2025
 ////
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,6 +17,7 @@
 
 CaenDigitizerSiLab *dig;
 TBenchmark *bench;
+char filename[50];
 
 //Variables para control de flujo del programa (signal handler)
 int quit=0;
@@ -35,18 +37,29 @@ void signalHandler(int sig)
   }
 }
 
-int main()
+int main(int argc,char *argv[])
 {
   struct sigaction act;
   act.sa_handler = signalHandler;
   sigemptyset(&act.sa_mask);
   act.sa_flags = 0;
   
+  if (argc>2){		/*There are not arguments for input in this executable file*/
+		printf("you just can insert only one parameter \n\
+			example [<filename>]\n"); 
+		return 0;
+	}
+	else if(argc>1){
+		sprintf(filename,"%s.root",argv[1]);	
+		}
+	else {
+		sprintf(filename,"data_from_digitizer.root");
+	}
 
   printf("#############################################################\n"
          "#                                                           #\n"
-         "#         C A E N    D I G I T I Z E R    S I L A B         #\n"
-         "#                          UTFSM                            #\n"
+         "#         C A E N    D I G I T I Z E R    X - P L U S       #\n"
+         "#                          ULS                              #\n"
          "#                                                           #\n"
          "#############################################################\n\n"
          "Exit: Ctrl+c\n"
@@ -88,7 +101,7 @@ int main()
     //Medición
     printf("Starting Data Adquisition...\n"
           "----------------------------------------------------------\n");
-    dig->newFile("data_from_digitizer.root");
+    dig->newFile(Form("%s",filename));
     sigaction(SIGINT, &act, 0); 
     for (int k=0;k<NBunch;k++)
     {
