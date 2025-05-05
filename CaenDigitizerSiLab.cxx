@@ -1,4 +1,5 @@
 #include "CaenDigitizerSiLab.h"
+using namespace std::chrono;
 
 ClassImp(CaenDigitizerSiLab)
 
@@ -117,9 +118,9 @@ int32_t CaenDigitizerSiLab::newFile(const char* name)
     branches.Append(":");
     branches.Append(Form("Ch%d",k));
   }
-  branches.Append(":time:event");
+  branches.Append(":time:event:timestamp");
   ofile = new TFile(name,"recreate");
-  data = new TNtuple("data","amp (adc ch) and time (nsample)",branches.Data() );
+  data = new TNtuple("data","amp (adc ch) and time (nsample) time_stamp (us)",branches.Data() );
 
   return 0;
 }
@@ -353,7 +354,9 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
     ret = CAEN_DGTZ_GetNumEvents(handle,buffer,bsize,&numEvents);
     printf("\revents: %d",count);
     fflush(stdout);
-    Float_t *data_arr = new Float_t[NCh+2];
+    auto now = steady_clock::now();
+    double timestamp = duration_cast<microseconds>(now.time_since_epoch()).count();
+    Float_t *data_arr = new Float_t[NCh+3];
     for (int32_t i=0;i<int32_t(numEvents);i++)
     {
       ret = CAEN_DGTZ_GetEventInfo(handle,buffer,bsize,i,&eventInfo,(char **)&evtptr);
@@ -368,6 +371,7 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
 	        }
 	        data_arr[NCh]=j*(kSamplingTime*1000000000); // Tiempo de sampling
 	        data_arr[NCh+1]=count+i+start_event;
+          data_arr[NCh+2]=timestamp;
 	        data->Fill(data_arr);
       }
 
