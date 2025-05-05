@@ -93,6 +93,10 @@ public:
   int32_t  mV2adc(float mV) {return ( mV/1000.0 + MaxVpp*(1 - kOffset/(float)0xffff ) )*( (1<<NBit) - 1.0 )/(float)MaxVpp;}
   int32_t newFile(const char* name);
   int32_t closeLastFile();
+  int32_t configureGlobalTrigger(uint8_t pair_mask, uint8_t coinc_window, uint8_t majority_level);
+  int32_t forceGlobalTriggerMask(uint8_t pair_mask, uint8_t coinc_window);
+  int32_t setAllCoincidencesToAND();
+
 
 
   //configura el model de digitizer a utilizar. Por defecto se utiliza el DT5730

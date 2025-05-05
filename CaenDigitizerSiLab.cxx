@@ -276,7 +276,7 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t events,bool automatic,int32_t st
   return 0;
 }
 
-int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t start_event,double tm, uint32_t triggerSource)
+int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t start_event,double tm, uint32_t triggerSource) // tm= timeout
 {
   timeval ti,tf;
   double time_elapsed = 0.0;
@@ -330,10 +330,10 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
     }
   }
 
-  setCoincidence(0);
-  //setCoincidence(2);
-  //setCoincidence(4);
-  //setCoincidence(6);
+  setCoincidence(0); // par 0 1 
+  //setCoincidence(2); // par 2 3
+  //setCoincidence(4); // par 4 5
+  //setCoincidence(6); // par 6 7
   //setMajorCoincidence(0xe,1,0);
   //setCoincidence(0);
   //setCoincidence(2);
@@ -436,31 +436,100 @@ int32_t CaenDigitizerSiLab::storeData()
   return 0;
 }
 
-int32_t  CaenDigitizerSiLab::setCoincidence(int32_t ch0)
+int32_t CaenDigitizerSiLab::setCoincidence(int32_t ch0)
 {
-  if (ch0%2!=0)
+  if (ch0 % 2 != 0)
   {
     printf("Coincidence not possible, use only with even channels\n");
-    //raise(SIGINT);
+    return -1;
   }
-  uint32_t data=0;
-  uint32_t reg = 0x1084 | ch0<<8;
-  ret = CAEN_DGTZ_ReadRegister(handle,reg,&data);
-  uint32_t opt=0x0;//0: AND, 1: only n, 2: only n+1, 3: OR
-  data = (data&~0x3) | (opt);
-  ret = CAEN_DGTZ_WriteRegister(handle,reg,data);
-  ret = CAEN_DGTZ_ReadRegister(handle,reg,&data);
+
+  int32_t ret = 0;
+  uint32_t data = 0;
+  uint32_t reg = 0x1000 + (ch0 << 8) + 0x84; // Dirección 0x1n84 para pareja ch0/ch0+1
+
+  ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+
+  uint32_t opt = 0x0; // 00: AND
+  data = (data & ~0x3) | opt;
+
+  ret = CAEN_DGTZ_WriteRegister(handle, reg, data);
+  ret = CAEN_DGTZ_ReadRegister(handle, reg, &data); // Verificación opcional
+
   return ret;
 }
 
-int32_t  CaenDigitizerSiLab::setMajorCoincidence(int32_t blkmask, int32_t wd,int32_t level)
+
+int32_t CaenDigitizerSiLab::setMajorCoincidence(int32_t blkmask, int32_t wd, int32_t level)
 {
-  uint32_t data=0;
+  uint32_t data = 0;
   uint32_t reg = 0x810C;
-  ret = CAEN_DGTZ_ReadRegister(handle,reg,&data);
-  data = (data&~0xF&(0xF<<20)&(0x7<<24)) | (blkmask&0xF) | ((wd&0xF)<<20) | ((level&0x7)<<24);
-  ret = CAEN_DGTZ_WriteRegister(handle,reg,data);
-  ret = CAEN_DGTZ_ReadRegister(handle,reg,&data);
+
+  // Leer valor actual
+  ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+
+  // Limpiar bits [7:0], [23:20] y [26:24]
+  data &= ~((0xFF) | (0xF << 20) | (0x7 << 24));
+
+  // Establecer nuevos valores
+  data |= (blkmask & 0xFF);        // parejas activadas
+  data |= ((wd & 0xF) << 20);      // ventana de coincidencia
+  data |= ((level & 0x7) << 24);   // nivel de mayoría
+
+  // Escribir valor nuevo
+  ret = CAEN_DGTZ_WriteRegister(handle, reg, data);
+
+  // Leer de nuevo para verificar
+  ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+
+  return ret;
+}
+
+int32_t CaenDigitizerSiLab::setAllCoincidencesToAND()
+{
+  int32_t ret = 0;
+  uint32_t data = 0;
+  uint32_t reg = 0;
+
+  const int numChannels = 8; // Cambia esto si usas un modelo con más canales (por ejemplo 16)
+
+  for (int ch = 0; ch < numChannels; ch += 2) {
+    reg = 0x1000 + (ch << 8) + 0x84; // dirección 0x1n84
+    ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+
+    data = (data & ~0x3) | 0x0; // Set bits [1:0] = 00 → AND
+
+    ret = CAEN_DGTZ_WriteRegister(handle, reg, data);
+    ret = CAEN_DGTZ_ReadRegister(handle, reg, &data); // lectura opcional para verificación
+  }
+
+  return ret;
+}
+
+int32_t CaenDigitizerSiLab::forceGlobalTriggerMask(uint8_t pair_mask, uint8_t coinc_window)
+{
+  int32_t ret = 0;
+  uint32_t data = 0;
+  uint32_t reg = 0x810C;
+
+  // Leer valor actual
+  ret |= CAEN_DGTZ_ReadRegister(handle, reg, &data);
+
+  // Limpiar: bits [7:0] (pair mask), [23:20] (coinc window), [26:24] (majority)
+  data &= ~((0xFF) | (0xF << 20) | (0x7 << 24));
+
+  // Aplicar nueva configuración
+  data |= (pair_mask & 0xFF);           // Qué parejas están activas
+  data |= ((coinc_window & 0xF) << 20); // Ventana de coincidencia
+  data |= (0 << 24);                    // Desactiva majority (nivel 0)
+
+  // Escribir y verificar
+  ret = CAEN_DGTZ_WriteRegister(handle, reg, data);
+  ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+
+  // Opcional: imprimir confirmación
+  printf("Trigger mask set: 0x%02X, coincidence window: %d x Tclk (e.g. 8 ns)\n", pair_mask, coinc_window);
+
   return ret;
 }
 
@@ -490,4 +559,37 @@ CaenDigitizerSiLab::~CaenDigitizerSiLab()
   //ofile->Close();
 
   //  CAEN_DGTZ_FreeEvent(handle,(void **)&Evt);
+}
+
+int32_t CaenDigitizerSiLab::configureGlobalTrigger(uint8_t pair_mask, uint8_t coinc_window, uint8_t majority_level)
+{
+  int32_t ret = 0;
+  uint32_t data = 0;
+  uint32_t reg = 0x810C;
+
+  // Leer el valor actual del registro
+  ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+
+  // Limpiar los campos relevantes:
+  // [7:0]   → parejas habilitadas
+  // [23:20] → ventana coincidencia
+  // [26:24] → nivel de mayoría
+  data &= ~((0xFF) | (0xF << 20) | (0x7 << 24));
+
+  // Escribir nueva configuración
+  data |= (pair_mask & 0xFF);                 // Qué parejas están activas
+  data |= ((coinc_window & 0xF) << 20);       // Ventana de coincidencia
+  data |= ((majority_level & 0x7) << 24);     // Nivel de mayoría (0 = desactivado)
+
+  // Escribir el nuevo valor al registro
+  ret = CAEN_DGTZ_WriteRegister(handle, reg, data);
+
+  // Leer nuevamente para verificar
+  ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+
+  // Imprimir configuración resultante
+  printf("Trigger mask = 0x%02X, coincidence window = %d x Tclk, majority level = %d\n",
+         pair_mask, coinc_window, majority_level);
+
+  return ret;
 }
