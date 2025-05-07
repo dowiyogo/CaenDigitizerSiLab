@@ -96,6 +96,9 @@ public:
   int32_t configureGlobalTrigger(uint8_t pair_mask, uint8_t coinc_window, uint8_t majority_level);
   int32_t forceGlobalTriggerMask(uint8_t pair_mask, uint8_t coinc_window);
   int32_t setAllCoincidencesToAND();
+  void printTriggerConfiguration(); 
+  int32_t enableAllChannelsORTrigger();
+  int32_t enableChannelPairsANDTrigger(uint8_t coinc_window, uint8_t majority_level);
 
 
 

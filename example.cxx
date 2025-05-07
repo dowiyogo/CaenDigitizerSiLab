@@ -102,6 +102,7 @@ int main(int argc,char *argv[])
     //Medición
     printf("Starting Data Adquisition...\n"
           "----------------------------------------------------------\n");
+    //dig->printTriggerConfiguration();
     dig->newFile(Form("%s",filename));
     sigaction(SIGINT, &act, 0); 
     for (int k=0;k<NBunch;k++)

@@ -331,14 +331,19 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
     }
   }
 
-  setCoincidence(0); // par 0 1 
+  //setCoincidence(0); // par 0 1 
   //setCoincidence(2); // par 2 3
   //setCoincidence(4); // par 4 5
   //setCoincidence(6); // par 6 7
   //setMajorCoincidence(0xe,1,0);
   //setCoincidence(0);
   //setCoincidence(2);
-  setMajorCoincidence(0x1, 0,0);
+  //setAllCoincidencesToAND();
+  //forceGlobalTriggerMask(0xFF,10);
+  enableAllChannelsORTrigger();
+  //enableChannelPairsANDTrigger(8, 0);
+  printTriggerConfiguration();
+  //setMajorCoincidence(0x1, 0,0);
   startSWAcq();
 
   ret = CAEN_DGTZ_ReadRegister(handle,0x810C,&dat);
@@ -531,8 +536,11 @@ int32_t CaenDigitizerSiLab::forceGlobalTriggerMask(uint8_t pair_mask, uint8_t co
   ret = CAEN_DGTZ_WriteRegister(handle, reg, data);
   ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
 
+  // Tclk para DT5730
+    constexpr double Tclk_ns = 8.0; // 8 ns por ciclo
+
   // Opcional: imprimir confirmación
-  printf("Trigger mask set: 0x%02X, coincidence window: %d x Tclk (e.g. 8 ns)\n", pair_mask, coinc_window);
+  printf("Trigger mask set: 0x%02X, coincidence window: %.1f ns \n", pair_mask, coinc_window*Tclk_ns);
 
   return ret;
 }
@@ -567,33 +575,232 @@ CaenDigitizerSiLab::~CaenDigitizerSiLab()
 
 int32_t CaenDigitizerSiLab::configureGlobalTrigger(uint8_t pair_mask, uint8_t coinc_window, uint8_t majority_level)
 {
+    int32_t ret = 0;
+    uint32_t data = 0;
+    uint32_t reg = 0x810C;
+
+    // Leer valor actual
+    ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+    if (ret != 0) {
+        printf("Error reading trigger register (0x810C)\n");
+        return ret;
+    }
+
+    // Limpiar campos: [7:0]=parejas, [23:20]=ventana, [26:24]=mayoría
+    data &= ~((0xFF) | (0xF << 20) | (0x7 << 24));
+
+    // Construir nuevo valor
+    data |= (pair_mask & 0xFF);                 // habilitación de parejas
+    data |= ((coinc_window & 0xF) << 20);       // ventana de coincidencia
+    data |= ((majority_level & 0x7) << 24);     // nivel de mayoría
+
+    // Escribir configuración
+    ret = CAEN_DGTZ_WriteRegister(handle, reg, data);
+    if (ret != 0) {
+        printf("Error writing trigger register (0x810C)\n");
+        return ret;
+    }
+
+    // Leer nuevamente para verificar
+    ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+    if (ret != 0) {
+        printf("Error verifying trigger register (0x810C)\n");
+        return ret;
+    }
+
+    // Tclk para DT5730
+    constexpr double Tclk_ns = 8.0; // 8 ns por ciclo
+
+    printf(">>> Global Trigger Configuration:\n");
+    printf("  - Enabled Pairs Mask      = 0x%02X\n", pair_mask);
+    printf("  - Coincidence Window      = %d clock cycles = %.1f ns\n", coinc_window, coinc_window * Tclk_ns);
+    if (majority_level > 0)
+        printf("  - Majority Level Required = %d channels\n", majority_level);
+    else
+        printf("  - Majority Trigger        = DISABLED\n");
+
+    return 0;
+}
+
+
+void CaenDigitizerSiLab::printTriggerConfiguration() { // para el 5730
+  if (handle < 0) {
+      printf("Digitizer handle is invalid.\n");
+      return;
+  }
+
+  uint32_t data = 0;
+  int ret;
+
+  printf("\n========== TRIGGER CONFIGURATION (DT5730) ==========\n");
+
+  // 1. Trigger Thresholds por canal (CH0–CH7)
+  printf("Trigger Thresholds per Channel:\n");
+  for (int ch = 0; ch < 8; ++ch) {
+      uint32_t addr = 0x1080 + (ch << 8);  // Threshold register
+      ret = CAEN_DGTZ_ReadRegister(handle, addr, &data);
+      if (ret == 0)
+          printf("  - Channel %d: Threshold = %u\n", ch, data & 0x3FFF);
+      else
+          printf("  - Channel %d: Error reading threshold\n", ch);
+  }
+
+  // 2. Trigger Source Enable Mask (0x810C)
+  ret = CAEN_DGTZ_ReadRegister(handle, 0x810C, &data);
+  if (ret == 0) {
+      printf("\nGlobal Trigger Configuration Register (0x810C): 0x%08X\n", data);
+
+      uint8_t pair_mask      = data & 0xFF;
+      uint8_t coinc_window   = (data >> 20) & 0xF;
+      uint8_t majority_level = (data >> 24) & 0x7;
+      constexpr double Tclk_ns = 8.0;  // 125 MS/s → 8 ns
+
+      printf("  - Enabled Pairs Mask      = 0x%02X\n", pair_mask);
+      printf("  - Coincidence Window      = %u clock cycles = %.1f ns\n", coinc_window, coinc_window * Tclk_ns);
+      if (majority_level > 0)
+          printf("  - Majority Level Required = %u channels\n", majority_level);
+      else
+          printf("  - Majority Trigger        = DISABLED\n");
+  } else {
+      printf("\nGlobal Trigger Configuration Register: Error reading\n");
+  }
+
+  // 3. Acquisition Control Register (0x8100)
+  ret = CAEN_DGTZ_ReadRegister(handle, 0x8100, &data);
+  if (ret == 0) {
+      printf("\nAcquisition Control Register (0x8100): 0x%08X\n", data);
+      printf("  - Software Trigger: %s\n", (data & (1 << 2)) ? "ENABLED" : "DISABLED");
+      printf("  - External Trigger: %s\n", (data & (1 << 3)) ? "ENABLED" : "DISABLED");
+  } else {
+      printf("\nAcquisition Control Register: Error reading\n");
+  }
+
+  // 4. Coincidence Logic (even channels only)
+  printf("\nCoincidence Logic Between Neighbor Channels:\n");
+  for (int ch = 0; ch < 8; ch += 2) {
+      uint32_t addr = 0x1084 + (ch << 8);
+      ret = CAEN_DGTZ_ReadRegister(handle, addr, &data);
+      if (ret == 0) {
+          uint32_t mode = data & 0x3;
+          const char* mode_str[] = {"AND", "Only N", "Only N+1", "OR"};
+          printf("  - CH%d/CH%d: Mode = %s (0x%X)\n", ch, ch + 1, mode_str[mode], mode);
+      } else {
+          printf("  - CH%d/CH%d: Error reading coincidence mode\n", ch, ch + 1);
+      }
+  }
+
+  printf("====================================================\n");
+}
+
+int32_t CaenDigitizerSiLab::enableAllChannelsORTrigger() {
   int32_t ret = 0;
   uint32_t data = 0;
-  uint32_t reg = 0x810C;
 
-  // Leer el valor actual del registro
-  ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+  // 1. Configurar todos los pares en modo OR
+  for (int ch = 0; ch < 8; ch += 2) {
+      uint32_t addr = 0x1084 + (ch << 8); // Dirección del registro de coincidencia
+      ret = CAEN_DGTZ_ReadRegister(handle, addr, &data);
+      if (ret != 0) {
+          printf("Error leyendo modo de coincidencia en CH%d/CH%d\n", ch, ch + 1);
+          return ret;
+      }
 
-  // Limpiar los campos relevantes:
-  // [7:0]   → parejas habilitadas
-  // [23:20] → ventana coincidencia
-  // [26:24] → nivel de mayoría
+      // Set bits [1:0] = 0x3 (modo OR)
+      data = (data & ~0x3) | 0x3;
+      ret = CAEN_DGTZ_WriteRegister(handle, addr, data);
+      if (ret != 0) {
+          printf("Error configurando modo OR en CH%d/CH%d\n", ch, ch + 1);
+          return ret;
+      }
+  }
+
+  // 2. Configurar 0x810C: activar todos los pares, coincidencia de 4 ciclos, mayoría desactivada
+  uint8_t pair_mask = 0xFF;          // CH0–CH7 (pares CH0/1, CH2/3, ...)
+  uint8_t coinc_window = 4;          // 4 × 8 ns = 32 ns
+  uint8_t majority_level = 0;        // desactivado
+
+  // Leer valor actual de 0x810C
+  ret = CAEN_DGTZ_ReadRegister(handle, 0x810C, &data);
+  if (ret != 0) {
+      printf("Error leyendo registro 0x810C\n");
+      return ret;
+  }
+
+  // Limpiar bits [7:0], [23:20], [26:24]
   data &= ~((0xFF) | (0xF << 20) | (0x7 << 24));
 
-  // Escribir nueva configuración
-  data |= (pair_mask & 0xFF);                 // Qué parejas están activas
-  data |= ((coinc_window & 0xF) << 20);       // Ventana de coincidencia
-  data |= ((majority_level & 0x7) << 24);     // Nivel de mayoría (0 = desactivado)
+  // Insertar nuevos valores
+  data |= (pair_mask & 0xFF);
+  data |= ((coinc_window & 0xF) << 20);
+  data |= ((majority_level & 0x7) << 24);
 
-  // Escribir el nuevo valor al registro
-  ret = CAEN_DGTZ_WriteRegister(handle, reg, data);
+  ret = CAEN_DGTZ_WriteRegister(handle, 0x810C, data);
+  if (ret != 0) {
+      printf("Error escribiendo registro 0x810C\n");
+      return ret;
+  }
 
-  // Leer nuevamente para verificar
-  ret = CAEN_DGTZ_ReadRegister(handle, reg, &data);
+  printf("Todos los pares configurados en modo OR, habilitados para trigger.\n");
+  printf("Coincidence window = %u cycles (%.1f ns), Majority = DISABLED\n",
+         coinc_window, coinc_window * 8.0);
+  return 0;
+}
 
-  // Imprimir configuración resultante
-  printf("Trigger mask = 0x%02X, coincidence window = %d x Tclk, majority level = %d\n",
-         pair_mask, coinc_window, majority_level);
+int32_t CaenDigitizerSiLab::enableChannelPairsANDTrigger(uint8_t coinc_window, uint8_t majority_level) {
+  int32_t ret = 0;
+  uint32_t data = 0;
 
-  return ret;
+  // Validación básica
+  if (coinc_window > 15 || majority_level > 7) {
+      printf("Parámetros inválidos: coinc_window ≤ 15, majority_level ≤ 7\n");
+      return -1;
+  }
+
+  // 1. Configurar todos los pares en modo AND
+  for (int ch = 0; ch < 8; ch += 2) {
+      uint32_t addr = 0x1084 + (ch << 8); // Dirección del registro de coincidencia CHch/CHch+1
+      ret = CAEN_DGTZ_ReadRegister(handle, addr, &data);
+      if (ret != 0) {
+          printf("Error leyendo modo de coincidencia en CH%d/CH%d\n", ch, ch + 1);
+          return ret;
+      }
+
+      // Modo AND: bits [1:0] = 0x0
+      data = (data & ~0x3) | 0x0;
+      ret = CAEN_DGTZ_WriteRegister(handle, addr, data);
+      if (ret != 0) {
+          printf("Error configurando modo AND en CH%d/CH%d\n", ch, ch + 1);
+          return ret;
+      }
+  }
+
+  // 2. Configurar el registro 0x810C
+  uint8_t pair_mask = 0xFF;  // Todas las parejas habilitadas
+
+  ret = CAEN_DGTZ_ReadRegister(handle, 0x810C, &data);
+  if (ret != 0) {
+      printf("Error leyendo registro 0x810C\n");
+      return ret;
+  }
+
+  // Limpiar bits [7:0], [23:20], [26:24]
+  data &= ~((0xFF) | (0xF << 20) | (0x7 << 24));
+
+  // Insertar configuración
+  data |= (pair_mask & 0xFF);
+  data |= ((coinc_window & 0xF) << 20);
+  data |= ((majority_level & 0x7) << 24);
+
+  ret = CAEN_DGTZ_WriteRegister(handle, 0x810C, data);
+  if (ret != 0) {
+      printf("Error escribiendo registro 0x810C\n");
+      return ret;
+  }
+
+  printf("Pares CH0/1 a CH6/7 configurados en modo AND y habilitados para trigger global.\n");
+  printf("Ventana de coincidencia: %u ciclos (%.1f ns), Nivel de mayoría: %s\n",
+         coinc_window, coinc_window * 8.0,
+         majority_level ? std::to_string(majority_level).c_str() : "DESACTIVADO");
+
+  return 0;
 }
