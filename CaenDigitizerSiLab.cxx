@@ -340,7 +340,7 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
   //setCoincidence(2);
   //setAllCoincidencesToAND();
   //forceGlobalTriggerMask(0xFF,10);
-  enableAllChannelsORTrigger();
+  //enableAllChannelsORTrigger();
   //enableChannelPairsANDTrigger(8, 0);
   printTriggerConfiguration();
   //setMajorCoincidence(0x1, 0,0);
@@ -622,8 +622,7 @@ int32_t CaenDigitizerSiLab::configureGlobalTrigger(uint8_t pair_mask, uint8_t co
     return 0;
 }
 
-
-void CaenDigitizerSiLab::printTriggerConfiguration() { // para el 5730
+void CaenDigitizerSiLab::printTriggerConfiguration() {
   if (handle < 0) {
       printf("Digitizer handle is invalid.\n");
       return;
@@ -648,12 +647,12 @@ void CaenDigitizerSiLab::printTriggerConfiguration() { // para el 5730
   // 2. Trigger Source Enable Mask (0x810C)
   ret = CAEN_DGTZ_ReadRegister(handle, 0x810C, &data);
   if (ret == 0) {
-      printf("\nGlobal Trigger Configuration Register (0x810C): 0x%08X\n", data);
+      printf("\nTrigger Source Enable Mask (0x810C): 0x%08X\n", data);
 
       uint8_t pair_mask      = data & 0xFF;
       uint8_t coinc_window   = (data >> 20) & 0xF;
       uint8_t majority_level = (data >> 24) & 0x7;
-      constexpr double Tclk_ns = 8.0;  // 125 MS/s → 8 ns
+      constexpr double Tclk_ns = 8.0;
 
       printf("  - Enabled Pairs Mask      = 0x%02X\n", pair_mask);
       printf("  - Coincidence Window      = %u clock cycles = %.1f ns\n", coinc_window, coinc_window * Tclk_ns);
@@ -661,21 +660,23 @@ void CaenDigitizerSiLab::printTriggerConfiguration() { // para el 5730
           printf("  - Majority Level Required = %u channels\n", majority_level);
       else
           printf("  - Majority Trigger        = DISABLED\n");
+
+      // Bits 30: software trigger, 31: external trigger
+      printf("  - Software Trigger        = %s\n", (data & (1U << 30)) ? "ENABLED" : "DISABLED");
+      printf("  - External Trigger        = %s\n", (data & (1U << 31)) ? "ENABLED" : "DISABLED");
+
+      // Canal individual habilitado
+      printf("  - Channel Trigger Enable:\n");
+      for (int ch = 0; ch < 8; ++ch) {
+          bool enabled = data & (1 << ch);
+          printf("    · CH%d: %s\n", ch, enabled ? "ENABLED" : "DISABLED");
+      }
+
   } else {
-      printf("\nGlobal Trigger Configuration Register: Error reading\n");
+      printf("\nTrigger Source Enable Mask: Error reading\n");
   }
 
-  // 3. Acquisition Control Register (0x8100)
-  ret = CAEN_DGTZ_ReadRegister(handle, 0x8100, &data);
-  if (ret == 0) {
-      printf("\nAcquisition Control Register (0x8100): 0x%08X\n", data);
-      printf("  - Software Trigger: %s\n", (data & (1 << 2)) ? "ENABLED" : "DISABLED");
-      printf("  - External Trigger: %s\n", (data & (1 << 3)) ? "ENABLED" : "DISABLED");
-  } else {
-      printf("\nAcquisition Control Register: Error reading\n");
-  }
-
-  // 4. Coincidence Logic (even channels only)
+  // 3. Coincidence Logic (even channels only)
   printf("\nCoincidence Logic Between Neighbor Channels:\n");
   for (int ch = 0; ch < 8; ch += 2) {
       uint32_t addr = 0x1084 + (ch << 8);
@@ -691,6 +692,7 @@ void CaenDigitizerSiLab::printTriggerConfiguration() { // para el 5730
 
   printf("====================================================\n");
 }
+
 
 int32_t CaenDigitizerSiLab::enableAllChannelsORTrigger() {
   int32_t ret = 0;
