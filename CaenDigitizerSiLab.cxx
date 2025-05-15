@@ -125,6 +125,33 @@ int32_t CaenDigitizerSiLab::newFile(const char* name)
   return 0;
 }
 
+
+int32_t CaenDigitizerSiLab::newFileTree(const char* name)
+{
+    // Crear archivo de salida
+    ofile = new TFile(name, "RECREATE");
+    Chn.resize(NCh);
+
+    // Crear TTree
+    datatree = new TTree("data", "amp (adc ch) and time (nsample) time_stamp (us)");
+
+    // Inicializar vectores si no están
+    vtime.clear();
+    for (int ch = 0; ch < NCh; ++ch)
+        Chn[ch].clear();
+
+    // Crear ramas para cada canal como vector<float>
+    for (int ch = 0; ch < NCh; ++ch)
+        datatree->Branch(Form("Ch%d", ch), &Chn[ch]);
+
+    // Ramas adicionales
+    datatree->Branch("time", &vtime);
+    datatree->Branch("event", &event);
+    datatree->Branch("timestamp", &timestamp);
+
+    return 0;
+}
+
 int32_t CaenDigitizerSiLab::closeLastFile()
 {
   ofile->Close();
@@ -360,7 +387,7 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
     printf("\revents: %d",count);
     fflush(stdout);
     auto now = steady_clock::now();
-    double timestamp = duration_cast<microseconds>(now.time_since_epoch()).count();
+    int64_t timestamp = duration_cast<microseconds>(now.time_since_epoch()).count();
     Float_t *data_arr = new Float_t[NCh+3];
     for (int32_t i=0;i<int32_t(numEvents);i++)
     {
@@ -393,6 +420,114 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
 	printf("Retrieved %d Event\n",count);
   stopSWAcq();
   return 0;
+}
+
+int32_t CaenDigitizerSiLab::readEventsTree(int32_t maxEvents, bool automatic, int32_t start_event, double tm, uint32_t triggerSource)
+{
+    // Inicialización del digitizador
+    timeval ti, tf;
+    double time_elapsed = 0.0;
+    int32_t count = 0;
+    uint32_t dat = 0;
+
+    // Asegúrate de que los vectores estén limpios
+    
+    for (int ch = 0; ch < NCh; ++ch)
+        Chn[ch].clear();
+
+    ret = CAEN_DGTZ_FreeReadoutBuffer(&buffer);
+    ret = CAEN_DGTZ_MallocReadoutBuffer(handle, &buffer, (uint32_t*)&size);
+
+    if (!automatic)
+    {
+        if (triggerSource == 9)
+        {
+            ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY);
+            CAEN_DGTZ_SetIOLevel(handle, CAEN_DGTZ_IOLevel_NIM);
+        }
+        else if ((0 <= triggerSource) && (triggerSource <= 7) && (kModel != 5740))
+        {
+            ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
+            ret = CAEN_DGTZ_SetChannelSelfTrigger(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY, (0x1 << triggerSource));
+        }
+        else
+        {
+            if (kModel == 5740)
+            {
+                ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
+                ret = CAEN_DGTZ_SetGroupSelfTrigger(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY, (0x1 << 0));
+            }
+            else
+            {
+                printf("Invalid Trigger Source, setting Ch0 as default source.\n");
+                ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
+                ret = CAEN_DGTZ_SetChannelSelfTrigger(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY, (0x1 << 0));
+            }
+        }
+    }
+
+    printTriggerConfiguration();
+    startSWAcq();
+
+    ret = CAEN_DGTZ_ReadRegister(handle, 0x810C, &dat);
+    gettimeofday(&ti, NULL);
+
+    while ((count < maxEvents) && (time_elapsed < tm) && (quit != 1))
+    {
+        if (automatic)
+            ret = CAEN_DGTZ_SendSWtrigger(handle);
+
+        ret = CAEN_DGTZ_ReadData(handle, CAEN_DGTZ_SLAVE_TERMINATED_READOUT_MBLT, buffer, (uint32_t*)&bsize);
+
+        uint32_t numEvents = 0;
+        ret = CAEN_DGTZ_GetNumEvents(handle, buffer, bsize, &numEvents);
+
+        printf("\revents: %d", count);
+        fflush(stdout);
+
+        auto now = std::chrono::steady_clock::now();
+        int64_t timestamp_us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()).count();
+
+        for (uint32_t i = 0; i < numEvents; ++i)
+        {
+            ret = CAEN_DGTZ_GetEventInfo(handle, buffer, bsize, i, &eventInfo, (char**)&evtptr);
+            ret = CAEN_DGTZ_DecodeEvent(handle, evtptr, (void**)&Evt);
+
+            int nsamples = Evt->ChSize[0];  // se asume que todos los canales tienen igual cantidad de muestras
+
+            // Llenar vectores por canal
+            for (int ch = 0; ch < NCh; ++ch)
+            {
+                Chn[ch].clear();
+                for (int j = 0; j < nsamples && j < kSamples; ++j)
+                {
+                    int val_adc = Evt->DataChannel[ch][j];
+                    Chn[ch].push_back(adc2mV(val_adc));
+                }
+            }
+
+            vtime.clear();
+            for (int j = 0; j < nsamples && j < kSamples; ++j)
+                vtime.push_back(j * (kSamplingTime * 1e9)); // tiempo relativo en ns
+
+            event = count + i + start_event;
+            timestamp = timestamp_us;
+
+            datatree->Fill();
+            ret = CAEN_DGTZ_FreeEvent(handle, (void**)&Evt);
+        }
+
+        count += numEvents;
+        gettimeofday(&tf, NULL);
+        time_elapsed = tf.tv_sec - ti.tv_sec + (tf.tv_usec - ti.tv_usec) / 1e6;
+    }
+
+    std::cout << std::endl;
+    printf("time elapsed: %5.2f s\n<rate>: %3.2f Hz\n", time_elapsed, count / time_elapsed);
+    printf("Retrieved %d events\n", count);
+
+    stopSWAcq();
+    return 0;
 }
 
 int32_t CaenDigitizerSiLab::getTempMeanVar()
@@ -440,6 +575,15 @@ int32_t CaenDigitizerSiLab::storeData()
 {
   ofile->cd();
   data->Write("",TObject::kOverwrite);
+  //ofile->Close();
+  // tempFile.close();
+  return 0;
+}
+
+int32_t CaenDigitizerSiLab::storeDataTree()
+{
+  ofile->cd();
+  datatree->Write("",TObject::kOverwrite);
   //ofile->Close();
   // tempFile.close();
   return 0;

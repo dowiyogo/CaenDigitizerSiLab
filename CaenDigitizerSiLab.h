@@ -55,6 +55,7 @@ public:
   TFile *ofile;
   std::ofstream tempFile;
   TNtuple *data;
+  TTree *datatree;
   float *meanTemp;
   float *varTemp;
   float *storedMeanTemp;
@@ -66,6 +67,10 @@ public:
   bool kCalibrationSupported;
   CAEN_DGTZ_TriggerPolarity_t kTriggerpolaritymode;
   Float_t kSamplingTime;
+  std::vector<std::vector<float>> Chn;   // canal 0 a NCh-1
+  std::vector<float> vtime;
+  int event;
+  int64_t timestamp;
 
 public:
  CaenDigitizerSiLab() : kPolarizationType(0), kEnableMask(0xff), kSamples(100), kDoCalibration(kFALSE) {}
@@ -99,6 +104,9 @@ public:
   void printTriggerConfiguration(); 
   int32_t enableAllChannelsORTrigger();
   int32_t enableChannelPairsANDTrigger(uint8_t coinc_window, uint8_t majority_level);
+  int32_t readEventsTree(int32_t maxEvents,bool automatic,int32_t start_event,double tm, uint32_t triggerSource);
+  int32_t storeDataTree();
+  int32_t newFileTree(const char* name);
 
 
 

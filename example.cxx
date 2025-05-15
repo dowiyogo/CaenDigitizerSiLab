@@ -103,7 +103,8 @@ int main(int argc,char *argv[])
     printf("Starting Data Adquisition...\n"
           "----------------------------------------------------------\n");
     //dig->printTriggerConfiguration();
-    dig->newFile(Form("%s",filename));
+    //dig->newFile(Form("%s",filename));
+    dig->newFileTree(Form("%s",filename));
     sigaction(SIGINT, &act, 0); 
     for (int k=0;k<NBunch;k++)
     {
@@ -111,8 +112,10 @@ int main(int argc,char *argv[])
       
       printf("start: triggerSource=%d\n",triggerSource);
       stage = 1;
-      dig->readEvents(bunch_size,false,k*bunch_size,timeout,triggerSource); //lectura con selftrigger y timeout
-      dig->storeData();
+      //dig->readEvents(bunch_size,false,k*bunch_size,timeout,triggerSource); //lectura con selftrigger y timeout
+      dig->readEventsTree(bunch_size,false,k*bunch_size,timeout,triggerSource); //lectura con selftrigger y timeout
+      //dig->storeData();
+      dig->storeDataTree();
       dig->storeTempAll();
       printf("Done.\n----------------------------------------------------------\n\n");
       printf("Final Calibration...\n");
