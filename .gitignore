@@ -3,6 +3,7 @@
 *.pcm
 *.root
 *.txt
+*.png
 CaenDigitizerSiLabDict.cxx
 example
 .vscode/
