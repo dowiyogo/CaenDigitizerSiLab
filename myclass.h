@@ -57,6 +57,8 @@ public :
    virtual void     Loop();
    virtual bool     Notify();
    virtual void     Show(Long64_t entry = -1);
+   void PlotInterEventTimeDistribution();
+   void PlotInterEventTimeDistribution(int ch, float threshold);
 };
 
 #endif

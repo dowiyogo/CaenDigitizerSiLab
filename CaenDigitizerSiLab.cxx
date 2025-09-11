@@ -892,6 +892,75 @@ int32_t CaenDigitizerSiLab::enableAllChannelsORTrigger() {
   return 0;
 }
 
+void CaenDigitizerSiLab::printTriggerConfiguration_DT5740() {
+  if (handle < 0) {
+      printf("Digitizer handle is invalid.\n");
+      return;
+  }
+
+  uint32_t data = 0;
+  int ret;
+
+  printf("\n========== TRIGGER CONFIGURATION (DT5740) ==========\n");
+
+  // 1. Trigger Thresholds por canal
+  printf("Trigger Thresholds per Channel:\n");
+  for (int ch = 0; ch < 8; ++ch) {
+      uint32_t addr = 0x1080 + (ch << 8);  // Registro de umbral por canal
+      ret = CAEN_DGTZ_ReadRegister(handle, addr, &data);
+      if (ret == 0)
+          printf("  - Channel %d: Threshold = %u\n", ch, data & 0x3FFF);
+      else
+          printf("  - Channel %d: Error reading threshold\n", ch);
+  }
+
+  // 2. Trigger Source Enable Mask (0x810C)
+  ret = CAEN_DGTZ_ReadRegister(handle, 0x810C, &data);
+  if (ret == 0) {
+      printf("\nTrigger Source Enable Mask (0x810C): 0x%08X\n", data);
+
+      uint8_t group_mask     = data & 0x3;             // Grupos 0 y 1
+      uint8_t coinc_window   = (data >> 20) & 0xF;
+      uint8_t majority_level = (data >> 24) & 0x7;
+      constexpr double Tclk_ns = 8.0;
+
+      printf("  - Enabled Groups Mask     = 0x%02X\n", group_mask);
+      printf("  - Coincidence Window      = %u clock cycles = %.1f ns\n", coinc_window, coinc_window * Tclk_ns);
+      if (majority_level > 0)
+          printf("  - Majority Level Required = %u groups\n", majority_level);
+      else
+          printf("  - Majority Trigger        = DISABLED\n");
+
+      printf("  - Software Trigger        = %s\n", (data & (1U << 30)) ? "ENABLED" : "DISABLED");
+      printf("  - External Trigger        = %s\n", (data & (1U << 31)) ? "ENABLED" : "DISABLED");
+
+      printf("  - Group Trigger Enable:\n");
+      for (int g = 0; g < 2; ++g) {
+          bool enabled = data & (1 << g);
+          printf("    · Group %d (CH%d–CH%d): %s\n", g, g * 4, g * 4 + 3, enabled ? "ENABLED" : "DISABLED");
+      }
+  } else {
+      printf("\nTrigger Source Enable Mask: Error reading\n");
+  }
+
+  // 3. Coincidence Logic por grupo
+  printf("\nGroup Coincidence Logic:\n");
+  for (int g = 0; g < 2; ++g) {
+      uint32_t addr = 0x1084 + (g << 8);  // Dirección base para grupo g
+      ret = CAEN_DGTZ_ReadRegister(handle, addr, &data);
+      if (ret == 0) {
+          uint32_t mode = data & 0x3;
+          const char* mode_str[] = {"AND", "Only N", "Only N+1", "OR"};
+          printf("  - Group %d (CH%d–CH%d): Mode = %s (0x%X)\n", g, g * 4, g * 4 + 3, mode_str[mode], mode);
+      } else {
+          printf("  - Group %d: Error reading coincidence mode\n", g);
+      }
+  }
+
+  printf("====================================================\n");
+}
+
+
 int32_t CaenDigitizerSiLab::enableChannelPairsANDTrigger(uint8_t coinc_window, uint8_t majority_level) {
   int32_t ret = 0;
   uint32_t data = 0;
@@ -947,6 +1016,60 @@ int32_t CaenDigitizerSiLab::enableChannelPairsANDTrigger(uint8_t coinc_window, u
   printf("Ventana de coincidencia: %u ciclos (%.1f ns), Nivel de mayoría: %s\n",
          coinc_window, coinc_window * 8.0,
          majority_level ? std::to_string(majority_level).c_str() : "DESACTIVADO");
+
+  return 0;
+}
+
+int32_t CaenDigitizerSiLab::enableAllChannelsORTrigger_DT5740() {
+  int32_t ret = 0;
+  uint32_t data = 0;
+
+  // 1. Configurar modo OR por grupo (dos grupos: 0 y 1)
+  for (int group = 0; group < 2; ++group) {
+      uint32_t addr = 0x1084 + (group << 8);  // Dirección por grupo
+      ret = CAEN_DGTZ_ReadRegister(handle, addr, &data);
+      if (ret != 0) {
+          printf("Error leyendo modo de coincidencia en grupo %d\n", group);
+          return ret;
+      }
+
+      // Set bits [1:0] = 0x3 (modo OR)
+      data = (data & ~0x3) | 0x3;
+      ret = CAEN_DGTZ_WriteRegister(handle, addr, data);
+      if (ret != 0) {
+          printf("Error configurando modo OR en grupo %d\n", group);
+          return ret;
+      }
+  }
+
+  // 2. Habilitar triggers en ambos grupos (0x810C)
+  uint8_t group_mask = 0x03;       // Grupos 0 y 1
+  uint8_t coinc_window = 4;        // 4 × 8 ns = 32 ns
+  uint8_t majority_level = 0;      // desactivado
+
+  ret = CAEN_DGTZ_ReadRegister(handle, 0x810C, &data);
+  if (ret != 0) {
+      printf("Error leyendo registro 0x810C\n");
+      return ret;
+  }
+
+  // Limpiar bits [1:0] (grupo), [23:20] (ventana), [26:24] (mayoría)
+  data &= ~((0x3) | (0xF << 20) | (0x7 << 24));
+
+  // Establecer valores nuevos
+  data |= (group_mask & 0x3);
+  data |= ((coinc_window & 0xF) << 20);
+  data |= ((majority_level & 0x7) << 24);
+
+  ret = CAEN_DGTZ_WriteRegister(handle, 0x810C, data);
+  if (ret != 0) {
+      printf("Error escribiendo registro 0x810C\n");
+      return ret;
+  }
+
+  printf("DT5740: Grupos 0 y 1 en modo OR, trigger habilitado.\n");
+  printf("Coincidence window = %u cycles (%.1f ns), Majority = DISABLED\n",
+         coinc_window, coinc_window * 8.0);
 
   return 0;
 }

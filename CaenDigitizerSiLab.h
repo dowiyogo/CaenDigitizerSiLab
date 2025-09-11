@@ -107,6 +107,8 @@ public:
   int32_t readEventsTree(int32_t maxEvents,bool automatic,int32_t start_event,double tm, uint32_t triggerSource);
   int32_t storeDataTree();
   int32_t newFileTree(const char* name);
+  void printTriggerConfiguration_DT5740();
+  int32_t enableAllChannelsORTrigger_DT5740();
 
 
 

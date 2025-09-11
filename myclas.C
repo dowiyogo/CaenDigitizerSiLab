@@ -143,7 +143,7 @@ void myclas::ExportToStructuredTree(const char* outputFileName)
     ROOT::EnableImplicitMT(); //Tell ROOT you want to go parallel
     ROOT::EnableThreadSafety();
     TFile* fout = new TFile(outputFileName, "RECREATE");
-    TTree* tree = new TTree("Events", "Eventos estructurados");
+    TTree* tree = new TTree("data", "Eventos estructurados");
 
     // Variables para almacenar los datos por evento
     std::vector<float> Ch[8];
