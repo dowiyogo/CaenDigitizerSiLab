@@ -1,157 +1,221 @@
-# AGENTS.md — CaenDigitizerSiLab DAQ & Analysis Environment
+# AGENTS.md
 
-> **Document Status**: Operational Guide for Autonomous Agents & Developers  
-> **Repository Path**: `/home/xplus/digitizer/CaenDigitizerSiLab-jai`  
-> **Last Reorganization**: 2026-10-17 (Branch: `reorg/2026-10-17`)  
-> **Host**: Linux / systemd (x86_64), ROOT 6.32.10, GCC 13.3.0  
+This file is for agents and people working in this repository. Read it before running
+anything. Statements carry [V: source] when verified, [I: reason] when inferred, and
+values never recorded are written as "not recorded".
 
----
+## Purpose
 
-## 1. Scope, Purpose & Architecture
+The repository contains the acquisition program for a CAEN VX1740 digitizer and the
+offline analysis of the data it records. The digitizer reads the SiPM signals of two
+scintillator hodoscopes, hod2018 on channels 0-31 and hod2019 on channels 32-63
+[V: config_vx1740_autotrigger_hod2019_ch32_63.conf:2-3]. Each hodoscope has an X plane
+and a Y plane of 16 bars.
 
-This repository drives a CAEN digitizer system and provides the offline reconstruction and analysis pipeline for a muon hodoscope detector (plastic scintillator bars read out by SiPM arrays, used for detector characterization and cosmic-muon tracking).
+This computer also controls the digitizer, so an acquisition may be running while you
+work here.
 
-The codebase is split strictly into:
-1. **DAQ Engine (Root level)**: C++ digitizer driver, CAENComm / CAENDigitizer wrappers, acquisition binaries (`test_acquire_ext_nim`, `test_acquire_sw`, `test_open`), and hardware configuration files.
-2. **Analysis Pipeline (`analysis/`)**: Offline event analysis, multi-plane cosmic track reconstruction, pulse charge and time integration, channel health monitoring, and SPE gain calibration.
-3. **Run Catalog (`runs/`)**: Production run metadata (`runs/runs_2026.csv`), including calibrated wall-clock intervals, entry counts, and detector status.
-4. **Data Isolation (`/home/xplus/digitizer/data/raw/`)**: All raw experimental data files are stored outside the Git repository in immutable, read-only directories, accessible via symlinks in the repository root.
+## Before writing anything
 
----
+Check that no acquisition is running and that no file changed in the last hour:
 
-## 2. Rules of Engagement for Autonomous Agents
+    pgrep -af -i 'caen|wavedump|digitizer|daq|acq|test_acquire'
+    find . -type f -mmin -60 -not -path './.git/*'
 
-Any autonomous agent operating in this repository must strictly adhere to the following rules:
+If either command shows activity, do not write in the repository.
 
-> [!CAUTION]
-> **Data Immutability**: NEVER attempt to delete, rename, or modify files in `/home/xplus/digitizer/data/raw/hodoscope_extnim_2026/` or any other raw data folder. Never open `.root` data files in `UPDATE` or `RECREATE` mode; use `READ` mode only.
+## Rules
 
-1. **Host Execution**: Commands must run directly on the host environment (PID 1 is `systemd`, `pgrep -c .` > 100). Never execute within an isolated container or sandbox where CAEN hardware libraries or external data paths are inaccessible.
-2. **Resource Throttling**: Wrap all heavy computation (ROOT macros, C++ compilation, Python scripts) with resource limits:
-   ```bash
-   ( ulimit -v 4194304; timeout 600 <command> )
-   ```
-   Before launching any multi-run analysis or compilation phase, check `free -m`. If available RAM is less than 4000 MB, STOP and report.
-3. **Zero Deletion Policy**: Superseded code, configurations, or data must be relocated to `attic/`, `config_commissioning/`, or `outputs/_superseded/`, never permanently deleted.
-4. **Evidence Tags**: Every statement of fact regarding digitizer configuration, channel mapping, data formats, or run history must carry an evidence tag:
-   - `[V: <file>:<line>]` or `[V: cmd <command>]` for directly verified facts.
-   - `[I: <reason>]` for deduced/inferred facts.
-   - `[U]` for unverified facts. If a parameter is unknown, record it explicitly as `not recorded`.
-5. **DAQ Binary Protection**: Do NOT rebuild DAQ binaries (`libCaenDigitizerSiLab.so`, `test_acquire_sw`, `test_acquire_ext_nim`) during routine analysis tasks. Do NOT execute acquisition binaries without explicit physical hardware authorization.
+1. Do not run test_acquire_ext_nim, test_acquire_sw, test_open, test_caencomm_open,
+   example or run_hod2019_selftrigger_threshold_scan.sh, and do not open the digitizer,
+   unless the person operating the detector asks for it in the current session.
+2. Do not create, modify, rename or delete anything under /home/xplus/digitizer/data/raw/.
+   Open data files in READ mode only.
+3. Do not run make in the repository root unless asked; use `make -n` to inspect. The
+   DAQ binaries in the root are the ones used for data taking.
+4. Do not rename configuration keys or change their units.
+5. Do not delete files. Superseded material goes to attic/ or outputs/_superseded/, with
+   one line in that directory's README stating why it was superseded and the evidence.
+6. Check RAM with `free -m` before running analysis programs; stop if available is below
+   4000 MB. Wrap heavy programs with:
 
----
+       ( ulimit -v 4194304; timeout 600 <command> )
 
-## 3. Hardware Architecture & Authoritative Channel Mapping
+## Directory map
 
-### Hardware Configuration
-- **Digitizer Model**: CAEN VX1740 (VME 6U module, 64 analog channels, 12-bit ADC) [V: `test_open.cxx:16`, `acquire_sw.log:20`].
-- **Readout Optical Link**: CAEN A4818 USB 3.0 to CONET2 optical interface (ConnectionType 2 / enum 5, LinkNum 62578, ConetNode 0, VMEBase 0x0) [V: `config_vx1740_ext_nim_1000000.conf:1-5`].
-- **Sampling Specification**: Sampling frequency 62.5 MS/s (nominal 16 ns sampling interval, code interval `1e9 / 65e6 = 15.38 ns`) [V: `CaenDigitizerSiLab.cxx:454`, `reconstruct_corrected.cxx:49`].
-- **Record Length**: 1024 samples per waveform (1023 samples recorded per event) [V: `config_vx1740_ext_nim_1000000.conf:6`].
+    CaenDigitizerSiLab.cxx/.h DAQ driver class
+    configuration.C/.h       configuration file parser
+    test_acquire_ext_nim.cxx acquisition binary for external trigger
+    test_acquire_sw.cxx      acquisition binary for software/self trigger
+    test_open.cxx            link verification binary
+    Makefile                 builds DAQ binaries only; clean does not touch data
+    config_*.conf            DAQ configurations for production runs
+    config_commissioning/    test configurations
+    analysis/src/            C++ analysis sources (compiled to analysis/bin/)
+    analysis/scripts/        analysis pipeline scripts (run from repository root)
+    analysis/macros/         ROOT macros
+    analysis/python/         Python analysis scripts
+    outputs/                 analysis outputs (not in git; results stay on disk)
+    outputs/_superseded/     outputs produced with wrong channel mapping
+    runs/runs_2026.csv       run catalog
+    logs/                    commissioning logs (not in git)
+    docs/                    library manual and reorganization record
+    attic/                   legacy DAQ code and pre-reorganization binaries
 
-### Authoritative Detector Channel Mapping
+Raw data are never stored inside the repository.
 
-The detector system consists of two hodoscope units: **Hodoscope 2018 (hod2018)** and **Hodoscope 2019 (hod2019)**, each having two orthogonal planes ($X$ and $Y$) of 16 scintillator bars (2.0 mm pitch, 98.4 mm inter-plane separation) [V: `reconstruct_corrected.cxx:57-58`].
+## Environment
 
-#### 1. Hodoscope 2018 (Direct Sequential Mapping)
-Channels 0 through 31 are sequentially mapped directly to physical bars [V: `reconstruct_corrected.cxx:197-198`, `reconstruct_tracks_interleaved.cpp:66-70`, `final_hodoscope_analysis.cpp:78-79`]:
-- **Plane X (16 bars, index $0..15$)**: Digitizer Channels `0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15` ($k = c$).
-- **Plane Y (16 bars, index $0..15$)**: Digitizer Channels `16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31` ($k = c - 16$).
+Linux Mint 22 (Ubuntu 24.04 base), GCC 13.3.0, ROOT 6.32.10 loaded by ~/.bashrc:118
+(`source ~/root6/bin/thisroot.sh`) [V]. CAEN libraries in /usr/lib: CAENDigitizer 2.17.3,
+CAENComm 1.7.0, CAENVMELib 4.0.2 [V: headers]. The VX1740 is reached through a CAEN A4818
+USB3-to-CONET2 adapter, USB ID 21e1:0016 [V: lsusb].
 
-#### 2. Hodoscope 2019 (Interleaved Cabling Mapping)
-Channels 32 through 63 follow the physical cabling recorded in the experimental logbook (Excel "Disposición Correcta") [V: `reconstruct_corrected.cxx:62-63`, `reconstruct_tracks_interleaved.cpp:27-39`]:
-- **Plane X (16 bars, index $0..15$)**:
-  ```cpp
-  // reconstruct_corrected.cxx:62
-  static const std::array<int,16> kH19X = {53, 61, 54, 62, 55, 63, 52, 60, 51, 59, 50, 58, 49, 57, 48, 56};
-  ```
-- **Plane Y (16 bars, index $0..15$)**:
-  ```cpp
-  // reconstruct_corrected.cxx:63
-  static const std::array<int,16> kH19Y = {37, 45, 38, 46, 39, 47, 36, 44, 35, 43, 34, 42, 33, 41, 32, 40};
-  ```
-- **Physical Position Conversion**:
-  $$\text{coord}_{\text{mm}} = (k + 0.5 - 8.0) \times \text{pitch}_{\text{mm}}$$
+## Acquisition program
 
-> [!IMPORTANT]
-> Any analysis output generated using sequential channel assumptions for hod2019 ($X0=\text{Ch48}, Y0=\text{Ch32}$) is invalid. All such runs have been moved to `outputs/_superseded/` [V: `outputs/_superseded/README.md`].
+The program is built from the repository root. This command was verified on 2026-10-17
+in a copy of the sources (exit code 0):
 
----
+    source ~/root6/bin/thisroot.sh
+    make libCaenDigitizerSiLab.so.1.0.1 link test_open test_acquire_sw test_acquire_ext_nim
 
-## 4. Raw Data Format & ROOT Trees
+The executables link CaenDigitizerSiLab.o and the dictionary object directly, so
+libCaenDigitizerSiLab.so is not loaded at run time [V: readelf -d]. The library file in
+the repository is the 2025 committed build; a newer local build was overwritten on
+2026-10-17. The copy in /usr/local/lib dates from May 2025 and differs from both.
 
-All production runs (v1 through v10) are stored as ROOT files containing a single `TTree` named `data_dig` [V: `CaenDigitizerSiLab.cxx:585-645`]:
+Runs v1-v10 were started with [V: ~/.bash_history:1338-1353]:
 
-### Tree Schema
-| Branch Name | ROOT Type | C++ Type | Meaning | Units / Scale |
-| :--- | :--- | :--- | :--- | :--- |
-| `Ch0` .. `Ch63` | `vector<float>` | `std::vector<float>` | ADC voltage waveform samples | ADC counts ($0..4095$, baseline $\sim 3600$) |
-| `time` | `vector<float>` | `std::vector<float>` | Sample time relative to trigger window | Nanoseconds (ns), step $\approx 15.38$ ns |
-| `timestamp` | `Long_t` | `Long_t` | Monotonic host readout clock | Microseconds ($\mu$s) since host boot (`CLOCK_MONOTONIC`) |
+    ./test_acquire_ext_nim config_vx1740_ext_nim_1000000.conf lectura_vx1740_ext_nim_1M_vN.root
 
-### AutoSave & AutoFlush Characteristics
-- **Buffer Flushing**: In production runs v1–v5 and v7–v10, ROOT `AutoSave` and `AutoFlush` occurred automatically every **1,092 to 1,548 entries** (corresponding to roughly **35 to 45 minutes** of acquisition at $\approx 0.57$ Hz) [V: C12; `reorg_r0_root_metadata.txt`].
-- **Short Run v6**: Run v6 was terminated after only 642 entries and **never reached its first flush** (negative default metadata values present) [V: C12].
-- **Unclosed Run v10**: Run v10 was interrupted without calling `TTree::Write()` or `TFile::Close()`. When opening in ROOT, a single key recovery occurs automatically at file offset 5936588098, recovering 242,520 valid entries. Any events acquired after the last AutoSave cycle were lost [V: C11].
-- **Timestamp Definition**: `timestamp` represents `std::chrono::steady_clock` (Linux `CLOCK_MONOTONIC`) recorded at host readout [V: `CaenDigitizerSiLab.cxx:592-593`]. It is **not Unix epoch**, **not calendar time**, and **not the digitizer internal trigger time** (CAEN `TriggerTimeTag` is not stored). Calendar times are boot_ref + timestamp, uncertainty about 1 min; boot_est drifts from 19:03:22 (v2, v3) to 19:04:12 (v8, v9). Calibrated wall-clock intervals are documented in `runs/runs_2026.csv`.
+The second argument is the output path, relative to the current directory. New runs go
+to a directory under /home/xplus/digitizer/data/raw/ (see Data).
 
----
+### Configuration keys
 
-## 5. Build System & Compilation
+configuration.C reads the keys below [V: configuration.C:67-96]. The last column is the
+value in config_vx1740_ext_nim_1000000.conf, used for v1-v10.
 
-### DAQ Build (`<REPO>/Makefile`)
-The root `Makefile` builds only the DAQ library and test binaries. Analysis targets have been detached, and the `clean` target will never delete `.root` or `.txt` data files:
-```bash
-make all      # Builds libCaenDigitizerSiLab.so.1.0.1, example, test_open, test_acquire_sw, test_acquire_ext_nim
-make clean    # Cleans only .o, .d, .pcm, and DAQ test executables (safe against data loss)
-```
+| key | meaning | unit or values | v1-v10 |
+|---|---|---|---|
+| model | digitizer model | 1740 = VX1740 | 1740 |
+| connectionType | link type | 0 USB direct (DT57xx), 1 A2818/A3818 optical, 2 A4818 | 2 |
+| linkNum | link identifier; USB PID for the A4818 | integer | 62578 |
+| conetNode | position in the CONET chain | integer | 0 |
+| vmeBaseAddress | VME base address | hex | 0x00000000 |
+| polarization | centring of the 2 Vpp input range | 0, 1, -1 | 0 |
+| vthreshold | channel self-trigger threshold; not used with external trigger | mV | -100 |
+| acqsamples | samples per record | samples | 625 |
+| nevents | events per run | events | 1000000 |
+| bunches | bunches per measurement (config comment) | integer | 1 |
+| ptriggersize | post-trigger size | % of the record | 60 |
+| triggerpolaritymode | channel trigger edge | 0 falling, 1 rising | 0 |
+| timeout | maximum run duration | s | 1209600 (14 d) |
+| triggerSource | trigger source | 0-7 channel, 8 OR of x740 groups, 9 external TRG-IN | 9 |
+| triggerGroupMask | groups enabled for x740 self-trigger | hex | not set (default 0xFF) |
 
-### Analysis Build (`<REPO>/analysis/Makefile`)
-All offline analysis binaries in `analysis/src/` are compiled into `analysis/bin/`:
-```bash
-# Compile all analysis programs
-make -C analysis
+The configuration is not stored in the output file. Record it in runs/runs_2026.csv and
+copy it next to the data.
 
-# Compile a specific analysis program
-make -C analysis bin/scan_active_channels
-make -C analysis bin/reconstruct_tracks_interleaved
-make -C analysis bin/channel_health_analysis
+### Output file
 
-# Clean analysis binaries only
-make -C analysis clean
-```
-Compilation uses `g++ -std=c++17 -O2 -Wall $(root-config --cflags --ldflags --glibs) -lSpectrum`.
+Each trigger produces one entry of the TTree data_dig [V: CaenDigitizerSiLab.cxx:181-205]:
 
----
+| branch | type | content |
+|---|---|---|
+| Ch0 ... Ch63 | vector<float> | waveform in mV, converted by adc2mV [V: CaenDigitizerSiLab.h:103, CaenDigitizerSiLab.cxx:636] |
+| time | vector<float> | sample time in ns, step 16.0 ns [V: CaenDigitizerSiLab.h:163, CaenDigitizerSiLab.cxx:642, B2 root check] |
+| event | int | sequential event index |
+| timestamp | int64 | µs since host boot (std::chrono::steady_clock), read once per readout |
 
-## 6. Execution of Analysis Pipelines
+timestamp is neither Unix time nor the trigger time. The digitizer TriggerTimeTag is
+printed for the first three events only and is not stored
+[V: CaenDigitizerSiLab.cxx:592-593, 608, 645]. For v1-v10, taken during a single host
+boot, calendar time = boot_ref + timestamp with boot_ref = 2026-05-15T19:03:28.8-04:00,
+uncertainty about 1 min; the method is in docs/REORG_2026-10-17.md.
 
-All analysis shell scripts reside in `analysis/scripts/` and automatically resolve the repository root portably. They read inputs via the root symlinks and write outputs to `outputs/`:
+The tree is written with TTree::Write when the run ends. During v1-v5 and v7-v10, ROOT
+AutoSave stored it every 1092-1548 entries, about 35-45 min at 0.57 Hz [V: GetAutoSave].
+A run that stops abnormally loses the entries after the last AutoSave; this happened to v10.
 
-```bash
-# 1. Channel health monitoring across runs v1-v9
-./analysis/scripts/run_channel_health_analysis.sh
+## Data
 
-# 2. High-voltage scan comparison across runs v1-v4
-./analysis/scripts/run_compare_hv_runs.sh
+Raw data live in /home/xplus/digitizer/data/raw/, one directory per campaign, each with a
+SHA256SUMS file. Files and directories are read-only.
 
-# 3. Hodoscope 2018 2D performance and diagnostics (run v4)
-./analysis/scripts/run_final_hod2018_analysis_v4.sh
+    hodoscope_extnim_2026/            v1-v10, external NIM trigger, 16.03 GB
+    commissioning_2026-05-22/         test runs of 2026-05-22 and 2026-05-26
+    hod2019_threshold_scan_2026-05-26/ self-trigger scan (0 entries) and its configs
 
-# 4. Candidate track reconstruction with verified interleaved mapping (run v7)
-./analysis/scripts/run_reconstruct_tracks_interleaved_v7_corrected_mapping.sh
+To store a new series of runs, create a new campaign directory, write the runs there,
+copy the config file used, then:
 
-# 5. Single photo-electron (SPE) gain analysis
-./analysis/scripts/run_spe_gain_analysis.sh
-```
+    cd /home/xplus/digitizer/data/raw/<campaign>
+    sha256sum * > SHA256SUMS
+    chmod a-w * .
 
----
+and add one row per run to runs/runs_2026.csv, including the command line and the bias
+voltage.
 
-## 7. Known Issues & Operational Pitfalls
+The ten lectura_vx1740_ext_nim_1M*.root files in the repository root are symlinks into
+hodoscope_extnim_2026/. They exist because these sources open the files by bare name
+relative to the repository root: analysis/src/infer_mapping.cxx:61,
+analysis/src/reconstruct_cosmic_tracks.cxx:210-211,
+analysis/src/reconstruct_corrected.cxx:149, analysis/src/tagprobe_analysis.cxx:324.
 
-1. **Hodoscope 2019 Self-Trigger Scan (Zero Counts)**: The threshold scan script `run_hod2019_selftrigger_threshold_scan.sh` produced 0 entries across all thresholds down to $-2$ mV; the underlying hardware/firmware cause was not determined, and original scan logs are absent [V: C10].
-2. **Timing Window in Tracking**: Muon coincidence between hod2018 and hod2019 occurs strictly in the time window $[4000, 4400]$ ns ($\Delta t \approx 0$). Early analysis scripts that looked at $t \approx 3510$ ns sampled background noise rather than synchronized cosmic muons [V: `reconstruct_corrected.cxx:3-4`].
-3. **Run v10 Crash / Recovery**: Always open `lectura_vx1740_ext_nim_1M_v10.root` in `READ` mode. Opening corrupted/unclosed ROOT files in `UPDATE` mode can invalidate or overwrite the recovered key header [V: C11].
-4. **Bias Voltages**: Operational bias voltages ($V_{\text{bias}}$) for production runs v1 through v10 were not recorded in code, configurations, or logs; they remain marked as `not recorded` [V: R0 audit].
-5. **DAQ Library libCaenDigitizerSiLab.so.1.0.1**: Repo libCaenDigitizerSiLab.so.1.0.1 is the 2025 committed build (a newer local build was overwritten on 2026-10-17); executables do not load it (not in DT_NEEDED); `make` in repo root rebuilds it.
+## Analysis
 
+Build all programs with `make -C analysis`; binaries go to analysis/bin/. Run everything
+from the repository root, because programs write to relative paths under outputs/. The
+scripts in analysis/scripts/ change to the root themselves:
+
+    analysis/scripts/run_channel_health_analysis.sh       v1-v9
+    analysis/scripts/run_channel_health_refit.sh          v1-v9
+    analysis/scripts/run_compare_hv_runs.sh               v1-v4
+    analysis/scripts/run_final_hod2018_analysis_v4.sh     v4
+    analysis/scripts/run_reconstruct_tracks_interleaved_v7_corrected_mapping.sh   v7
+    analysis/scripts/run_spe_gain_analysis.sh             v1-v9
+
+### Channel mapping
+
+hod2018 uses consecutive channels: X bar k = channel 0-15 with k = channel, Y bar
+k = channel - 16 for channels 16-31 [V: reconstruct_corrected.cxx:197-198]. hod2019
+follows the cabling record "Disposición Correcta" [V: reconstruct_corrected.cxx:62-63]:
+
+    X bars 0-15: 53 61 54 62 55 63 52 60 51 59 50 58 49 57 48 56
+    Y bars 0-15: 37 45 38 46 39 47 36 44 35 43 34 42 33 41 32 40
+
+Results made with the sequential hod2019 assumption (X0 = Ch48, Y0 = Ch32) are wrong and
+are kept in outputs/_superseded/.
+
+The track scripts pass active_size_mm = 33.0 and z_sep_mm = 98.4 to
+reconstruct_tracks_interleaved (where z_sep_mm is the vertical distance along Z between
+hod2018 at z=0 and hod2019 at z=z_sep_mm [V: analysis/src/reconstruct_tracks_interleaved.cpp:265,269,358]).
+These are code parameters, not measurements recorded in this repository.
+
+Muon signals of both hodoscopes appear at t ≈ 4175 ns in the time branch, window
+[4000, 4400] ns; hod2018 shows pickup at t ≈ 3525 ns
+[V: outputs/timesync_test_20260531_174521/summary_timesync.txt]. Analyses that used
+t ≈ 3510 ns selected that pickup, not muons.
+
+## Known issues
+
+1. The hod2019 self-trigger scan of 2026-05-26 recorded 0 entries at every threshold down
+   to -2 mV. The cause was not determined and the scan logs are absent.
+2. The acquisition loop polls ReadData without waiting and prints the event counter on
+   every iteration; ext_nim.log reached 7.9 MB for a 1000-event run [V: logs/].
+3. The configuration and the bias voltage are not stored with the data.
+4. Bias voltages for v1-v10: not recorded.
+5. outputs/ is not in git; analysis results exist only on this disk.
+6. Five analysis programs hardcode a sampling period of 1e9 / 65e6 ≈ 15.3846 ns (kDt_ns)
+   instead of the 16.0 ns step recorded in data_dig.time: analysis/src/charge_analysis.cxx:50,
+   analysis/src/multirun_analysis.cxx:42, analysis/src/reconstruct_corrected.cxx:49,
+   analysis/src/reconstruct_cosmic_tracks.cxx:48, and analysis/src/tagprobe_analysis.cxx:45 [V: grep B3].
+
+## Open questions
+
+- What v<N> in the run names means. compare_hv_runs assumes v1-v4 differ in bias voltage [I].
+- What changed in the trigger setup between v1 (1.39 Hz), v2-v4 (0.27-0.44 Hz) and
+  v5-v10 (0.56-0.64 Hz) [V: runs/runs_2026.csv].
+- Whether a copy of the raw data exists outside this machine.
+- Branch reorg/2026-10-17 is not pushed and not merged into jairo_branch.
