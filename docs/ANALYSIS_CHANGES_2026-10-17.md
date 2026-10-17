@@ -95,3 +95,7 @@ Percentil 90 Q [mV·ns]                 22769.5       22545.3       17121.6     
 
 Bias voltages of runs v1-v10. Cause of the baseline spread and of the post-pulse overshoot
 in hod2018.
+
+kQcut19 = 687.0 mV·ns is provisional. With it, reconstruct_cosmic_tracks gives 6125 Q+r
+three-dimensional tracks in run v8 (outputs/cosmic_tracks_20261017_183153), against 2402 expected
+with full efficiency of both stations.
