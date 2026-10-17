@@ -110,6 +110,7 @@ struct RunResult {
     double lan_chi2ndf = 0;
     bool lan_at_limit = false;
     bool lan_ok = false;
+    int blo_19x = 0, bhi_19x = 0, min_b_19x = 0;
     // Tag-and-probe (hod2019X, all channels)
     long long n_tag_x=0;
     double eps_true_x=0, sigma_eps_x=0, sig_x=0;
@@ -232,6 +233,7 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     };
     std::vector<EvTP> evs; evs.reserve(nEnt);
     std::vector<double> sig_Q_19x;
+    std::vector<double> nopulse_Q_pl[4];
 
     // Pasada única
     for(Long64_t iev=0;iev<nEnt;iev++){
@@ -278,6 +280,28 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
                 if(imin>=0 && (ped-vmin) > kPh19_mV && qr.pt >= kMuonTlo && qr.pt <= kMuonThi){
                     sig_Q_19x.push_back(Q);
                 }
+            }
+
+            // F1: Q noise over channel-events with ph < 5 mV in [2500, 8000] ns
+            double vmin_np = 1e30;
+            for (int i = 0; i < (int)tv.size(); ++i) {
+                if (tv[i] >= 2500.0 && tv[i] <= 8000.0 && (*cw[c])[i] < vmin_np)
+                    vmin_np = (*cw[c])[i];
+            }
+            if ((ped - vmin_np) < 5.0) {
+                const int i0 = 262; // sample at 4200 ns
+                double ped_Q_np = ped;
+                if (use_loc && i0 >= 12 && i0 - 4 < (int)tv.size()) {
+                    double s_loc = 0;
+                    for (int k = -12; k <= -4; ++k) s_loc += (*cw[c])[i0 + k];
+                    ped_Q_np = s_loc / 9.0;
+                }
+                double Q_noise = 0;
+                for (int k = i0 - 3; k <= i0 + npost; ++k) {
+                    if (k >= 0 && k < (int)tv.size())
+                        Q_noise += (ped_Q_np - (*cw[c])[k]) * kDt_ns;
+                }
+                nopulse_Q_pl[pl].push_back(Q_noise);
             }
 
             // Fill histo planes
@@ -331,8 +355,15 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     for(int pl=0;pl<4;pl++){
         if(n_noise[pl]>0){
             rr.noise_mean[pl]=sum_noise[pl]/n_noise[pl];
-            const int nw_pl = kNpre + (pl >= 2 ? kNpost19 : kNpost18) + 1;
-            rr.sigmaQ[pl]=rr.noise_mean[pl]*kDt_ns*std::sqrt(nw_pl);}
+        }
+        // F1: Pedestal noise of Q (RMS over channel-events with ph < 5 mV in [2500,8000] ns)
+        if(!nopulse_Q_pl[pl].empty()){
+            double sum=0, sum2=0;
+            for(double q:nopulse_Q_pl[pl]) sum += q;
+            double mean = sum / nopulse_Q_pl[pl].size();
+            for(double q:nopulse_Q_pl[pl]) sum2 += (q - mean) * (q - mean);
+            rr.sigmaQ[pl] = std::sqrt(sum2 / nopulse_Q_pl[pl].size());
+        }
     }
 
     // Landau fit hod2019X (si hay datos)
@@ -351,7 +382,9 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
                     min_b = b;
                 }
             }
-            if(min_b > blo && min_b < bhi){
+            rr.blo_19x = blo; rr.bhi_19x = bhi; rr.min_b_19x = min_b;
+            // F2: treat a minimum within 2 bins of blo or bhi as "no valley"
+            if(min_b > blo + 2 && min_b < bhi - 2){
                 rr.umbral_Q[2] = h->GetBinCenter(min_b);
             } else {
                 rr.umbral_Q[2] = 0; // no valley
@@ -577,7 +610,8 @@ int main(int argc,char**argv){
         os<<"=== Análisis Multi-Run: barrido de voltaje MPPC ===\n\n";
         os<<"Parámetros de ventana muon: ["<<kMuonTlo<<", "<<kMuonThi<<"] ns (ambas estaciones)\n";
         os<<"Umbrales de pulso diagnóstico: hod2018 ph > "<<kPh18_mV<<" mV, hod2019 ph > "<<kPh19_mV<<" mV\n";
-        os<<"Med_Q: (Q of pulses above the ph threshold; not a gain estimator)\n\n";
+        os<<"Med_Q: (Q of pulses above the ph threshold; not a gain estimator)\n";
+        os<<"sigmaQ19: σ_Q noise [mV·ns] (no-pulse channels)\n\n";
         os<<std::setw(6)<<std::left<<"Run"<<std::setw(9)<<"N"<<std::setw(8)<<"tpk18"<<std::setw(8)<<"tpk19"
           <<std::setw(8)<<"N_sig"<<std::setw(10)<<"Med_Q"<<std::setw(9)<<"Q_10"<<std::setw(9)<<"Q_90"
           <<std::setw(10)<<"MPV_Q"<<std::setw(8)<<"status"<<std::setw(10)<<"chi2ndf"<<std::setw(10)<<"limit"
@@ -610,6 +644,15 @@ int main(int argc,char**argv){
               <<std::setw(8)<<r.n_tag_x
               <<std::setw(12)<<std::setprecision(4)<<r.eps_true_x*100
               <<std::setw(8)<<std::setprecision(2)<<r.sig_x<<"\n";
+        }
+        os<<"\nUmbral Q natural hod2019X (valle en [200, 3000] mV·ns):\n";
+        for(const auto& r : results){
+            os<<"  "<<std::setw(6)<<std::left<<r.label<<": ";
+            if(r.umbral_Q[2] > 0) os<<std::fixed<<std::setprecision(1)<<r.umbral_Q[2]<<" mV·ns";
+            else os<<"no valley";
+            os<<" (blo="<<r.blo_19x<<", bhi="<<r.bhi_19x<<", min="<<r.min_b_19x;
+            if(r.min_b_19x <= r.blo_19x + 2 || r.min_b_19x >= r.bhi_19x - 2) os<<", edge guard -> no valley";
+            os<<")\n";
         }
         os<<"\nSignificancia global combinada (~Q_norm>10sigma): "<<std::setprecision(2)<<sig_global<<"σ\n";
         os<<"ε_true_global = "<<std::setprecision(4)<<eps_true_g*100<<"% ± "<<sigma_eps_g*100<<"%\n\n";

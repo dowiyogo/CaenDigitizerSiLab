@@ -214,6 +214,9 @@ struct PlaneQ {
     // Estimador de carga robusto (pulsos sobre umbral en ventana de muones)
     std::vector<double> signal_Q;
     long long n_sig_Q = 0;
+    std::vector<double> nopulse_Q;    // Q de canales sin pulso (ph < 5 mV en [2500,8000] ns)
+    double sigma_Q_noise = 0;         // RMS de nopulse_Q (F1)
+    int blo = 0, bhi = 0, min_b = 0;  // bins de búsqueda de valle (F2)
     double med_Q = 0;
     double q10_Q = 0;
     double q90_Q = 0;
@@ -315,6 +318,28 @@ static void process_file_Q(FileQ& fq, const std::string& fname,
                 fq.planes[pl].signal_Q.push_back(cq.Q);
             }
 
+            // F1: Q noise over channel-events with ph < 5 mV in [2500, 8000] ns
+            double vmin_np = 1e30;
+            for (int i = 0; i < (int)tv.size(); ++i) {
+                if (tv[i] >= 2500.0 && tv[i] <= 8000.0 && (*cw[c])[i] < vmin_np)
+                    vmin_np = (*cw[c])[i];
+            }
+            if ((cq.ped - vmin_np) < 5.0) {
+                const int i0 = 262; // sample at 4200 ns
+                double ped_Q_np = cq.ped;
+                if (use_loc && i0 >= 12 && i0 - 4 < (int)tv.size()) {
+                    double s_loc = 0;
+                    for (int k = -12; k <= -4; ++k) s_loc += (*cw[c])[i0 + k];
+                    ped_Q_np = s_loc / 9.0;
+                }
+                double Q_noise = 0;
+                for (int k = i0 - 3; k <= i0 + npost; ++k) {
+                    if (k >= 0 && k < (int)tv.size())
+                        Q_noise += (ped_Q_np - (*cw[c])[k]) * kDt_ns;
+                }
+                fq.planes[pl].nopulse_Q.push_back(Q_noise);
+            }
+
             // Acumula ruido
             fq.noise[c]+=cq.noise; fq.n_ped[c]++;
 
@@ -362,12 +387,15 @@ static void compute_fits(FileQ& fq){
         TH1D* h=p.h_Q;
         if(!h||h->Integral()<5)continue;
 
-        // Pedestal: región de ruido, gaussiana alrededor de Q≈0
-        // σ_Q del pedestal: ancho del pico en Q=0
-        const double sig_est=20.0*kDt_ns;  // rough estimate
-        p.gaus_ped=fit_gaus(h,-3*sig_est*10,3*sig_est*10);
-        p.sigma_Q_ped=p.gaus_ped.ok ? p.gaus_ped.sigma :
-                      (h->GetRMS()*0.5);  // fallback
+        // F1: Pedestal noise of Q: RMS over channel-events with ph < 5 mV in [2500,8000] ns
+        if(!p.nopulse_Q.empty()){
+            double sum=0, sum2=0;
+            for(double q:p.nopulse_Q) sum += q;
+            double mean = sum / p.nopulse_Q.size();
+            for(double q:p.nopulse_Q) sum2 += (q - mean) * (q - mean);
+            p.sigma_Q_noise = std::sqrt(sum2 / p.nopulse_Q.size());
+        }
+        p.sigma_Q_ped = p.sigma_Q_noise;
 
         // Valle: mínimo en [umbral_ped, Q_max/2]
         const double Q_max=h->GetBinCenter(h->FindLastBinAbove(1.0));
@@ -381,7 +409,9 @@ static void compute_fits(FileQ& fq){
                 min_b=b;
             }
         }
-        if(min_b > blo && min_b < bhi){
+        p.blo = blo; p.bhi = bhi; p.min_b = min_b;
+        // F2: treat a minimum within 2 bins of blo or bhi as "no valley"
+        if(min_b > blo + 2 && min_b < bhi - 2){
             p.has_valley = true;
             p.umbral_Q = h->GetBinCenter(min_b);
         } else {
@@ -663,14 +693,14 @@ static void make_summary_fig(const FileQ& v7, const FileQ& v8, const fs::path& o
      for(int pl=0;pl<4;pl++){
          hsnr.SetBinContent(pl*2+1, snr_ph[pl]);  // SNR_ph
          double snrQ=0;
-         if(v8.planes[pl].lan_Q.ok&&v8.planes[pl].gaus_ped.ok&&v8.planes[pl].gaus_ped.sigma>0)
-             snrQ=v8.planes[pl].lan_Q.mpv/v8.planes[pl].gaus_ped.sigma;
+         if(v8.planes[pl].lan_Q.ok&&v8.planes[pl].sigma_Q_noise>0)
+             snrQ=v8.planes[pl].lan_Q.mpv/v8.planes[pl].sigma_Q_noise;
          hsnr.SetBinContent(pl*2+2, snrQ);
      }
      for(int i=0;i<8;i++)hsnr.GetXaxis()->SetBinLabel(i+1,labels[i]);
      hsnr.SetStats(0);hsnr.SetFillColor(kAzure+2);hsnr.SetTitle("SNR: pulse_height vs carga;SNR;");
      hsnr.Draw("HBAR");
-     TLatex lt;lt.SetNDC();lt.SetTextSize(0.038);lt.DrawLatex(0.15,0.93,"SNR v8 (MPV/σ_{pedestal})");}
+     TLatex lt;lt.SetNDC();lt.SetTextSize(0.038);lt.DrawLatex(0.15,0.93,"SNR v8 (MPV/#sigma_{Q noise})");}
 
     cc.SaveAs((out/"charge_figures_of_merit.png").string().c_str());
 }
@@ -737,39 +767,40 @@ int main(int argc, char** argv){
         os<<"Parámetros de integración:\n";
         os<<"  Δt_sample = "<<kDt_ns<<" ns  N_pre="<<kNpre
           <<"  N_post18="<<kNpost18<<" (hod2018)  N_post19="<<kNpost19<<" (hod2019)\n\n";
-        os<<std::setw(28)<<std::left<<"Métrica"
+        const int kW = 40;
+        os<<std::setw(kW)<<std::left<<"Métrica"
           <<std::setw(14)<<"18X-v7"<<std::setw(14)<<"18X-v8"
           <<std::setw(14)<<"19X-v7"<<std::setw(14)<<"19X-v8\n";
-        os<<"-----------------------------------------------------------------------------\n";
+        os<<"---------------------------------------------------------------------------------------------\n";
         auto fmt=[](double v,int p=1)->std::string{if(v==0||!std::isfinite(v))return "N/A";
             char b[20];std::snprintf(b,sizeof(b),"%.*f",p,v);return b;};
 
-        os<<std::setw(28)<<"σ_Q pedestal [mV·ns]";
+        os<<std::setw(kW)<<"σ_Q noise [mV·ns] (no-pulse channels)";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++)
-            os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].gaus_ped.sigma:fv8_data.planes[pp].gaus_ped.sigma);
+            os<<std::setw(14)<<fmt((v==0?fv7_data:fv8_data).planes[pp].sigma_Q_noise);
         os<<"\n";
 
-        os<<std::setw(28)<<"N pulsos señal";
+        os<<std::setw(kW)<<"N pulsos señal";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++)
             os<<std::setw(14)<<(v==0?fv7_data.planes[pp].n_sig_Q:fv8_data.planes[pp].n_sig_Q);
         os<<"\n";
 
-        os<<std::setw(28)<<"Mediana Q [mV·ns]";
+        os<<std::setw(kW)<<"Mediana Q [mV·ns]";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++)
             os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].med_Q:fv8_data.planes[pp].med_Q);
         os<<"  (Q of pulses above the ph threshold; not a gain estimator)\n";
 
-        os<<std::setw(28)<<"Percentil 10 Q [mV·ns]";
+        os<<std::setw(kW)<<"Percentil 10 Q [mV·ns]";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++)
             os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].q10_Q:fv8_data.planes[pp].q10_Q);
         os<<"\n";
 
-        os<<std::setw(28)<<"Percentil 90 Q [mV·ns]";
+        os<<std::setw(kW)<<"Percentil 90 Q [mV·ns]";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++)
             os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].q90_Q:fv8_data.planes[pp].q90_Q);
         os<<"\n";
 
-        os<<std::setw(28)<<"MPV_Q Landau [mV·ns]";
+        os<<std::setw(kW)<<"MPV_Q Landau [mV·ns]";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
             const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
             if(!p.lan_Q.ok || p.lan_Q.status != 0 || p.lan_Q.at_limit)
@@ -779,7 +810,7 @@ int main(int argc, char** argv){
         }
         os<<"\n";
 
-        os<<std::setw(28)<<"Landau fit status";
+        os<<std::setw(kW)<<"Landau fit status";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
             const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
             if(!p.has_valley) os<<std::setw(14)<<"no fit";
@@ -787,7 +818,7 @@ int main(int argc, char** argv){
         }
         os<<"\n";
 
-        os<<std::setw(28)<<"Landau chi2/ndf";
+        os<<std::setw(kW)<<"Landau chi2/ndf";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
             const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
             if(!p.lan_Q.ok || p.lan_Q.status != 0) os<<std::setw(14)<<"n/a";
@@ -795,7 +826,7 @@ int main(int argc, char** argv){
         }
         os<<"\n";
 
-        os<<std::setw(28)<<"Landau limit flag";
+        os<<std::setw(kW)<<"Landau limit flag";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
             const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
             if(!p.lan_Q.ok || p.lan_Q.status != 0) os<<std::setw(14)<<"n/a";
@@ -805,17 +836,17 @@ int main(int argc, char** argv){
         os<<"\n";
 
         // SNR_Q
-        os<<std::setw(28)<<"SNR_Q = MPV/σ_Q";
+        os<<std::setw(kW)<<"SNR_Q = MPV/σ_Q";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
             const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
-            if(!p.lan_Q.ok || p.lan_Q.status != 0 || p.lan_Q.at_limit || !p.gaus_ped.ok || p.gaus_ped.sigma <= 0)
+            if(!p.lan_Q.ok || p.lan_Q.status != 0 || p.lan_Q.at_limit || p.sigma_Q_noise <= 0)
                 os<<std::setw(14)<<"n/a";
             else
-                os<<std::setw(14)<<fmt(p.lan_Q.mpv / p.gaus_ped.sigma);
+                os<<std::setw(14)<<fmt(p.lan_Q.mpv / p.sigma_Q_noise);
         }
         os<<"\n";
 
-        os<<std::setw(28)<<"umbral_Q natural [mV·ns]";
+        os<<std::setw(kW)<<"umbral_Q natural [mV·ns]";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
             const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
             if(!p.has_valley)
@@ -825,13 +856,35 @@ int main(int argc, char** argv){
         }
         os<<"\n";
 
-        os<<std::setw(28)<<"ε(umbral_Q_nat) [%]";
+        os<<std::setw(kW)<<"  valley bins [blo,bhi,min]";
+        for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
+            const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
+            char bbuf[32];
+            std::snprintf(bbuf, sizeof(bbuf), "[%d,%d,%d]", p.blo, p.bhi, p.min_b);
+            os<<std::setw(14)<<bbuf;
+        }
+        os<<"\n";
+
+        os<<std::setw(kW)<<"ε(umbral_Q_nat) [%]";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
             const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
             if(!p.has_valley)
                 os<<std::setw(14)<<"n/a";
             else
                 os<<std::setw(14)<<fmt(p.eff_nat_Q, 2);
+        }
+        os<<"\n\n";
+
+        os<<"Búsqueda de valle (umbral natural):\n";
+        for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
+            const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
+            const char* name = (pp==P18X) ? (v==0?"18X-v7":"18X-v8") : (v==0?"19X-v7":"19X-v8");
+            os<<"  "<<std::setw(8)<<std::left<<name<<": ";
+            if(p.has_valley) os<<fmt(p.umbral_Q)<<" mV·ns";
+            else os<<"no valley";
+            os<<" (blo="<<p.blo<<", bhi="<<p.bhi<<", min="<<p.min_b;
+            if(p.min_b <= p.blo + 2 || p.min_b >= p.bhi - 2) os<<", edge guard -> no valley";
+            os<<")\n";
         }
         os<<"\n";
     };

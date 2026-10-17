@@ -211,29 +211,12 @@ t ≈ 3510 ns selected that pickup, not muons.
 3. The configuration and the bias voltage are not stored with the data.
 4. Bias voltages for v1-v10: not recorded.
 5. outputs/ is not in git; analysis results exist only on this disk.
-6. Five analysis programs hardcoded a sampling period of 1e9 / 65e6 ≈ 15.3846 ns (kDt_ns)
-   instead of the 16.0 ns step recorded in data_dig.time: analysis/src/charge_analysis.cxx:50,
-   analysis/src/multirun_analysis.cxx:42, analysis/src/reconstruct_corrected.cxx:49,
-   analysis/src/reconstruct_cosmic_tracks.cxx:48, and analysis/src/tagprobe_analysis.cxx:45 [V: grep B3].
-   Fixed in fix/analysis-units on 2026-10-17 (commit "Analysis: sampling period 16 ns, mV labels, step check"):
-   kDt_ns corrected to 16.0 ns (VX1740, 62.5 MS/s) matching the data_dig.time step, a runtime
-   sampling step check added. Q is now integrated over 12 samples of 16 ns; before 2026-10-17 it used 10 samples weighted
-   by 15.38 ns. Old and new Q differ by a non-constant factor (see S4 of the fix report).
-   Q cuts derived from the hod2019X natural threshold were recomputed; the loose cuts
-   (Q>100, Q>500) were rescaled x1.04 and are approximate.
-7. Analysis codes (reconstruct_corrected.cxx:53-54, gen_beamer_figs.C:43-44) defined thresholds
-   of 50 and 35 labeled as ADC counts, but compared them directly against waveform values stored
-   in mV without converting units; for a 2 Vpp 12-bit digitizer (0.4884 mV/count), the effective
-   thresholds applied were 50 mV (≈102 ADC counts) and 35 mV (≈72 ADC counts).
-   Fixed in fix/analysis-units on 2026-10-17 (commit "Analysis: sampling period 16 ns, mV labels, step check"):
-   threshold comments corrected to 50 mV (= 102 ADC counts) and 35 mV (= 72 ADC counts), and unit labels
-   referring to Ch waveform quantities replaced from "ADC" to "mV" (amplitudes/pulse heights) and "mV·ns"
-   (integrated charges) across comments, histogram titles, axis titles, and summary text. Results in outputs/
-   dated before 2026-10-17 have labels in "ADC" that mean mV.
-8. charge_analysis summaries before commit "Analysis: fixed muon window, per-station Q window, robust Q estimator, column order" print columns 18X-v8 and 19X-v7 swapped.
-9. multirun_analysis outputs before commit "Analysis: fixed muon window, per-station Q window, robust Q estimator, column order" use a muon window derived from noise for v5-v10 (t_peak = 3008 ns) and Landau MPVs pinned at the 4500 mV·ns limit; not valid.
-10. Q integration windows: hod2018 [-3,+12] with ped_loc, hod2019 [-3,+22] with ped_glob samples (kNpost18 = 12, kNpost19 = 22, 95% containment up to zero-crossing n0, v8).
-11. Baseline shift between t < 2500 ns and [3700, 3950] ns (A2, v8 first 20000 entries): hod2018X mean = +0.0156 mV (RMS 1.17 mV event / 4.71 mV ch-event), hod2018Y mean = +0.0007 mV (RMS 1.03 mV event / 4.12 mV ch-event); hod2019X mean = +0.0008 mV (RMS 0.095 mV event / 0.355 mV ch-event), hod2019Y mean = -0.0006 mV (RMS 0.094 mV event / 0.368 mV ch-event) (in no-pulse events: hod2018X +0.1447 mV, hod2018Y +0.4922 mV; hod2019X +0.0031 mV, hod2019Y +0.0042 mV). ph uses the pedestal of t < 2500 ns; its bias in the muon window equals the mean b_shift of A2; not corrected (ph thresholds and published counts depend on it).
+6. Hardcoded sampling period (15.38 ns vs 16.0 ns) and unit labels (ADC vs mV): fixed; see docs/ANALYSIS_CHANGES_2026-10-17.md.
+7. Thresholds labeled as ADC counts applied directly to mV waveforms: fixed; see docs/ANALYSIS_CHANGES_2026-10-17.md.
+8. Swapped columns 18X-v8 and 19X-v7 in charge_analysis before commit ccc1945: fixed; see docs/ANALYSIS_CHANGES_2026-10-17.md.
+9. Noise-derived muon window (3008 ns) in multirun_analysis before commit ccc1945: fixed; see docs/ANALYSIS_CHANGES_2026-10-17.md.
+10. Q integration windows and pedestals (hod2018 ped_loc [-3,+12], hod2019 ped_glob [-3,+22]): see docs/ANALYSIS_CHANGES_2026-10-17.md.
+11. Baseline shift and Q noise measurements (mean, RMS, ped_loc vs ped_glob): see docs/ANALYSIS_CHANGES_2026-10-17.md.
 
 ## Open questions
 
