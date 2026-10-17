@@ -50,15 +50,15 @@ void pulse_shape() {
         ch19x.push_back(kH19X[i]);
     }
 
-    const int kMinOff = -10;
+    const int kMinOff = -12;
     const int kMaxOff = 40;
-    const int nOff = kMaxOff - kMinOff + 1; // 51 points
+    const int nOff = kMaxOff - kMinOff + 1; // 53 points
 
-    std::vector<double> sum18(nOff, 0.0);
+    std::vector<double> sum18_glob(nOff, 0.0), sum18_loc(nOff, 0.0);
     std::vector<long long> count18(nOff, 0);
     long long n_pulses18 = 0;
 
-    std::vector<double> sum19(nOff, 0.0);
+    std::vector<double> sum19_glob(nOff, 0.0), sum19_loc(nOff, 0.0);
     std::vector<long long> count19(nOff, 0);
     long long n_pulses19 = 0;
 
@@ -82,7 +82,7 @@ void pulse_shape() {
                 if (tv[i] < 2500.0) { s += wf[i]; nb++; }
             }
             if (nb < 2) continue;
-            double ped = s / nb;
+            double ped_glob = s / nb;
 
             double vmin = 1e30; int imin = -1;
             for (int i = 0; i < nSamp; ++i) {
@@ -91,15 +91,25 @@ void pulse_shape() {
                 }
             }
             if (imin < 0) continue;
-            double ph = ped - vmin;
+            double ph = ped_glob - vmin;
             if (ph <= 50.0) continue;
+
+            // Compute ped_loc (offsets -12..-4 from imin)
+            double s_loc = 0; int nb_loc = 0;
+            for (int k = -12; k <= -4; ++k) {
+                int idx = imin + k;
+                if (idx >= 0 && idx < nSamp) { s_loc += wf[idx]; nb_loc++; }
+            }
+            if (nb_loc < 9) continue;
+            double ped_loc = s_loc / nb_loc;
 
             n_pulses18++;
             for (int k = kMinOff; k <= kMaxOff; ++k) {
                 int idx = imin + k;
                 if (idx >= 0 && idx < nSamp) {
                     int pt_idx = k - kMinOff;
-                    sum18[pt_idx] += (ped - wf[idx]);
+                    sum18_glob[pt_idx] += (ped_glob - wf[idx]);
+                    sum18_loc[pt_idx]  += (ped_loc - wf[idx]);
                     count18[pt_idx]++;
                 }
             }
@@ -116,7 +126,7 @@ void pulse_shape() {
                 if (tv[i] < 2500.0) { s += wf[i]; nb++; }
             }
             if (nb < 2) continue;
-            double ped = s / nb;
+            double ped_glob = s / nb;
 
             double vmin = 1e30; int imin = -1;
             for (int i = 0; i < nSamp; ++i) {
@@ -125,15 +135,25 @@ void pulse_shape() {
                 }
             }
             if (imin < 0) continue;
-            double ph = ped - vmin;
+            double ph = ped_glob - vmin;
             if (ph <= 35.0) continue;
+
+            // Compute ped_loc (offsets -12..-4 from imin)
+            double s_loc = 0; int nb_loc = 0;
+            for (int k = -12; k <= -4; ++k) {
+                int idx = imin + k;
+                if (idx >= 0 && idx < nSamp) { s_loc += wf[idx]; nb_loc++; }
+            }
+            if (nb_loc < 9) continue;
+            double ped_loc = s_loc / nb_loc;
 
             n_pulses19++;
             for (int k = kMinOff; k <= kMaxOff; ++k) {
                 int idx = imin + k;
                 if (idx >= 0 && idx < nSamp) {
                     int pt_idx = k - kMinOff;
-                    sum19[pt_idx] += (ped - wf[idx]);
+                    sum19_glob[pt_idx] += (ped_glob - wf[idx]);
+                    sum19_loc[pt_idx]  += (ped_loc - wf[idx]);
                     count19[pt_idx]++;
                 }
             }
@@ -142,126 +162,123 @@ void pulse_shape() {
 
     f->Close();
 
-    std::vector<double> mean18(nOff, 0.0);
-    std::vector<double> mean19(nOff, 0.0);
+    std::vector<double> mean18_glob(nOff, 0.0), mean18_loc(nOff, 0.0);
+    std::vector<double> mean19_glob(nOff, 0.0), mean19_loc(nOff, 0.0);
     for (int i = 0; i < nOff; ++i) {
-        if (count18[i] > 0) mean18[i] = sum18[i] / count18[i];
-        if (count19[i] > 0) mean19[i] = sum19[i] / count19[i];
+        if (count18[i] > 0) {
+            mean18_glob[i] = sum18_glob[i] / count18[i];
+            mean18_loc[i]  = sum18_loc[i] / count18[i];
+        }
+        if (count19[i] > 0) {
+            mean19_glob[i] = sum19_glob[i] / count19[i];
+            mean19_loc[i]  = sum19_loc[i] / count19[i];
+        }
     }
 
     std::cout << "\nPulses analyzed:\n";
     std::cout << "  hod2018X (ph > 50 mV, t in [4000, 4400] ns): " << n_pulses18 << "\n";
     std::cout << "  hod2019X (ph > 35 mV, t in [4000, 4400] ns): " << n_pulses19 << "\n\n";
 
+    std::cout << "=== Average Pulse Shapes (offsets -12..+40) ===\n";
     std::cout << std::fixed << std::setprecision(3);
     std::cout << std::setw(8) << "offset"
               << std::setw(12) << "t_ns"
-              << std::setw(18) << "mean_hod2018X"
-              << std::setw(18) << "mean_hod2019X"
+              << std::setw(16) << "18X_glob"
+              << std::setw(16) << "18X_loc"
+              << std::setw(16) << "19X_glob"
+              << std::setw(16) << "19X_loc"
               << "\n";
-    std::cout << std::string(56, '-') << "\n";
+    std::cout << std::string(84, '-') << "\n";
 
     for (int k = kMinOff; k <= kMaxOff; ++k) {
         int idx = k - kMinOff;
         double t_ns = k * 16.0;
         std::cout << std::setw(8) << k
                   << std::setw(12) << std::setprecision(1) << t_ns
-                  << std::setw(18) << std::setprecision(3) << mean18[idx]
-                  << std::setw(18) << std::setprecision(3) << mean19[idx]
+                  << std::setw(16) << std::setprecision(3) << mean18_glob[idx]
+                  << std::setw(16) << std::setprecision(3) << mean18_loc[idx]
+                  << std::setw(16) << std::setprecision(3) << mean19_glob[idx]
+                  << std::setw(16) << std::setprecision(3) << mean19_loc[idx]
                   << "\n";
     }
 
-    // Peak values
-    double peak18 = *std::max_element(mean18.begin(), mean18.end());
-    double peak19 = *std::max_element(mean19.begin(), mean19.end());
-
-    // Offsets where trailing edge falls below 10% and 1% of peak
-    int off10_18 = kMaxOff, off1_18 = kMaxOff;
-    int off10_19 = kMaxOff, off1_19 = kMaxOff;
-
-    int zero_idx = -kMinOff;
-    for (int i = zero_idx; i < nOff; ++i) {
-        int k = i + kMinOff;
-        if (off10_18 == kMaxOff && mean18[i] < 0.10 * peak18) off10_18 = k;
-        if (off1_18 == kMaxOff && mean18[i] < 0.01 * peak18) off1_18 = k;
-        if (off10_19 == kMaxOff && mean19[i] < 0.10 * peak19) off10_19 = k;
-        if (off1_19 == kMaxOff && mean19[i] < 0.01 * peak19) off1_19 = k;
-    }
-
-    std::cout << "\n=== Fall Time Thresholds ===\n";
-    std::cout << "hod2018X: Peak = " << peak18 << " mV\n";
-    std::cout << "  Falls below 10% of peak (" << 0.10 * peak18 << " mV) at offset = " << off10_18
-              << " (" << off10_18 * 16.0 << " ns)\n";
-    std::cout << "  Falls below  1% of peak (" << 0.01 * peak18 << " mV) at offset = " << off1_18
-              << " (" << off1_18 * 16.0 << " ns)\n";
-
-    std::cout << "hod2019X: Peak = " << peak19 << " mV\n";
-    std::cout << "  Falls below 10% of peak (" << 0.10 * peak19 << " mV) at offset = " << off10_19
-              << " (" << off10_19 * 16.0 << " ns)\n";
-    std::cout << "  Falls below  1% of peak (" << 0.01 * peak19 << " mV) at offset = " << off1_19
-              << " (" << off1_19 * 16.0 << " ns)\n";
-
-    // Integral over [-3, +40] and cumulative fractions in [-3, +n] for n = 8..40
-    double tot_int18_3_40 = 0.0;
-    double tot_int19_3_40 = 0.0;
-    for (int k = -3; k <= 40; ++k) {
-        int idx = k - kMinOff;
-        tot_int18_3_40 += mean18[idx] * 16.0;
-        tot_int19_3_40 += mean19[idx] * 16.0;
-    }
-
-    double win_int18 = 0.0;
-    double win_int19 = 0.0;
-    for (int k = -3; k <= 8; ++k) {
-        int idx = k - kMinOff;
-        win_int18 += mean18[idx] * 16.0;
-        win_int19 += mean19[idx] * 16.0;
-    }
-
-    std::cout << "\n=== Integral over [-3, +8] (12 samples) and [-3, +40] (44 samples) ===\n";
-    std::cout << "hod2018X: Integral [-3, +8] = " << win_int18 << " mV*ns, "
-              << "[-3, +40] = " << tot_int18_3_40 << " mV*ns, "
-              << "Fraction = " << (tot_int18_3_40 != 0.0 ? (win_int18 / tot_int18_3_40) * 100.0 : 0.0) << " %\n";
-    std::cout << "hod2019X: Integral [-3, +8] = " << win_int19 << " mV*ns, "
-              << "[-3, +40] = " << tot_int19_3_40 << " mV*ns, "
-              << "Fraction = " << (tot_int19_3_40 != 0.0 ? (win_int19 / tot_int19_3_40) * 100.0 : 0.0) << " %\n\n";
-
-    std::cout << "=== Cumulative fraction of integral over [-3, +40] contained in [-3, +n] for n = 8..40 ===\n";
-    std::cout << std::setw(4) << "n"
-              << std::setw(12) << "t_n [ns]"
-              << std::setw(18) << "int18 [-3,+n]"
-              << std::setw(14) << "frac18"
-              << std::setw(18) << "int19 [-3,+n]"
-              << std::setw(14) << "frac19"
-              << "\n";
-    std::cout << std::string(80, '-') << "\n";
-
-    int n95_18 = -1, n95_19 = -1;
-    for (int n = 8; n <= 40; ++n) {
-        double cum18 = 0.0, cum19 = 0.0;
-        for (int k = -3; k <= n; ++k) {
+    // Function to calculate n0, total, cumulative fractions, and n95
+    auto eval_containment = [&](const std::string& label, const std::vector<double>& mean, int& out_n0, int& out_n95, double& out_tot) {
+        int n0 = kMaxOff;
+        for (int k = 1; k <= kMaxOff; ++k) {
             int idx = k - kMinOff;
-            cum18 += mean18[idx] * 16.0;
-            cum19 += mean19[idx] * 16.0;
+            if (mean[idx] <= 0.0) {
+                n0 = k;
+                break;
+            }
         }
-        double f18 = (tot_int18_3_40 != 0.0) ? (cum18 / tot_int18_3_40) : 0.0;
-        double f19 = (tot_int19_3_40 != 0.0) ? (cum19 / tot_int19_3_40) : 0.0;
+        out_n0 = n0;
 
-        if (n95_18 < 0 && f18 >= 0.95) n95_18 = n;
-        if (n95_19 < 0 && f19 >= 0.95) n95_19 = n;
+        double tot = 0.0;
+        for (int k = -3; k <= n0; ++k) {
+            int idx = k - kMinOff;
+            tot += mean[idx] * 16.0;
+        }
+        out_tot = tot;
 
-        std::cout << std::setw(4) << n
-                  << std::setw(12) << std::fixed << std::setprecision(1) << (n * 16.0)
-                  << std::setw(18) << std::fixed << std::setprecision(3) << cum18
-                  << std::setw(14) << std::fixed << std::setprecision(4) << f18
-                  << std::setw(18) << std::fixed << std::setprecision(3) << cum19
-                  << std::setw(14) << std::fixed << std::setprecision(4) << f19
+        int n95 = -1;
+        for (int n = 8; n <= n0; ++n) {
+            double cum = 0.0;
+            for (int k = -3; k <= n; ++k) {
+                int idx = k - kMinOff;
+                cum += mean[idx] * 16.0;
+            }
+            double frac = (tot != 0.0) ? (cum / tot) : 0.0;
+            if (n95 < 0 && frac >= 0.95) n95 = n;
+        }
+        out_n95 = n95;
+    };
+
+    int n0_18_glob = 40, n95_18_glob = -1; double tot_18_glob = 0;
+    int n0_18_loc  = 40, n95_18_loc  = -1; double tot_18_loc  = 0;
+    int n0_19_glob = 40, n95_19_glob = -1; double tot_19_glob = 0;
+    int n0_19_loc  = 40, n95_19_loc  = -1; double tot_19_loc  = 0;
+
+    eval_containment("hod2018X ped_glob", mean18_glob, n0_18_glob, n95_18_glob, tot_18_glob);
+    eval_containment("hod2018X ped_loc",  mean18_loc,  n0_18_loc,  n95_18_loc,  tot_18_loc);
+    eval_containment("hod2019X ped_glob", mean19_glob, n0_19_glob, n95_19_glob, tot_19_glob);
+    eval_containment("hod2019X ped_loc",  mean19_loc,  n0_19_loc,  n95_19_loc,  tot_19_loc);
+
+    std::cout << "\n=== Containment and n95 Summary ===\n";
+    std::cout << "hod2018X ped_glob: n0 = " << n0_18_glob << ", total [-3, n0] = " << tot_18_glob << " mV*ns, n95 = " << n95_18_glob << "\n";
+    std::cout << "hod2018X ped_loc:  n0 = " << n0_18_loc  << ", total [-3, n0] = " << tot_18_loc  << " mV*ns, n95 = " << n95_18_loc  << "\n";
+    std::cout << "hod2019X ped_glob: n0 = " << n0_19_glob << ", total [-3, n0] = " << tot_19_glob << " mV*ns, n95 = " << n95_19_glob << "\n";
+    std::cout << "hod2019X ped_loc:  n0 = " << n0_19_loc  << ", total [-3, n0] = " << tot_19_loc  << " mV*ns, n95 = " << n95_19_loc  << "\n";
+
+    std::cout << "\n=== Cumulative fractions over [-3, n] for n = 8..n0 ===\n";
+
+    auto print_series = [&](const std::string& title, const std::vector<double>& mean, int n0, double tot, int n95) {
+        std::cout << "\n-- " << title << " (n0=" << n0 << ", total=" << tot << " mV*ns, n95=" << n95 << ") --\n";
+        std::cout << std::setw(6) << "n"
+                  << std::setw(12) << "t_n [ns]"
+                  << std::setw(18) << "integral [-3,+n]"
+                  << std::setw(14) << "fraction"
                   << "\n";
-    }
+        std::cout << std::string(50, '-') << "\n";
+        for (int n = 8; n <= n0; ++n) {
+            double cum = 0.0;
+            for (int k = -3; k <= n; ++k) {
+                int idx = k - kMinOff;
+                cum += mean[idx] * 16.0;
+            }
+            double frac = (tot != 0.0) ? (cum / tot) : 0.0;
+            std::cout << std::setw(6) << n
+                      << std::setw(12) << std::fixed << std::setprecision(1) << (n * 16.0)
+                      << std::setw(18) << std::fixed << std::setprecision(3) << cum
+                      << std::setw(14) << std::fixed << std::setprecision(4) << frac
+                      << "\n";
+        }
+    };
 
-    std::cout << "\nn95 thresholds (smallest n with cumulative fraction >= 0.95):\n";
-    std::cout << "  hod2018X: n95 = " << n95_18 << "\n";
-    std::cout << "  hod2019X: n95 = " << n95_19 << "\n";
+    print_series("hod2018X ped_glob", mean18_glob, n0_18_glob, tot_18_glob, n95_18_glob);
+    print_series("hod2018X ped_loc",  mean18_loc,  n0_18_loc,  tot_18_loc,  n95_18_loc);
+    print_series("hod2019X ped_glob", mean19_glob, n0_19_glob, tot_19_glob, n95_19_glob);
+    print_series("hod2019X ped_loc",  mean19_loc,  n0_19_loc,  tot_19_loc,  n95_19_loc);
 
     // Create output directory and plot
     std::time_t now = std::time(nullptr);
@@ -275,36 +292,41 @@ void pulse_shape() {
         t_arr[k - kMinOff] = k * 16.0;
     }
 
-    TCanvas c("c_ps", "Average Pulse Shape", 900, 600);
+    TCanvas c("c_ps", "Average Pulse Shape", 1000, 650);
     c.SetGrid();
     c.SetLeftMargin(0.12);
     c.SetBottomMargin(0.12);
 
-    TGraph g18(nOff, t_arr.data(), mean18.data());
-    g18.SetTitle("Average Cosmic Muon Pulse Shape (v8, t_{min} aligned);t - t_{min} [ns];Average (pedestal - waveform) [mV]");
-    g18.SetLineColor(kBlue + 1);
-    g18.SetLineWidth(2);
-    g18.SetMarkerStyle(20);
-    g18.SetMarkerSize(0.7);
-    g18.SetMarkerColor(kBlue + 1);
+    TGraph g18_glob(nOff, t_arr.data(), mean18_glob.data());
+    g18_glob.SetTitle("Average Pulse Shape with ped_glob vs ped_loc (v8);t - t_{min} [ns];Average Pulse [mV]");
+    g18_glob.SetLineColor(kBlue + 1); g18_glob.SetLineWidth(2);
+    g18_glob.SetMarkerStyle(20); g18_glob.SetMarkerSize(0.6); g18_glob.SetMarkerColor(kBlue + 1);
 
-    TGraph g19(nOff, t_arr.data(), mean19.data());
-    g19.SetLineColor(kRed + 1);
-    g19.SetLineWidth(2);
-    g19.SetMarkerStyle(21);
-    g19.SetMarkerSize(0.7);
-    g19.SetMarkerColor(kRed + 1);
+    TGraph g18_loc(nOff, t_arr.data(), mean18_loc.data());
+    g18_loc.SetLineColor(kCyan + 2); g18_loc.SetLineWidth(2); g18_loc.SetLineStyle(2);
+    g18_loc.SetMarkerStyle(24); g18_loc.SetMarkerSize(0.6); g18_loc.SetMarkerColor(kCyan + 2);
 
-    g18.Draw("ALP");
-    g19.Draw("LP SAME");
+    TGraph g19_glob(nOff, t_arr.data(), mean19_glob.data());
+    g19_glob.SetLineColor(kRed + 1); g19_glob.SetLineWidth(2);
+    g19_glob.SetMarkerStyle(21); g19_glob.SetMarkerSize(0.6); g19_glob.SetMarkerColor(kRed + 1);
 
-    TLegend leg(0.60, 0.72, 0.88, 0.88);
-    leg.AddEntry(&g18, "hod2018X (ph > 50 mV)", "lp");
-    leg.AddEntry(&g19, "hod2019X (ph > 35 mV)", "lp");
+    TGraph g19_loc(nOff, t_arr.data(), mean19_loc.data());
+    g19_loc.SetLineColor(kOrange + 2); g19_loc.SetLineWidth(2); g19_loc.SetLineStyle(2);
+    g19_loc.SetMarkerStyle(25); g19_loc.SetMarkerSize(0.6); g19_loc.SetMarkerColor(kOrange + 2);
+
+    g18_glob.Draw("ALP");
+    g18_loc.Draw("LP SAME");
+    g19_glob.Draw("LP SAME");
+    g19_loc.Draw("LP SAME");
+
+    TLegend leg(0.55, 0.70, 0.88, 0.88);
+    leg.AddEntry(&g18_glob, Form("hod2018X ped_glob (n95=%d)", n95_18_glob), "lp");
+    leg.AddEntry(&g18_loc,  Form("hod2018X ped_loc  (n95=%d)", n95_18_loc),  "lp");
+    leg.AddEntry(&g19_glob, Form("hod2019X ped_glob (n95=%d)", n95_19_glob), "lp");
+    leg.AddEntry(&g19_loc,  Form("hod2019X ped_loc  (n95=%d)", n95_19_loc),  "lp");
     leg.Draw();
 
-    fs::path outpng = outdir / "pulse_shape_v8.png";
+    fs::path outpng = outdir / "pulse_shape_ped_comparison_v8.png";
     c.SaveAs(outpng.string().c_str());
     std::cout << "\nPlot saved to: " << outpng << "\n";
 }
-
