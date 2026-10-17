@@ -383,6 +383,47 @@ int main(int argc,char**argv){
     linfit(xA18,xA19,slXqr,icXqr); linfit(yA18,yA19,slYqr,icYqr);
     linfit(xB18,xB19,slXph,icXph); linfit(yB18,yB19,slYph,icYph);
 
+    // Q cut scan (3b)
+    struct QScanTrack {
+        double c = 0;
+        long long n_xz = 0, n_yz = 0, n_3d = 0;
+        double r_x = 0, r_y = 0;
+    };
+    const std::vector<double> c_scan_list = {687, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000};
+    const int n_cscan = (int)c_scan_list.size();
+    std::vector<QScanTrack> q_scan_tracks(n_cscan);
+    for(int ci=0; ci<n_cscan; ++ci){
+        double c_val = c_scan_list[ci];
+        q_scan_tracks[ci].c = c_val;
+        std::vector<double> x18_s, x19_s, y18_s, y19_s;
+        for(const auto& ev: evs){
+            if(ev.ncls18x<1 || ev.best18x_amp<10) continue;
+            if(ev.ncls18y<1 || ev.best18y_amp<10) continue;
+            std::vector<const CQ*> cl_x, cl_y;
+            for(const auto& cq: ev.h19x)
+                if(cq.Q > c_val && cq.r >= r_lo && cq.r <= r_hi) cl_x.push_back(&cq);
+            for(const auto& cq: ev.h19y)
+                if(cq.Q > c_val && cq.r >= r_lo && cq.r <= r_hi) cl_y.push_back(&cq);
+            const bool has_x = (cl_x.size() == 1);
+            const bool has_y = (cl_y.size() == 1);
+            if(has_x){
+                ++q_scan_tracks[ci].n_xz;
+                x18_s.push_back(ev.best18x_pos);
+                x19_s.push_back(strip_coord(cl_x[0]->k));
+            }
+            if(has_y){
+                ++q_scan_tracks[ci].n_yz;
+                y18_s.push_back(ev.best18y_pos);
+                y19_s.push_back(strip_coord(cl_y[0]->k));
+            }
+            if(has_x && has_y){
+                ++q_scan_tracks[ci].n_3d;
+            }
+        }
+        q_scan_tracks[ci].r_x = pearsonR(x18_s, x19_s);
+        q_scan_tracks[ci].r_y = pearsonR(y18_s, y19_s);
+    }
+
     std::cout<<"\n=== RESULTADOS ===\n";
     std::cout<<"Selección Q+r:  N_XZ="<<n_coinc_Xqr<<"  N_YZ="<<n_coinc_Yqr<<"  N_3D="<<n_3D_qr<<"\n";
     std::cout<<"  r_X="<<rX_qr<<"  r_Y="<<rY_qr<<"\n";
@@ -540,7 +581,24 @@ int main(int argc,char**argv){
         }
         os<<"  r_corr_Qr_X = "<<rX_qr<<"\n";
         os<<"  r_corr_ph_X = "<<rX_ph<<"\n";
-        os<<"  max_r = "<<max_r<<"\n";
+        os<<"  max_r = "<<max_r<<"\n\n";
+
+        os<<"Q cut scan (Q+r selection):\n";
+        constexpr double kFBoth = 0.0167;
+        const double exp_3D = kFBoth * N;
+        os<<"  Expected 3D count (kFBoth x triggers) = "<<std::fixed<<std::setprecision(1)<<exp_3D
+          <<" (kFBoth = "<<kFBoth<<", triggers = "<<N<<")\n\n";
+        os<<std::setw(8)<<"c"<<std::setw(12)<<"XZ (Q+r)"<<std::setw(12)<<"YZ (Q+r)"
+          <<std::setw(12)<<"3D (Q+r)"<<std::setw(12)<<"r_X"<<std::setw(12)<<"r_Y\n";
+        os<<"--------------------------------------------------------------------\n";
+        for(const auto& sp: q_scan_tracks){
+            os<<std::setw(8)<<std::fixed<<std::setprecision(0)<<sp.c
+              <<std::setw(12)<<sp.n_xz
+              <<std::setw(12)<<sp.n_yz
+              <<std::setw(12)<<sp.n_3d
+              <<std::setw(12)<<std::setprecision(4)<<sp.r_x
+              <<std::setw(12)<<std::setprecision(4)<<sp.r_y<<"\n";
+        }
     };
     print_summary(std::cout);
     {std::ofstream sf(outdir/"summary_cosmic_tracks.txt");print_summary(sf);}

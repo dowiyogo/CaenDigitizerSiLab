@@ -216,9 +216,10 @@ struct PlaneQ {
     long long n_sig_Q = 0;
     std::vector<double> nopulse_Q;    // Q de canales sin pulso (ph < 5 mV en [2500,8000] ns)
     double sigma_Q_noise = 0;         // RMS de nopulse_Q (F1)
-    double v_xlo = 0, v_xhi = 0;      // rango de búsqueda de valle [5*sigma_noise, P10]
-    int blo = 0, bhi = 0, min_b = 0;  // bins de búsqueda de valle (F2)
-    double min_v = 0, c_blo = 0;      // contenido mínimo y en blo (1c)
+    double v_xlo = 0, v_xhi = 0;      // rango de búsqueda de valle [5*sigma_noise, median]
+    int blo = 0, bhi = 0, min_b = 0;  // bins de búsqueda de valle
+    double min_v = 0, c_lo = 0, c_hi = 0; // contenido mínimo y en extremos
+    std::string fail_reason;
     double med_Q = 0;
     double q10_Q = 0;
     double q90_Q = 0;
@@ -398,7 +399,7 @@ static void compute_fits(FileQ& fq){
 
         // Estimador de carga robusto (percentiles)
         p.n_sig_Q = (long long)p.signal_Q.size();
-        if(!p.signal_Q.empty()){
+        if(p.n_sig_Q >= 50){
             std::sort(p.signal_Q.begin(), p.signal_Q.end());
             auto get_pct = [&](double pct) {
                 double idx = pct * (p.signal_Q.size() - 1);
@@ -410,37 +411,59 @@ static void compute_fits(FileQ& fq){
             p.med_Q = get_pct(0.50);
             p.q10_Q = get_pct(0.10);
             p.q90_Q = get_pct(0.90);
-        }
-
-        // Step 1c: Valle en [5 * sigma_Q_noise, P10 of signal Q]
-        p.v_xlo = 5.0 * p.sigma_Q_noise;
-        p.v_xhi = p.q10_Q;
-        int blo = h->FindBin(p.v_xlo);
-        int bhi = h->FindBin(p.v_xhi);
-        p.blo = blo; p.bhi = bhi;
-        int min_b = -1;
-        double min_v = 1e30;
-        if(blo >= 1 && bhi <= h->GetNbinsX() && bhi >= blo){
-            for(int b=blo;b<=bhi;b++){
-                double c=h->GetBinContent(b);
-                if(c < min_v){
-                    min_v=c;
-                    min_b=b;
-                }
-            }
-        }
-        p.min_b = min_b;
-        p.min_v = min_v;
-        p.c_blo = (blo >= 1 && blo <= h->GetNbinsX()) ? h->GetBinContent(blo) : 0.0;
-
-        // A valley is valid only if the minimum bin is >= 3 bins from both ends of the region
-        // and its content is < 0.5 * the content at the lower end of the region. Otherwise "no valley".
-        if(blo >= 1 && bhi >= blo + 6 && min_b >= blo + 3 && min_b <= bhi - 3 && min_v < 0.5 * p.c_blo){
-            p.has_valley = true;
-            p.umbral_Q = h->GetBinCenter(min_b);
         } else {
+            p.med_Q = 0; p.q10_Q = 0; p.q90_Q = 0;
+        }
+
+        // Step 4: Valle en rebinned histogram (500 mV·ns)
+        if(p.n_sig_Q < 50){
             p.has_valley = false;
             p.umbral_Q = 0;
+            p.fail_reason = "N_sig < 50";
+        } else {
+            TH1D* h500 = static_cast<TH1D*>(h->Rebin(5, Form("%s_rebin500", h->GetName())));
+            p.v_xlo = 5.0 * p.sigma_Q_noise;
+            p.v_xhi = p.med_Q;
+            int blo = h500->FindBin(p.v_xlo);
+            int bhi = h500->FindBin(p.v_xhi);
+            p.blo = blo; p.bhi = bhi;
+            int min_b = -1;
+            double min_v = 1e30;
+            if(blo >= 1 && bhi <= h500->GetNbinsX() && bhi >= blo){
+                for(int b=blo;b<=bhi;b++){
+                    double c=h500->GetBinContent(b);
+                    if(c < min_v){
+                        min_v=c;
+                        min_b=b;
+                    }
+                }
+            }
+            p.min_b = min_b;
+            p.min_v = min_v;
+            p.c_lo = (blo >= 1 && blo <= h500->GetNbinsX()) ? h500->GetBinContent(blo) : 0.0;
+            p.c_hi = (bhi >= 1 && bhi <= h500->GetNbinsX()) ? h500->GetBinContent(bhi) : 0.0;
+
+            const int n_bins = (bhi >= blo) ? (bhi - blo + 1) : 0;
+            if(n_bins < 8){
+                p.fail_reason = "region span < 8 bins";
+            } else if(p.c_lo < 20.0 || p.c_hi < 20.0){
+                p.fail_reason = "end content < 20";
+            } else if(min_b < blo + 3 || min_b > bhi - 3){
+                p.fail_reason = "edge guard";
+            } else if(min_v >= 0.5 * p.c_lo || min_v >= 0.5 * p.c_hi){
+                p.fail_reason = "min_v >= 0.5*c_end";
+            } else {
+                p.fail_reason = "";
+            }
+
+            if(p.fail_reason.empty()){
+                p.has_valley = true;
+                p.umbral_Q = h500->GetBinCenter(min_b);
+            } else {
+                p.has_valley = false;
+                p.umbral_Q = 0;
+            }
+            delete h500;
         }
 
         // Landau en la región de señal (solo si hay valle real)
@@ -884,19 +907,22 @@ int main(int argc, char** argv){
         }
         os<<"\n\n";
 
-        os<<"Búsqueda de valle (umbral natural en [5*sigma_noise, P10]):\n";
+        os<<"Búsqueda de valle (umbral natural en [5*sigma_noise, median]):\n";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
             const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
             const char* name = (pp==P18X) ? (v==0?"18X-v7":"18X-v8") : (v==0?"19X-v7":"19X-v8");
             os<<"  "<<std::setw(8)<<std::left<<name<<": ";
-            if(p.has_valley) os<<fmt(p.umbral_Q)<<" mV·ns";
-            else os<<"no valley";
-            os<<" (region=["<<fmt(p.v_xlo)<<", "<<fmt(p.v_xhi)<<"] mV·ns"
-              <<", bins=["<<p.blo<<", "<<p.bhi<<"], min_b="<<p.min_b
-              <<", min_v="<<fmt(p.min_v,0)<<", c_blo="<<fmt(p.c_blo,0);
-            if(p.min_b < p.blo + 3 || p.min_b > p.bhi - 3) os<<", edge guard -> no valley";
-            else if(p.min_v >= 0.5 * p.c_blo) os<<", min_v >= 0.5*c_blo -> no valley";
-            os<<")\n";
+            if(p.n_sig_Q < 50){
+                os<<"no valley (N_sig="<<p.n_sig_Q<<" < 50)\n";
+            } else {
+                if(p.has_valley) os<<std::fixed<<std::setprecision(1)<<p.umbral_Q<<" mV·ns";
+                else os<<"no valley";
+                os<<" (region=["<<std::fixed<<std::setprecision(1)<<p.v_xlo<<", "<<p.v_xhi<<"] mV·ns"
+                  <<", bins=["<<p.blo<<", "<<p.bhi<<"], min_b="<<p.min_b
+                  <<", min_v="<<std::setprecision(0)<<p.min_v<<", c_lo="<<p.c_lo<<", c_hi="<<p.c_hi;
+                if(!p.fail_reason.empty()) os<<", "<<p.fail_reason;
+                os<<")\n";
+            }
         }
         os<<"\n";
     };

@@ -112,10 +112,11 @@ struct RunResult {
     bool lan_ok = false;
     int blo_19x = 0, bhi_19x = 0, min_b_19x = 0;
     double v_xlo_19x = 0, v_xhi_19x = 0;
-    double min_v_19x = 0, c_blo_19x = 0;
+    double min_v_19x = 0, c_lo_19x = 0, c_hi_19x = 0;
+    std::string fail_reason_19x;
     bool has_valley_19x = false;
     // Tag-and-probe (hod2019X, all channels)
-    long long n_tag_x=0;
+    long long n_tag_x=0, n_obs_x=0, n_acc_x=0;
     double eps_true_x=0, sigma_eps_x=0, sig_x=0;
     // Reproductibilidad (vs run anterior)
     double delta_mpv_rel=0;
@@ -341,7 +342,7 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
 
     // Estimador robusto hod2019X
     rr.n_sig_19x = (long long)sig_Q_19x.size();
-    if(!sig_Q_19x.empty()){
+    if(rr.n_sig_19x >= 50){
         std::sort(sig_Q_19x.begin(), sig_Q_19x.end());
         auto get_pct = [&](double pct) {
             double idx = pct * (sig_Q_19x.size() - 1);
@@ -353,6 +354,8 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
         rr.med_Q_19x = get_pct(0.50);
         rr.q10_Q_19x = get_pct(0.10);
         rr.q90_Q_19x = get_pct(0.90);
+    } else {
+        rr.med_Q_19x = 0; rr.q10_Q_19x = 0; rr.q90_Q_19x = 0;
     }
 
     // Normaliza ruido por plano
@@ -374,35 +377,55 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     {
         TH1D* h = &hQ19x;
         if(h->Integral() > 10){
-            // Step 1c: Encuentra valle en [5 * sigmaQ, P10 of signal Q]
-            rr.v_xlo_19x = 5.0 * rr.sigmaQ[2];
-            rr.v_xhi_19x = rr.q10_Q_19x;
-            int blo = h->FindBin(rr.v_xlo_19x);
-            int bhi = h->FindBin(rr.v_xhi_19x);
-            rr.blo_19x = blo; rr.bhi_19x = bhi;
-            int min_b = -1;
-            double min_v = 1e30;
-            if(blo >= 1 && bhi <= h->GetNbinsX() && bhi >= blo){
-                for(int b = blo; b <= bhi; b++){
-                    double c = h->GetBinContent(b);
-                    if(c < min_v){
-                        min_v = c;
-                        min_b = b;
+            // Step 4: Valle en rebinned histogram (500 mV·ns)
+            if(rr.n_sig_19x < 50){
+                rr.has_valley_19x = false;
+                rr.umbral_Q[2] = 0;
+                rr.fail_reason_19x = "N_sig < 50";
+            } else {
+                TH1D* h500 = static_cast<TH1D*>(h->Rebin(5, Form("%s_rebin500", h->GetName())));
+                rr.v_xlo_19x = 5.0 * rr.sigmaQ[2];
+                rr.v_xhi_19x = rr.med_Q_19x;
+                int blo = h500->FindBin(rr.v_xlo_19x);
+                int bhi = h500->FindBin(rr.v_xhi_19x);
+                rr.blo_19x = blo; rr.bhi_19x = bhi;
+                int min_b = -1;
+                double min_v = 1e30;
+                if(blo >= 1 && bhi <= h500->GetNbinsX() && bhi >= blo){
+                    for(int b = blo; b <= bhi; b++){
+                        double c = h500->GetBinContent(b);
+                        if(c < min_v){
+                            min_v = c;
+                            min_b = b;
+                        }
                     }
                 }
-            }
-            rr.min_b_19x = min_b;
-            rr.min_v_19x = min_v;
-            rr.c_blo_19x = (blo >= 1 && blo <= h->GetNbinsX()) ? h->GetBinContent(blo) : 0.0;
+                rr.min_b_19x = min_b;
+                rr.min_v_19x = min_v;
+                rr.c_lo_19x = (blo >= 1 && blo <= h500->GetNbinsX()) ? h500->GetBinContent(blo) : 0.0;
+                rr.c_hi_19x = (bhi >= 1 && bhi <= h500->GetNbinsX()) ? h500->GetBinContent(bhi) : 0.0;
 
-            // A valley is valid only if the minimum bin is >= 3 bins from both ends of the region
-            // and its content is < 0.5 * the content at the lower end of the region. Otherwise "no valley".
-            if(blo >= 1 && bhi >= blo + 6 && min_b >= blo + 3 && min_b <= bhi - 3 && min_v < 0.5 * rr.c_blo_19x){
-                rr.has_valley_19x = true;
-                rr.umbral_Q[2] = h->GetBinCenter(min_b);
-            } else {
-                rr.has_valley_19x = false;
-                rr.umbral_Q[2] = 0; // no valley
+                const int n_bins = (bhi >= blo) ? (bhi - blo + 1) : 0;
+                if(n_bins < 8){
+                    rr.fail_reason_19x = "region span < 8 bins";
+                } else if(rr.c_lo_19x < 20.0 || rr.c_hi_19x < 20.0){
+                    rr.fail_reason_19x = "end content < 20";
+                } else if(min_b < blo + 3 || min_b > bhi - 3){
+                    rr.fail_reason_19x = "edge guard";
+                } else if(min_v >= 0.5 * rr.c_lo_19x || min_v >= 0.5 * rr.c_hi_19x){
+                    rr.fail_reason_19x = "min_v >= 0.5*c_end";
+                } else {
+                    rr.fail_reason_19x = "";
+                }
+
+                if(rr.fail_reason_19x.empty()){
+                    rr.has_valley_19x = true;
+                    rr.umbral_Q[2] = h500->GetBinCenter(min_b);
+                } else {
+                    rr.has_valley_19x = false;
+                    rr.umbral_Q[2] = 0;
+                }
+                delete h500;
             }
 
             // Find last bin with >= 5 entries
@@ -480,6 +503,8 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
             if(h_Qcomb_mixed)h_Qcomb_mixed->Fill(Qn_mixed);
         }
     }
+    rr.n_obs_x = n_obs;
+    rr.n_acc_x = n_acc;
     const double Nt=(double)rr.n_tag_x;
     if(Nt>=2){
         rr.eps_true_x=(n_obs-n_acc)/Nt;
@@ -595,28 +620,29 @@ int main(int argc,char**argv){
      lg.AddEntry(h_same_all.get(),"H_{same}","l");lg.AddEntry(h_mixed_all.get(),"H_{mixed}","l");lg.Draw();
      cc.SaveAs((outdir/"tagprobe_combined_same_vs_mixed.png").string().c_str());}
 
-    // Significancia global combinada (umbral Q_norm > 15 sigma del pedestal)
-    const double Qnorm_thr=15.0;
-    const double Ntot_tag=h_same_all->Integral();
-    double n_obs_comb=0,n_acc_comb=0;
-    {int bthr=h_same_all->FindBin(Qnorm_thr);
-     for(int b=bthr;b<=h_same_all->GetNbinsX();b++){n_obs_comb+=h_same_all->GetBinContent(b);n_acc_comb+=h_mixed_all->GetBinContent(b);}}
-    const double eps_true_g=(Ntot_tag>0)?(n_obs_comb-n_acc_comb)/Ntot_tag:0;
-    const double so_g=std::sqrt(n_obs_comb/(Ntot_tag*Ntot_tag));
-    const double sa_g=std::sqrt(n_acc_comb/(Ntot_tag*Ntot_tag));
-    const double sigma_eps_g=std::sqrt(so_g*so_g+sa_g*sa_g);
-    const double sig_global=(sigma_eps_g>0)?eps_true_g/sigma_eps_g:0;
+    // Significancia global combinada (eps_global = (sum N_same - sum N_mixed) / sum N_tag)
+    long long sum_ntag = 0, sum_nsame = 0, sum_nmixed = 0;
+    for(const auto& r : results){
+        if(r.n_tag_x > 0){
+            sum_ntag += r.n_tag_x;
+            sum_nsame += r.n_obs_x;
+            sum_nmixed += r.n_acc_x;
+        }
+    }
+    const double eps_true_g = (sum_ntag > 0) ? (double)(sum_nsame - sum_nmixed) / sum_ntag : 0.0;
+    const double sigma_eps_g = (sum_ntag > 0) ? std::sqrt((double)(sum_nsame + sum_nmixed)) / sum_ntag : 0.0;
+    const double sig_global = (sigma_eps_g > 0) ? eps_true_g / sigma_eps_g : 0.0;
 
     // ── CSV por run ───────────────────────────────────────────────────────────
     {std::ofstream fc(outdir/"per_run_parameters.csv");
-     fc<<"run,n_events,t_peak_18_ns,t_peak_19_ns,n_sig_19x,med_Q_19x,q10_Q_19x,q90_Q_19x,mpvQ_19x_mVns,lan_status,lan_chi2ndf,lan_at_limit,sigmaQ_19x_mVns,snrQ_19x,n_tag_x,eps_true_x_pct,sigma_eps_x_pct,sig_x\n";
+     fc<<"run,n_events,t_peak_18_ns,t_peak_19_ns,n_sig_19x,med_Q_19x,q10_Q_19x,q90_Q_19x,mpvQ_19x_mVns,lan_status,lan_chi2ndf,lan_at_limit,sigmaQ_19x_mVns,snrQ_19x,n_tag_x,n_same_x,n_mixed_x,eps_true_x_pct,sigma_eps_x_pct,sig_x\n";
      for(const auto&r:results)
          fc<<r.label<<','<<r.n_events<<','<<r.t_peak_18<<','<<r.t_peak_19<<','
            <<r.n_sig_19x<<','<<r.med_Q_19x<<','<<r.q10_Q_19x<<','<<r.q90_Q_19x<<','
            <<((r.lan_status==0&&!r.lan_at_limit)?std::to_string(r.mpvQ[2]):"n/a")<<','
            <<r.lan_status<<','<<r.lan_chi2ndf<<','<<(r.lan_at_limit?1:0)<<','
-           <<r.sigmaQ[2]<<','<<r.snrQ[2]<<','<<r.n_tag_x<<','<<r.eps_true_x*100<<','
-           <<r.sigma_eps_x*100<<','<<r.sig_x<<'\n';}
+           <<r.sigmaQ[2]<<','<<r.snrQ[2]<<','<<r.n_tag_x<<','<<r.n_obs_x<<','<<r.n_acc_x<<','
+           <<r.eps_true_x*100<<','<<r.sigma_eps_x*100<<','<<r.sig_x<<'\n';}
 
     // ── Summary ───────────────────────────────────────────────────────────────
     const double max_sig=[&]()->double{double m=0;for(const auto&r:results)m=std::max(m,std::abs(r.sig_x));return m;}();
@@ -631,8 +657,9 @@ int main(int argc,char**argv){
           <<std::setw(8)<<"N_sig"<<std::setw(10)<<"Med_Q"<<std::setw(9)<<"Q_10"<<std::setw(9)<<"Q_90"
           <<std::setw(10)<<"MPV_Q"<<std::setw(8)<<"status"<<std::setw(10)<<"chi2ndf"<<std::setw(10)<<"limit"
           <<std::setw(10)<<"sigmaQ19"<<std::setw(8)<<"SNR_Q"
-          <<std::setw(8)<<"N_tag"<<std::setw(12)<<"eps_true[%]"<<std::setw(8)<<"sig\n";
-        os<<"--------------------------------------------------------------------------------------------------------------------------------------------\n";
+          <<std::setw(8)<<"N_tag"<<std::setw(8)<<"N_same"<<std::setw(8)<<"N_mixed"
+          <<std::setw(12)<<"eps_true[%]"<<std::setw(8)<<"sig\n";
+        os<<"----------------------------------------------------------------------------------------------------------------------------------------------------------------\n";
         for(const auto&r:results){
             std::string mpv_str = (r.lan_status == 0 && !r.lan_at_limit) ? [&](){
                 char b[32]; std::snprintf(b, sizeof(b), "%.1f", r.mpvQ[2]); return std::string(b); }() : "n/a";
@@ -657,22 +684,28 @@ int main(int argc,char**argv){
               <<std::setw(10)<<std::setprecision(1)<<r.sigmaQ[2]
               <<std::setw(8)<<snr_str
               <<std::setw(8)<<r.n_tag_x
+              <<std::setw(8)<<r.n_obs_x
+              <<std::setw(8)<<r.n_acc_x
               <<std::setw(12)<<std::setprecision(4)<<r.eps_true_x*100
               <<std::setw(8)<<std::setprecision(2)<<r.sig_x<<"\n";
         }
-        os<<"\nUmbral Q natural hod2019X (valle en [5*sigma_Q, P10] mV·ns):\n";
+        os<<"\nUmbral Q natural hod2019X (valle en [5*sigma_Q, median] mV·ns):\n";
         for(const auto& r : results){
             os<<"  "<<std::setw(6)<<std::left<<r.label<<": ";
-            if(r.has_valley_19x && r.umbral_Q[2] > 0) os<<std::fixed<<std::setprecision(1)<<r.umbral_Q[2]<<" mV·ns";
-            else os<<"no valley";
-            os<<" (region=["<<std::fixed<<std::setprecision(1)<<r.v_xlo_19x<<", "<<r.v_xhi_19x<<"] mV·ns"
-              <<", bins=["<<r.blo_19x<<", "<<r.bhi_19x<<"], min_b="<<r.min_b_19x
-              <<", min_v="<<std::setprecision(0)<<r.min_v_19x<<", c_blo="<<r.c_blo_19x;
-            if(r.min_b_19x < r.blo_19x + 3 || r.min_b_19x > r.bhi_19x - 3) os<<", edge guard -> no valley";
-            else if(r.min_v_19x >= 0.5 * r.c_blo_19x) os<<", min_v >= 0.5*c_blo -> no valley";
-            os<<")\n";
+            if(r.n_sig_19x < 50){
+                os<<"no valley (N_sig="<<r.n_sig_19x<<" < 50)\n";
+            } else {
+                if(r.has_valley_19x && r.umbral_Q[2] > 0) os<<std::fixed<<std::setprecision(1)<<r.umbral_Q[2]<<" mV·ns";
+                else os<<"no valley";
+                os<<" (region=["<<std::fixed<<std::setprecision(1)<<r.v_xlo_19x<<", "<<r.v_xhi_19x<<"] mV·ns"
+                  <<", bins=["<<r.blo_19x<<", "<<r.bhi_19x<<"], min_b="<<r.min_b_19x
+                  <<", min_v="<<std::setprecision(0)<<r.min_v_19x
+                  <<", c_lo="<<r.c_lo_19x<<", c_hi="<<r.c_hi_19x;
+                if(!r.fail_reason_19x.empty()) os<<", "<<r.fail_reason_19x;
+                os<<")\n";
+            }
         }
-        os<<"\nSignificancia global combinada (~Q_norm>10sigma): "<<std::setprecision(2)<<sig_global<<"σ\n";
+        os<<"\nSignificancia global combinada (eps_global = (sum N_same - sum N_mixed) / sum N_tag, sigma = sqrt(sum N_same + sum N_mixed) / sum N_tag): "<<std::setprecision(2)<<sig_global<<"σ\n";
         os<<"ε_true_global = "<<std::setprecision(4)<<eps_true_g*100<<"% ± "<<sigma_eps_g*100<<"%\n\n";
         os<<"  cota superior ε_true < "<<std::setprecision(2)
           <<(std::abs(eps_true_g)+2*sigma_eps_g)*100<<"% (95% CL)\n";

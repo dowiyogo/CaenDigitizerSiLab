@@ -218,6 +218,12 @@ static std::vector<EvData> load_all(const std::string& fname) {
 //==============================================================================
 // Tag-and-probe analysis para un plano
 //==============================================================================
+struct QScanPoint {
+    double c = 0;
+    long long n_tag = 0, n_same = 0, n_mixed = 0;
+    double eps_true = 0, sigma_eps = 0, significance = 0;
+};
+
 struct TPResult {
     long long n_tag=0, n_obs=0, n_acc=0, n_off=0;
     double eps_obs=0, eps_acc=0, eps_true=0, sigma_eps=0, significance=0;
@@ -226,6 +232,7 @@ struct TPResult {
     // Efficiency sweep
     std::vector<double> Q_sweep={0,100,300,500,1000,1500,2000,2346,3000,5000};
     std::vector<double> eps_true_sweep, eps_true_err_sweep;
+    std::vector<QScanPoint> q_scan;
 };
 
 static TPResult tagprobe(const std::vector<EvData>& evs,
@@ -260,6 +267,10 @@ static TPResult tagprobe(const std::vector<EvData>& evs,
     // Initialize sweep counters
     const int nsw=(int)tp.Q_sweep.size();
     std::vector<long long> n_obs_sw(nsw,0),n_acc_sw(nsw,0);
+
+    const std::vector<double> c_scan_list = {687, 1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000};
+    const int n_cscan = (int)c_scan_list.size();
+    std::vector<long long> n_same_c(n_cscan, 0), n_mixed_c(n_cscan, 0);
 
     for(size_t i=0;i<N;i++){
         if(!isTag(i))continue;
@@ -298,6 +309,11 @@ static TPResult tagprobe(const std::vector<EvData>& evs,
             if(Qsame>tp.Q_sweep[qi]) ++n_obs_sw[qi];
             if(Qmixed>tp.Q_sweep[qi]) ++n_acc_sw[qi];
         }
+
+        for(int ci=0;ci<n_cscan;ci++){
+            if(Qsame>c_scan_list[ci]) ++n_same_c[ci];
+            if(Qmixed>c_scan_list[ci]) ++n_mixed_c[ci];
+        }
     }
 
     // Compute main efficiency at kUmbralQ
@@ -310,6 +326,23 @@ static TPResult tagprobe(const std::vector<EvData>& evs,
     const double s_acc=std::sqrt(tp.eps_acc*(1-tp.eps_acc)/Nt);
     tp.sigma_eps=std::sqrt(s_obs*s_obs+s_acc*s_acc);
     tp.significance=(tp.sigma_eps>0)?tp.eps_true/tp.sigma_eps:0;
+
+    // Q cut scan points
+    tp.q_scan.resize(n_cscan);
+    for(int ci=0;ci<n_cscan;ci++){
+        auto& sp = tp.q_scan[ci];
+        sp.c = c_scan_list[ci];
+        sp.n_tag = tp.n_tag;
+        sp.n_same = n_same_c[ci];
+        sp.n_mixed = n_mixed_c[ci];
+        double eo = (double)sp.n_same / Nt;
+        double ea = (double)sp.n_mixed / Nt;
+        sp.eps_true = eo - ea;
+        double so = std::sqrt(eo * (1.0 - eo) / Nt);
+        double sa = std::sqrt(ea * (1.0 - ea) / Nt);
+        sp.sigma_eps = std::sqrt(so * so + sa * sa);
+        sp.significance = (sp.sigma_eps > 0) ? sp.eps_true / sp.sigma_eps : 0.0;
+    }
 
     // Sweep
     tp.eps_true_sweep.resize(nsw);
@@ -505,12 +538,24 @@ int main(int argc,char**argv){
         auto fmt=[](double v)->std::string{char b[20];std::snprintf(b,sizeof(b),"%.4f",v);return b;};
         auto row=[&](const std::string&m,const std::string&a,const std::string&b){
             os<<std::setw(38)<<m<<std::setw(14)<<a<<std::setw(14)<<b<<"\n";};
+        row("N_tag (all ch)",
+            std::to_string(tp_X_all.n_tag),std::to_string(tp_Y_all.n_tag));
+        row("N_same (all ch)",
+            std::to_string(tp_X_all.n_obs),std::to_string(tp_Y_all.n_obs));
+        row("N_mixed (all ch)",
+            std::to_string(tp_X_all.n_acc),std::to_string(tp_Y_all.n_acc));
         row("ε_true (all ch) [%]",
             fmt(tp_X_all.eps_true*100),fmt(tp_Y_all.eps_true*100));
         row("σ(ε_true) [%]",
             fmt(tp_X_all.sigma_eps*100),fmt(tp_Y_all.sigma_eps*100));
         row("Significancia [σ]",
             fmt(tp_X_all.significance),fmt(tp_Y_all.significance));
+        row("N_tag (hot ch masked)",
+            std::to_string(tp_X_mask.n_tag),std::to_string(tp_Y_mask.n_tag));
+        row("N_same (hot ch masked)",
+            std::to_string(tp_X_mask.n_obs),std::to_string(tp_Y_mask.n_obs));
+        row("N_mixed (hot ch masked)",
+            std::to_string(tp_X_mask.n_acc),std::to_string(tp_Y_mask.n_acc));
         row("ε_true (hot ch masked) [%]",
             fmt(tp_X_mask.eps_true*100),fmt(tp_Y_mask.eps_true*100));
         row("Significancia (masked) [σ]",
@@ -520,6 +565,35 @@ int main(int argc,char**argv){
         os<<std::setw(38)<<"Canales calientes Y";
         for(int k:hot_y)os<<kH19Y[k]<<"(k="<<k<<") ";os<<"\n";
         row("r_X (masked, N="+std::to_string(rx18.size())+")",fmt(rX_masked),"N/A");
+        os<<"\n";
+
+        os<<"Q cut scan — hod2019 X (all channels):\n";
+        os<<std::setw(8)<<"c"<<std::setw(10)<<"N_tag"<<std::setw(10)<<"N_same"<<std::setw(10)<<"N_mixed"
+          <<std::setw(14)<<"eps_true[%]"<<std::setw(14)<<"sigma[%]"<<std::setw(14)<<"significance\n";
+        os<<"------------------------------------------------------------------------------------\n";
+        for(const auto& sp: tp_X_all.q_scan){
+            os<<std::setw(8)<<std::fixed<<std::setprecision(0)<<sp.c
+              <<std::setw(10)<<sp.n_tag
+              <<std::setw(10)<<sp.n_same
+              <<std::setw(10)<<sp.n_mixed
+              <<std::setw(14)<<std::setprecision(4)<<sp.eps_true*100
+              <<std::setw(14)<<std::setprecision(4)<<sp.sigma_eps*100
+              <<std::setw(14)<<std::setprecision(2)<<sp.significance<<"\n";
+        }
+
+        os<<"\nQ cut scan — hod2019 Y (all channels):\n";
+        os<<std::setw(8)<<"c"<<std::setw(10)<<"N_tag"<<std::setw(10)<<"N_same"<<std::setw(10)<<"N_mixed"
+          <<std::setw(14)<<"eps_true[%]"<<std::setw(14)<<"sigma[%]"<<std::setw(14)<<"significance\n";
+        os<<"------------------------------------------------------------------------------------\n";
+        for(const auto& sp: tp_Y_all.q_scan){
+            os<<std::setw(8)<<std::fixed<<std::setprecision(0)<<sp.c
+              <<std::setw(10)<<sp.n_tag
+              <<std::setw(10)<<sp.n_same
+              <<std::setw(10)<<sp.n_mixed
+              <<std::setw(14)<<std::setprecision(4)<<sp.eps_true*100
+              <<std::setw(14)<<std::setprecision(4)<<sp.sigma_eps*100
+              <<std::setw(14)<<std::setprecision(2)<<sp.significance<<"\n";
+        }
         os<<"\n";
 
         os<<"  significance max = "<<std::setprecision(2)<<max_sig<<" sigma\n";
