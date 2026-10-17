@@ -27,4 +27,7 @@ constexpr int kNpost19 = 22;
 constexpr double kPh18_mV = 50.0;
 constexpr double kPh19_mV = 35.0;
 
+// Q cut for hod2019 (Rule 1d: hod2019X v8 valley invalid, 5 * sigma_Q_noise = 5 * 137.4 mV·ns)
+constexpr double kQcut19 = 687.0;
+
 #endif // HODO_CONSTS_H

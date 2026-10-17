@@ -216,7 +216,9 @@ struct PlaneQ {
     long long n_sig_Q = 0;
     std::vector<double> nopulse_Q;    // Q de canales sin pulso (ph < 5 mV en [2500,8000] ns)
     double sigma_Q_noise = 0;         // RMS de nopulse_Q (F1)
+    double v_xlo = 0, v_xhi = 0;      // rango de búsqueda de valle [5*sigma_noise, P10]
     int blo = 0, bhi = 0, min_b = 0;  // bins de búsqueda de valle (F2)
+    double min_v = 0, c_blo = 0;      // contenido mínimo y en blo (1c)
     double med_Q = 0;
     double q10_Q = 0;
     double q90_Q = 0;
@@ -259,29 +261,26 @@ static void process_file_Q(FileQ& fq, const std::string& fname,
     fq.n_events = nEnt;
     std::cout<<"  ["<<fq.label<<"] "<<nEnt<<" eventos...\n";
 
-    // Rango de Q por plano
-    const double Qlo18=-2000, Qhi18=25000, Qlo19=-500, Qhi19=5000;
+    // Rango de Q por plano: [-1000, 40000] mV·ns con bins de 100 mV·ns (410 bins)
+    const double kQlo = -1000.0, kQhi = 40000.0;
+    const int kQnbins = 410;
 
     for(int pl=0;pl<4;pl++){
         auto& p = fq.planes[pl];
-        const bool is19=(pl>=P19X);
-        const double Qlo=is19?Qlo19:Qlo18, Qhi=is19?Qhi19:Qhi18;
         const std::string nm=fq.label+"_"+kPname[pl];
-        p.h_Q    =new TH1D((nm+"_Q").c_str(),   (std::string(kPname[pl])+" "+fq.label+";Q_{max} [mV#upointns];Entries").c_str(),200,Qlo,Qhi);
-        p.h_Qall =new TH1D((nm+"_Qall").c_str(), "",200,Qlo,Qhi);
+        p.h_Q    =new TH1D((nm+"_Q").c_str(),   (std::string(kPname[pl])+" "+fq.label+";Q_{max} [mV#upointns];Entries").c_str(),kQnbins,kQlo,kQhi);
+        p.h_Qall =new TH1D((nm+"_Qall").c_str(), "",kQnbins,kQlo,kQhi);
         p.h_pt_hi=new TH1D((nm+"_pth").c_str(),  (std::string(kPname[pl])+" t_{pulso} (umbral alto);t [ns];Hits").c_str(),100,2500,8000);
     }
     if(make_per_channel)
         for(int c=0;c<kNCh;c++){
             const int pl=ch_plane(c);if(pl<0)continue;
-            const bool is19=(pl>=P19X);
-            const double Qlo=is19?Qlo19:Qlo18,Qhi=is19?Qhi19:Qhi18;
             char bn[32];std::snprintf(bn,sizeof(bn),"%s_ch%d",fq.label.c_str(),c);
-            fq.h_Q_ch[c]=new TH1D(bn,bn,200,Qlo,Qhi);}
+            fq.h_Q_ch[c]=new TH1D(bn,bn,kQnbins,kQlo,kQhi);}
     // Q vs ph para Ch50 (hod2019X k=10)
     fq.h_QvsPH =new TH2D((fq.label+"_Qvph").c_str(),
         ("Q vs PH Ch50 hod2019X "+fq.label+";Pulse height [mV];Q [mV#upointns];Eventos").c_str(),
-        100,0,100,100,Qlo19,Qhi19);
+        100,0,100,kQnbins,kQlo,kQhi);
     fq.h_ratio_r=new TH1D((fq.label+"_r").c_str(),
         ("Ratio r = Q/(ph#timesN#timesdt) "+fq.label+";r;Hits").c_str(),
         100,-0.1,1.5);
@@ -397,42 +396,6 @@ static void compute_fits(FileQ& fq){
         }
         p.sigma_Q_ped = p.sigma_Q_noise;
 
-        // Valle: mínimo en [umbral_ped, Q_max/2]
-        const double Q_max=h->GetBinCenter(h->FindLastBinAbove(1.0));
-        int blo=h->FindBin(p.sigma_Q_ped*3), bhi=h->FindBin(Q_max*0.5);
-        int min_b = -1;
-        double min_v = 1e30;
-        for(int b=blo;b<=bhi;b++){
-            double c=h->GetBinContent(b);
-            if(c>0 && c<min_v){
-                min_v=c;
-                min_b=b;
-            }
-        }
-        p.blo = blo; p.bhi = bhi; p.min_b = min_b;
-        // F2: treat a minimum within 2 bins of blo or bhi as "no valley"
-        if(min_b > blo + 2 && min_b < bhi - 2){
-            p.has_valley = true;
-            p.umbral_Q = h->GetBinCenter(min_b);
-        } else {
-            p.has_valley = false;
-            p.umbral_Q = 0;
-        }
-
-        // Landau en la región de señal (solo si hay valle real)
-        if(p.has_valley && p.umbral_Q>0 && Q_max>p.umbral_Q)
-            p.lan_Q=fit_landau_Q(h,p.umbral_Q,std::min(Q_max,p.h_Q->GetXaxis()->GetXmax()-1));
-
-        // Eficiencia al umbral Q natural
-        const long long N=fq.n_events;
-        if(N>0 && p.has_valley && p.umbral_Q>0){
-            long long cnt=0;
-            for(double Qmx:p.Q_per_event) if(Qmx>p.umbral_Q)cnt++;
-            p.eff_nat_Q=100.0*cnt/N;
-        } else {
-            p.eff_nat_Q=0;
-        }
-
         // Estimador de carga robusto (percentiles)
         p.n_sig_Q = (long long)p.signal_Q.size();
         if(!p.signal_Q.empty()){
@@ -447,6 +410,52 @@ static void compute_fits(FileQ& fq){
             p.med_Q = get_pct(0.50);
             p.q10_Q = get_pct(0.10);
             p.q90_Q = get_pct(0.90);
+        }
+
+        // Step 1c: Valle en [5 * sigma_Q_noise, P10 of signal Q]
+        p.v_xlo = 5.0 * p.sigma_Q_noise;
+        p.v_xhi = p.q10_Q;
+        int blo = h->FindBin(p.v_xlo);
+        int bhi = h->FindBin(p.v_xhi);
+        p.blo = blo; p.bhi = bhi;
+        int min_b = -1;
+        double min_v = 1e30;
+        if(blo >= 1 && bhi <= h->GetNbinsX() && bhi >= blo){
+            for(int b=blo;b<=bhi;b++){
+                double c=h->GetBinContent(b);
+                if(c < min_v){
+                    min_v=c;
+                    min_b=b;
+                }
+            }
+        }
+        p.min_b = min_b;
+        p.min_v = min_v;
+        p.c_blo = (blo >= 1 && blo <= h->GetNbinsX()) ? h->GetBinContent(blo) : 0.0;
+
+        // A valley is valid only if the minimum bin is >= 3 bins from both ends of the region
+        // and its content is < 0.5 * the content at the lower end of the region. Otherwise "no valley".
+        if(blo >= 1 && bhi >= blo + 6 && min_b >= blo + 3 && min_b <= bhi - 3 && min_v < 0.5 * p.c_blo){
+            p.has_valley = true;
+            p.umbral_Q = h->GetBinCenter(min_b);
+        } else {
+            p.has_valley = false;
+            p.umbral_Q = 0;
+        }
+
+        // Landau en la región de señal (solo si hay valle real)
+        const double Q_max=h->GetBinCenter(h->FindLastBinAbove(1.0));
+        if(p.has_valley && p.umbral_Q>0 && Q_max>p.umbral_Q)
+            p.lan_Q=fit_landau_Q(h,p.umbral_Q,std::min(Q_max,p.h_Q->GetXaxis()->GetXmax()-1));
+
+        // Eficiencia al umbral Q natural
+        const long long N=fq.n_events;
+        if(N>0 && p.has_valley && p.umbral_Q>0){
+            long long cnt=0;
+            for(double Qmx:p.Q_per_event) if(Qmx>p.umbral_Q)cnt++;
+            p.eff_nat_Q=100.0*cnt/N;
+        } else {
+            p.eff_nat_Q=0;
         }
     }
 }
@@ -875,15 +884,18 @@ int main(int argc, char** argv){
         }
         os<<"\n\n";
 
-        os<<"Búsqueda de valle (umbral natural):\n";
+        os<<"Búsqueda de valle (umbral natural en [5*sigma_noise, P10]):\n";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
             const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
             const char* name = (pp==P18X) ? (v==0?"18X-v7":"18X-v8") : (v==0?"19X-v7":"19X-v8");
             os<<"  "<<std::setw(8)<<std::left<<name<<": ";
             if(p.has_valley) os<<fmt(p.umbral_Q)<<" mV·ns";
             else os<<"no valley";
-            os<<" (blo="<<p.blo<<", bhi="<<p.bhi<<", min="<<p.min_b;
-            if(p.min_b <= p.blo + 2 || p.min_b >= p.bhi - 2) os<<", edge guard -> no valley";
+            os<<" (region=["<<fmt(p.v_xlo)<<", "<<fmt(p.v_xhi)<<"] mV·ns"
+              <<", bins=["<<p.blo<<", "<<p.bhi<<"], min_b="<<p.min_b
+              <<", min_v="<<fmt(p.min_v,0)<<", c_blo="<<fmt(p.c_blo,0);
+            if(p.min_b < p.blo + 3 || p.min_b > p.bhi - 3) os<<", edge guard -> no valley";
+            else if(p.min_v >= 0.5 * p.c_blo) os<<", min_v >= 0.5*c_blo -> no valley";
             os<<")\n";
         }
         os<<"\n";

@@ -58,8 +58,8 @@ static const double kThi[4]={7000,7000,5000,5000};
 // differs from [4000, 4400] ns in hodo_consts.h; kept as local override
 constexpr double kMuonTlo = 3900.0, kMuonThi = 4500.0;  // ns
 
-// Umbral_Q para el barrido de eficiencia (de charge_analysis)
-constexpr double kUmbralQ = 2401.2;  // natural threshold hod2019X v8 (from charge_analysis with kNpost19=22)
+// Umbral_Q para el barrido de eficiencia (de hodo_consts.h)
+constexpr double kUmbralQ = kQcut19;  // from hodo_consts.h
 
 // Mapeo hod2019
 static const std::array<int,16> kH19X={53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};

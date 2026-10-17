@@ -111,6 +111,9 @@ struct RunResult {
     bool lan_at_limit = false;
     bool lan_ok = false;
     int blo_19x = 0, bhi_19x = 0, min_b_19x = 0;
+    double v_xlo_19x = 0, v_xhi_19x = 0;
+    double min_v_19x = 0, c_blo_19x = 0;
+    bool has_valley_19x = false;
     // Tag-and-probe (hod2019X, all channels)
     long long n_tag_x=0;
     double eps_true_x=0, sigma_eps_x=0, sig_x=0;
@@ -213,12 +216,13 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     rr.t_lo_19 = kMuonTlo; rr.t_hi_19 = kMuonThi;
     rr.t_lo_18 = kMuonTlo; rr.t_hi_18 = kMuonThi;
 
-    // Histogramas de carga por plano (para este run)
-    const double Qlo19=-500,Qhi19=5000,Qlo18=-2000,Qhi18=25000;
-    TH1D hQ19x(("hQ19x_"+lbl).c_str(),"",100,Qlo19,Qhi19);
-    TH1D hQ19y(("hQ19y_"+lbl).c_str(),"",100,Qlo19,Qhi19);
-    TH1D hQ18x(("hQ18x_"+lbl).c_str(),"",100,Qlo18,Qhi18);
-    TH1D hQ18y(("hQ18y_"+lbl).c_str(),"",100,Qlo18,Qhi18);
+    // Histogramas de carga por plano: [-1000, 40000] mV·ns con bins de 100 mV·ns (410 bins)
+    const double kQlo = -1000.0, kQhi = 40000.0;
+    const int kQnbins = 410;
+    TH1D hQ19x(("hQ19x_"+lbl).c_str(),"",kQnbins,kQlo,kQhi);
+    TH1D hQ19y(("hQ19y_"+lbl).c_str(),"",kQnbins,kQlo,kQhi);
+    TH1D hQ18x(("hQ18x_"+lbl).c_str(),"",kQnbins,kQlo,kQhi);
+    TH1D hQ18y(("hQ18y_"+lbl).c_str(),"",kQnbins,kQlo,kQhi);
 
     // Variables para pedestal/noise by plane
     double sum_noise[4]={};long long n_noise[4]={};
@@ -370,23 +374,34 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     {
         TH1D* h = &hQ19x;
         if(h->Integral() > 10){
-            // Encuentra valle entre pedestal y señal en [200, 3000]
-            int blo = h->FindBin(200.0);
-            int bhi = h->FindBin(3000.0);
+            // Step 1c: Encuentra valle en [5 * sigmaQ, P10 of signal Q]
+            rr.v_xlo_19x = 5.0 * rr.sigmaQ[2];
+            rr.v_xhi_19x = rr.q10_Q_19x;
+            int blo = h->FindBin(rr.v_xlo_19x);
+            int bhi = h->FindBin(rr.v_xhi_19x);
+            rr.blo_19x = blo; rr.bhi_19x = bhi;
             int min_b = -1;
             double min_v = 1e30;
-            for(int b = blo; b <= bhi; b++){
-                double c = h->GetBinContent(b);
-                if(c > 0 && c < min_v){
-                    min_v = c;
-                    min_b = b;
+            if(blo >= 1 && bhi <= h->GetNbinsX() && bhi >= blo){
+                for(int b = blo; b <= bhi; b++){
+                    double c = h->GetBinContent(b);
+                    if(c < min_v){
+                        min_v = c;
+                        min_b = b;
+                    }
                 }
             }
-            rr.blo_19x = blo; rr.bhi_19x = bhi; rr.min_b_19x = min_b;
-            // F2: treat a minimum within 2 bins of blo or bhi as "no valley"
-            if(min_b > blo + 2 && min_b < bhi - 2){
+            rr.min_b_19x = min_b;
+            rr.min_v_19x = min_v;
+            rr.c_blo_19x = (blo >= 1 && blo <= h->GetNbinsX()) ? h->GetBinContent(blo) : 0.0;
+
+            // A valley is valid only if the minimum bin is >= 3 bins from both ends of the region
+            // and its content is < 0.5 * the content at the lower end of the region. Otherwise "no valley".
+            if(blo >= 1 && bhi >= blo + 6 && min_b >= blo + 3 && min_b <= bhi - 3 && min_v < 0.5 * rr.c_blo_19x){
+                rr.has_valley_19x = true;
                 rr.umbral_Q[2] = h->GetBinCenter(min_b);
             } else {
+                rr.has_valley_19x = false;
                 rr.umbral_Q[2] = 0; // no valley
             }
 
@@ -432,7 +447,7 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     const double t_muon_hi=kMuonThi;
 
     long long n_obs=0,n_acc=0;
-    const double Q_thr=2401.2;  // natural threshold hod2019X v8 (from charge_analysis with kNpost19=22)
+    const double Q_thr=kQcut19;  // from hodo_consts.h
 
     // Local shuffle (semilla fija por run)
     std::vector<size_t> local_shuf(nev);
@@ -645,13 +660,16 @@ int main(int argc,char**argv){
               <<std::setw(12)<<std::setprecision(4)<<r.eps_true_x*100
               <<std::setw(8)<<std::setprecision(2)<<r.sig_x<<"\n";
         }
-        os<<"\nUmbral Q natural hod2019X (valle en [200, 3000] mV·ns):\n";
+        os<<"\nUmbral Q natural hod2019X (valle en [5*sigma_Q, P10] mV·ns):\n";
         for(const auto& r : results){
             os<<"  "<<std::setw(6)<<std::left<<r.label<<": ";
-            if(r.umbral_Q[2] > 0) os<<std::fixed<<std::setprecision(1)<<r.umbral_Q[2]<<" mV·ns";
+            if(r.has_valley_19x && r.umbral_Q[2] > 0) os<<std::fixed<<std::setprecision(1)<<r.umbral_Q[2]<<" mV·ns";
             else os<<"no valley";
-            os<<" (blo="<<r.blo_19x<<", bhi="<<r.bhi_19x<<", min="<<r.min_b_19x;
-            if(r.min_b_19x <= r.blo_19x + 2 || r.min_b_19x >= r.bhi_19x - 2) os<<", edge guard -> no valley";
+            os<<" (region=["<<std::fixed<<std::setprecision(1)<<r.v_xlo_19x<<", "<<r.v_xhi_19x<<"] mV·ns"
+              <<", bins=["<<r.blo_19x<<", "<<r.bhi_19x<<"], min_b="<<r.min_b_19x
+              <<", min_v="<<std::setprecision(0)<<r.min_v_19x<<", c_blo="<<r.c_blo_19x;
+            if(r.min_b_19x < r.blo_19x + 3 || r.min_b_19x > r.bhi_19x - 3) os<<", edge guard -> no valley";
+            else if(r.min_v_19x >= 0.5 * r.c_blo_19x) os<<", min_v >= 0.5*c_blo -> no valley";
             os<<")\n";
         }
         os<<"\nSignificancia global combinada (~Q_norm>10sigma): "<<std::setprecision(2)<<sig_global<<"σ\n";

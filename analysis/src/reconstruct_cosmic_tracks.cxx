@@ -224,7 +224,7 @@ static void p2fit(TH2D*h,double sl,double ic,double r,const fs::path&p){
 int main(int argc,char**argv){
     std::string fv8="lectura_vx1740_ext_nim_1M_v8.root";
     std::string fv7="lectura_vx1740_ext_nim_1M_v7.root";
-    double umbral_Q19x=2401.2, umbral_Q19y=2401.2;  // natural threshold hod2019X v8 (from charge_analysis with kNpost19=22)
+    double umbral_Q19x=kQcut19, umbral_Q19y=kQcut19;  // from hodo_consts.h
     double r_lo=0.20, r_hi=0.80;  // valores iniciales; calibrados del histograma
     for(int i=1;i<argc;i++){
         std::string a=argv[i];
