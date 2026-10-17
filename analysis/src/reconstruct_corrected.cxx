@@ -27,6 +27,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -185,17 +186,17 @@ int main(int argc,char**argv){
     std::cout<<"Loading "<<nEnt<<" events into RAM...\n";
     std::vector<EvData> evs; evs.reserve(nEnt);
 
+    bool checked_step = false;
     for(Long64_t iev=0;iev<nEnt;iev++){
         tree->GetEntry(iev);
         if(iev%30000==0)std::cout<<"  "<<iev<<"/"<<nEnt<<"\r"<<std::flush;
         if(!tw||tw->empty())continue;
         const auto& tv=*tw;
-        static bool checked_step = false;
         if (!checked_step && tv.size() > 1) {
             checked_step = true;
             if (std::fabs((tv[1] - tv[0]) - kDt_ns) > 1e-3) {
                 std::fprintf(stderr, "Sampling step %.4f ns != kDt_ns %.4f ns; aborting\n", tv[1]-tv[0], kDt_ns);
-                return 1;
+                std::exit(1);
             }
         }
         EvData ev;

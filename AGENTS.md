@@ -216,10 +216,11 @@ t ≈ 3510 ns selected that pickup, not muons.
    analysis/src/multirun_analysis.cxx:42, analysis/src/reconstruct_corrected.cxx:49,
    analysis/src/reconstruct_cosmic_tracks.cxx:48, and analysis/src/tagprobe_analysis.cxx:45 [V: grep B3].
    Fixed in fix/analysis-units on 2026-10-17 (commit "Analysis: sampling period 16 ns, mV labels, step check"):
-   kDt_ns corrected to 16.0 ns (VX1740, 62.5 MS/s) matching the data_dig.time step, a one-time
-   runtime sampling step check added, and numeric Q cuts rescaled x1.04 (16.0/15.3846) so event
-   selections remain unchanged. Results in outputs/ dated before 2026-10-17 have charges computed with
-   15.38 ns and are therefore 3.8% low (factor 16.0/15.3846 = 1.04).
+   kDt_ns corrected to 16.0 ns (VX1740, 62.5 MS/s) matching the data_dig.time step, a runtime
+   sampling step check added. Q is now integrated over 12 samples of 16 ns; before 2026-10-17 it used 10 samples weighted
+   by 15.38 ns. Old and new Q differ by a non-constant factor (see S4 of the fix report).
+   Q cuts derived from the hod2019X natural threshold were recomputed; the loose cuts
+   (Q>100, Q>500) were rescaled x1.04 and are approximate.
 7. Analysis codes (reconstruct_corrected.cxx:53-54, gen_beamer_figs.C:43-44) defined thresholds
    of 50 and 35 labeled as ADC counts, but compared them directly against waveform values stored
    in mV without converting units; for a 2 Vpp 12-bit digitizer (0.4884 mV/count), the effective

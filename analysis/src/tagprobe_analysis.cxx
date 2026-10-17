@@ -26,6 +26,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -57,7 +58,7 @@ static const double kThi[4]={7000,7000,5000,5000};
 constexpr double kMuonTlo = 3900.0, kMuonThi = 4500.0;  // ns
 
 // Umbral_Q para el barrido de eficiencia (de charge_analysis)
-constexpr double kUmbralQ = 2440.048;  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
+constexpr double kUmbralQ = 2318.8;  // natural threshold hod2019X v8, outputs/charge_analysis_20261017_103723 (was 2346.2 with 15.38 ns, 10 samples)
 
 // Mapeo hod2019
 static const std::array<int,16> kH19X={53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};
@@ -147,17 +148,17 @@ static std::vector<EvData> load_all(const std::string& fname) {
     std::array<int,kNCh> inv19x{},inv19y{}; inv19x.fill(-1);inv19y.fill(-1);
     for(int k=0;k<16;k++){inv19x[kH19X[k]]=k;inv19y[kH19Y[k]]=k;}
 
+    bool checked_step = false;
     for(Long64_t iev=0;iev<nEnt;iev++){
         t->GetEntry(iev);
         if(iev%30000==0)std::cout<<"    "<<iev<<"/"<<nEnt<<"\r"<<std::flush;
         if(!tw||tw->empty())continue;
         const auto& tv=*tw;
-        static bool checked_step = false;
         if (!checked_step && tv.size() > 1) {
             checked_step = true;
             if (std::fabs((tv[1] - tv[0]) - kDt_ns) > 1e-3) {
                 std::fprintf(stderr, "Sampling step %.4f ns != kDt_ns %.4f ns; aborting\n", tv[1]-tv[0], kDt_ns);
-                return {};
+                std::exit(1);
             }
         }
 
@@ -358,8 +359,8 @@ int main(int argc,char**argv){
     std::array<long long,16> occ19x{},occ19y{};
     for(const auto&ev:evs){
         for(int k=0;k<16;k++){
-            if(ev.Q19x[k]>520.0&&ev.pt19x[k]>=kMuonTlo&&ev.pt19x[k]<=kMuonThi) occ19x[k]++;  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
-            if(ev.Q19y[k]>520.0&&ev.pt19y[k]>=kMuonTlo&&ev.pt19y[k]<=kMuonThi) occ19y[k]++;  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
+            if(ev.Q19x[k]>520.0&&ev.pt19x[k]>=kMuonTlo&&ev.pt19x[k]<=kMuonThi) occ19x[k]++;  // rescaled x1.04 on 2026-10-17; approximate, Q window changed 10 -> 12 samples
+            if(ev.Q19y[k]>520.0&&ev.pt19y[k]>=kMuonTlo&&ev.pt19y[k]<=kMuonThi) occ19y[k]++;  // rescaled x1.04 on 2026-10-17; approximate, Q window changed 10 -> 12 samples
         }
     }
     // Mediana de ocupancia

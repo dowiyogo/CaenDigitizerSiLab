@@ -23,6 +23,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -154,27 +155,27 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     TH1D h_pt19("_pt19","",100,2500,6000);
     TH1D h_pt18("_pt18","",100,2500,8000);
     const Long64_t scan_n=std::min(nEnt,(Long64_t)3000);
+    bool checked_step = false;
     for(Long64_t iev=0;iev<scan_n;iev++){
         t->GetEntry(iev);
         if(!tw||tw->empty())continue;
         const auto& tv=*tw;
-        static bool checked_step = false;
         if (!checked_step && tv.size() > 1) {
             checked_step = true;
             if (std::fabs((tv[1] - tv[0]) - kDt_ns) > 1e-3) {
                 std::fprintf(stderr, "Sampling step %.4f ns != kDt_ns %.4f ns; aborting\n", tv[1]-tv[0], kDt_ns);
-                return rr;
+                std::exit(1);
             }
         }
         for(int c=32;c<64;c++){
             if(!cw[c]||cw[c]->empty())continue;
             QResult qr=get_Q(*cw[c],tv,3000,5000);
-            if(qr.pt>0&&qr.Q>104.0)h_pt19.Fill(qr.pt);  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
+            if(qr.pt>0&&qr.Q>104.0)h_pt19.Fill(qr.pt);  // rescaled x1.04 on 2026-10-17; approximate, Q window changed 10 -> 12 samples
         }
         for(int c=0;c<32;c++){
             if(!cw[c]||cw[c]->empty())continue;
             QResult qr=get_Q(*cw[c],tv,3500,7000);
-            if(qr.pt>0&&qr.Q>520.0)h_pt18.Fill(qr.pt);  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
+            if(qr.pt>0&&qr.Q>520.0)h_pt18.Fill(qr.pt);  // rescaled x1.04 on 2026-10-17; approximate, Q window changed 10 -> 12 samples
         }
     }
     // t_peak_19: posición del máximo del histograma de tiempos hod2019 (umbral alto)
@@ -310,7 +311,7 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     const double t_muon_hi=std::min(5000.0,rr.t_peak_19+300);
 
     long long n_obs=0,n_acc=0;
-    const double Q_thr=2440.048;  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
+    const double Q_thr=2318.8;  // natural threshold hod2019X v8, outputs/charge_analysis_20261017_103723 (was 2346.2 with 15.38 ns, 10 samples)
 
     // Local shuffle (semilla fija por run)
     std::vector<size_t> local_shuf(nev);

@@ -31,6 +31,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -247,17 +248,17 @@ static void process_file_Q(FileQ& fq, const std::string& fname,
         ("Ratio r = Q/(ph#timesN#timesdt) "+fq.label+";r;Hits").c_str(),
         100,-0.1,1.5);
 
+    bool checked_step = false;
     for(Long64_t iev=0;iev<nEnt;iev++){
         t->GetEntry(iev);
         if(iev%30000==0)std::cout<<"    "<<iev<<"/"<<nEnt<<"\r"<<std::flush;
         if(!tw||tw->empty())continue;
         const auto& tv=*tw;
-        static bool checked_step = false;
         if (!checked_step && tv.size() > 1) {
             checked_step = true;
             if (std::fabs((tv[1] - tv[0]) - kDt_ns) > 1e-3) {
                 std::fprintf(stderr, "Sampling step %.4f ns != kDt_ns %.4f ns; aborting\n", tv[1]-tv[0], kDt_ns);
-                return;
+                std::exit(1);
             }
         }
 
