@@ -428,39 +428,6 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
                 delete h500;
             }
 
-            // Find last bin with >= 5 entries
-            int blast = h->GetNbinsX();
-            while(blast > 1 && h->GetBinContent(blast) < 5.0){
-                blast--;
-            }
-            const double xlo = (rr.umbral_Q[2] > 0) ? rr.umbral_Q[2] : 500.0;
-            const double xhi = h->GetBinLowEdge(blast + 1);
-
-            if(xhi > xlo + 50.0 && h->Integral(h->FindBin(xlo), blast) >= 10){
-                TF1 fl("_fl", "TMath::Landau(x,[0],[1],0)", xlo, xhi);
-                const double mpv0 = h->GetBinCenter(h->GetMaximumBin());
-                fl.SetParameters(std::max(mpv0, xlo + 1.0), (xhi - xlo) * 0.15);
-                fl.SetParLimits(0, xlo, xhi);
-                fl.SetParLimits(1, 1.0, xhi - xlo);
-                rr.lan_status = h->Fit(&fl, "RQNS");
-                if(rr.lan_status == 0){
-                    rr.lan_ok = true;
-                    rr.mpvQ[2] = fl.GetParameter(0);
-                    rr.lan_chi2ndf = fl.GetNDF() > 0 ? fl.GetChisquare() / fl.GetNDF() : 0.0;
-                    double l0, h0, l1, h1;
-                    fl.GetParLimits(0, l0, h0);
-                    fl.GetParLimits(1, l1, h1);
-                    auto near_lim = [](double val, double lo, double hi) {
-                        double span = hi - lo;
-                        return span > 0 && ((std::abs(val - lo) <= 0.001 * span) || (std::abs(val - hi) <= 0.001 * span));
-                    };
-                    if(near_lim(rr.mpvQ[2], l0, h0) || near_lim(fl.GetParameter(1), l1, h1)){
-                        rr.lan_at_limit = true;
-                    }
-                    if(rr.sigmaQ[2] > 0 && !rr.lan_at_limit)
-                        rr.snrQ[2] = rr.mpvQ[2] / rr.sigmaQ[2];
-                }
-            }
         }
     }
 
@@ -635,14 +602,16 @@ int main(int argc,char**argv){
 
     // ── CSV por run ───────────────────────────────────────────────────────────
     {std::ofstream fc(outdir/"per_run_parameters.csv");
-     fc<<"run,n_events,t_peak_18_ns,t_peak_19_ns,n_sig_19x,med_Q_19x,q10_Q_19x,q90_Q_19x,mpvQ_19x_mVns,lan_status,lan_chi2ndf,lan_at_limit,sigmaQ_19x_mVns,snrQ_19x,n_tag_x,n_same_x,n_mixed_x,eps_true_x_pct,sigma_eps_x_pct,sig_x\n";
-     for(const auto&r:results)
+     fc<<"run,n_events,t_peak_18_ns,t_peak_19_ns,n_sig_19x,med_Q_19x,q10_Q_19x,q90_Q_19x,sigmaQ_19x_mVns,n_tag_x,n_same_x,n_mixed_x,eps_true_x_pct,sigma_eps_x_pct,sig_x\n";
+     for(const auto&r:results){
+         std::string med_str = (r.n_sig_19x >= 50) ? [&](){ char b[32]; std::snprintf(b, sizeof(b), "%.1f", r.med_Q_19x); return std::string(b); }() : "n/a";
+         std::string q10_str = (r.n_sig_19x >= 50) ? [&](){ char b[32]; std::snprintf(b, sizeof(b), "%.1f", r.q10_Q_19x); return std::string(b); }() : "n/a";
+         std::string q90_str = (r.n_sig_19x >= 50) ? [&](){ char b[32]; std::snprintf(b, sizeof(b), "%.1f", r.q90_Q_19x); return std::string(b); }() : "n/a";
          fc<<r.label<<','<<r.n_events<<','<<r.t_peak_18<<','<<r.t_peak_19<<','
-           <<r.n_sig_19x<<','<<r.med_Q_19x<<','<<r.q10_Q_19x<<','<<r.q90_Q_19x<<','
-           <<((r.lan_status==0&&!r.lan_at_limit)?std::to_string(r.mpvQ[2]):"n/a")<<','
-           <<r.lan_status<<','<<r.lan_chi2ndf<<','<<(r.lan_at_limit?1:0)<<','
-           <<r.sigmaQ[2]<<','<<r.snrQ[2]<<','<<r.n_tag_x<<','<<r.n_obs_x<<','<<r.n_acc_x<<','
-           <<r.eps_true_x*100<<','<<r.sigma_eps_x*100<<','<<r.sig_x<<'\n';}
+           <<r.n_sig_19x<<','<<med_str<<','<<q10_str<<','<<q90_str<<','
+           <<r.sigmaQ[2]<<','<<r.n_tag_x<<','<<r.n_obs_x<<','<<r.n_acc_x<<','
+           <<r.eps_true_x*100<<','<<r.sigma_eps_x*100<<','<<r.sig_x<<'\n';
+     }}
 
     // ── Summary ───────────────────────────────────────────────────────────────
     const double max_sig=[&]()->double{double m=0;for(const auto&r:results)m=std::max(m,std::abs(r.sig_x));return m;}();
@@ -655,34 +624,23 @@ int main(int argc,char**argv){
         os<<"sigmaQ19: σ_Q noise [mV·ns] (no-pulse channels)\n\n";
         os<<std::setw(6)<<std::left<<"Run"<<std::setw(9)<<"N"<<std::setw(8)<<"tpk18"<<std::setw(8)<<"tpk19"
           <<std::setw(8)<<"N_sig"<<std::setw(10)<<"Med_Q"<<std::setw(9)<<"Q_10"<<std::setw(9)<<"Q_90"
-          <<std::setw(10)<<"MPV_Q"<<std::setw(8)<<"status"<<std::setw(10)<<"chi2ndf"<<std::setw(10)<<"limit"
-          <<std::setw(10)<<"sigmaQ19"<<std::setw(8)<<"SNR_Q"
+          <<std::setw(10)<<"sigmaQ19"
           <<std::setw(8)<<"N_tag"<<std::setw(8)<<"N_same"<<std::setw(8)<<"N_mixed"
           <<std::setw(12)<<"eps_true[%]"<<std::setw(8)<<"sig\n";
-        os<<"----------------------------------------------------------------------------------------------------------------------------------------------------------------\n";
+        os<<"-----------------------------------------------------------------------------------------------------------------\n";
         for(const auto&r:results){
-            std::string mpv_str = (r.lan_status == 0 && !r.lan_at_limit) ? [&](){
-                char b[32]; std::snprintf(b, sizeof(b), "%.1f", r.mpvQ[2]); return std::string(b); }() : "n/a";
-            std::string st_str = (r.lan_status >= 0) ? std::to_string(r.lan_status) : "no fit";
-            std::string chi2_str = (r.lan_status == 0) ? [&](){
-                char b[32]; std::snprintf(b, sizeof(b), "%.2f", r.lan_chi2ndf); return std::string(b); }() : "n/a";
-            std::string lim_str = (r.lan_status != 0) ? "n/a" : (r.lan_at_limit ? "AT_LIMIT" : "interior");
-            std::string snr_str = (r.lan_status == 0 && !r.lan_at_limit && r.sigmaQ[2] > 0) ? [&](){
-                char b[32]; std::snprintf(b, sizeof(b), "%.2f", r.snrQ[2]); return std::string(b); }() : "n/a";
+            std::string med_str = (r.n_sig_19x >= 50) ? [&](){ char b[32]; std::snprintf(b, sizeof(b), "%.1f", r.med_Q_19x); return std::string(b); }() : "n/a";
+            std::string q10_str = (r.n_sig_19x >= 50) ? [&](){ char b[32]; std::snprintf(b, sizeof(b), "%.1f", r.q10_Q_19x); return std::string(b); }() : "n/a";
+            std::string q90_str = (r.n_sig_19x >= 50) ? [&](){ char b[32]; std::snprintf(b, sizeof(b), "%.1f", r.q90_Q_19x); return std::string(b); }() : "n/a";
 
             os<<std::setw(6)<<r.label<<std::setw(9)<<r.n_events
               <<std::setw(8)<<std::fixed<<std::setprecision(0)<<r.t_peak_18
               <<std::setw(8)<<r.t_peak_19
               <<std::setw(8)<<r.n_sig_19x
-              <<std::setw(10)<<std::setprecision(1)<<r.med_Q_19x
-              <<std::setw(9)<<r.q10_Q_19x
-              <<std::setw(9)<<r.q90_Q_19x
-              <<std::setw(10)<<mpv_str
-              <<std::setw(8)<<st_str
-              <<std::setw(10)<<chi2_str
-              <<std::setw(10)<<lim_str
+              <<std::setw(10)<<med_str
+              <<std::setw(9)<<q10_str
+              <<std::setw(9)<<q90_str
               <<std::setw(10)<<std::setprecision(1)<<r.sigmaQ[2]
-              <<std::setw(8)<<snr_str
               <<std::setw(8)<<r.n_tag_x
               <<std::setw(8)<<r.n_obs_x
               <<std::setw(8)<<r.n_acc_x

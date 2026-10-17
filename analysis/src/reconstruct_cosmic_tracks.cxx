@@ -587,7 +587,7 @@ int main(int argc,char**argv){
         constexpr double kFBoth = 0.0167;
         const double exp_3D = kFBoth * N;
         os<<"  Expected 3D count (kFBoth x triggers) = "<<std::fixed<<std::setprecision(1)<<exp_3D
-          <<" (kFBoth = "<<kFBoth<<", triggers = "<<N<<")\n\n";
+          <<" (kFBoth = "<<std::setprecision(4)<<kFBoth<<", triggers = "<<N<<")\n\n";
         os<<std::setw(8)<<"c"<<std::setw(12)<<"XZ (Q+r)"<<std::setw(12)<<"YZ (Q+r)"
           <<std::setw(12)<<"3D (Q+r)"<<std::setw(12)<<"r_X"<<std::setw(12)<<"r_Y\n";
         os<<"--------------------------------------------------------------------\n";

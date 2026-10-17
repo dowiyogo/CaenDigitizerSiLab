@@ -466,10 +466,6 @@ static void compute_fits(FileQ& fq){
             delete h500;
         }
 
-        // Landau en la región de señal (solo si hay valle real)
-        const double Q_max=h->GetBinCenter(h->FindLastBinAbove(1.0));
-        if(p.has_valley && p.umbral_Q>0 && Q_max>p.umbral_Q)
-            p.lan_Q=fit_landau_Q(h,p.umbral_Q,std::min(Q_max,p.h_Q->GetXaxis()->GetXmax()-1));
 
         // Eficiencia al umbral Q natural
         const long long N=fq.n_events;
@@ -832,51 +828,6 @@ int main(int argc, char** argv){
             os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].q90_Q:fv8_data.planes[pp].q90_Q);
         os<<"\n";
 
-        os<<std::setw(kW)<<"MPV_Q Landau [mV·ns]";
-        for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
-            const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
-            if(!p.lan_Q.ok || p.lan_Q.status != 0 || p.lan_Q.at_limit)
-                os<<std::setw(14)<<"n/a";
-            else
-                os<<std::setw(14)<<fmt(p.lan_Q.mpv);
-        }
-        os<<"\n";
-
-        os<<std::setw(kW)<<"Landau fit status";
-        for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
-            const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
-            if(!p.has_valley) os<<std::setw(14)<<"no fit";
-            else os<<std::setw(14)<<p.lan_Q.status;
-        }
-        os<<"\n";
-
-        os<<std::setw(kW)<<"Landau chi2/ndf";
-        for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
-            const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
-            if(!p.lan_Q.ok || p.lan_Q.status != 0) os<<std::setw(14)<<"n/a";
-            else os<<std::setw(14)<<fmt(p.lan_Q.chi2ndf, 2);
-        }
-        os<<"\n";
-
-        os<<std::setw(kW)<<"Landau limit flag";
-        for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
-            const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
-            if(!p.lan_Q.ok || p.lan_Q.status != 0) os<<std::setw(14)<<"n/a";
-            else if(p.lan_Q.at_limit) os<<std::setw(14)<<"AT_LIMIT";
-            else os<<std::setw(14)<<"interior";
-        }
-        os<<"\n";
-
-        // SNR_Q
-        os<<std::setw(kW)<<"SNR_Q = MPV/σ_Q";
-        for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
-            const auto& p = (v==0?fv7_data:fv8_data).planes[pp];
-            if(!p.lan_Q.ok || p.lan_Q.status != 0 || p.lan_Q.at_limit || p.sigma_Q_noise <= 0)
-                os<<std::setw(14)<<"n/a";
-            else
-                os<<std::setw(14)<<fmt(p.lan_Q.mpv / p.sigma_Q_noise);
-        }
-        os<<"\n";
 
         os<<std::setw(kW)<<"umbral_Q natural [mV·ns]";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++){
