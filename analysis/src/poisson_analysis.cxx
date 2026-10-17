@@ -578,7 +578,6 @@ int main(int argc, char** argv){
         row("D (dispers. Δτ=1ms)",R(rd[0].D1ms),R(rd[1].D1ms));
         row("p-value χ² Poisson (Δτ=1ms)",R(rd[0].pchi2_1ms),R(rd[1].pchi2_1ms));
         row("N gaps DAQ",std::to_string(rd[0].gaps.size()),std::to_string(rd[1].gaps.size()));
-        row("Veredicto",veredicto(rd[0]),veredicto(rd[1]));
         os<<"\nFiguras producidas:\n";
         os<<"  interarrival_v7/v8.png         — Histograma ΔT + fit exponencial\n";
         os<<"  qq_interarrival_v7/v8.png      — Q-Q plot vs exponencial teórica\n";

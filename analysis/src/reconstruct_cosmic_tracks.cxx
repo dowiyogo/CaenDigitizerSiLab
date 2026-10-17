@@ -522,7 +522,6 @@ int main(int argc,char**argv){
         os<<"  slope_X="<<slXqr<<"  intercept_X="<<icXqr<<" mm\n";
         os<<"  ph:  r_X="<<rX_ph<<"  r_Y="<<rY_ph;
         os<<"  slope_X="<<slXph<<"  intercept_X="<<icXph<<" mm\n\n";
-        os<<"RAMA: "<<(rama_b_forced?"B (r_corr<0.3)":"A (r_corr>0.3)")<<"\n\n";
         if(!rama_b_forced){
             os<<"Track statistics (Q+r full-3D, N="<<n_3D_qr<<"):\n";
             if(!mx_qr.empty()){
@@ -534,13 +533,9 @@ int main(int argc,char**argv){
                 os<<"  (RMS/sqrt(2) = "<<rms_thx/std::sqrt(2.0)<<" deg es cota cruda de resolución angular — no calibrada)\n";
             }
         }
-        if(max_r>0.3&&max_r>max_rph+0.15)
-            os<<"VEREDICTO: RECONSTRUCCIÓN LOGRADA: el discriminante de carga revela la correlación inter-plano.\n"
-              <<"  N_XZ="<<n_coinc_Xqr<<"  r_corr_X="<<rX_qr<<"  → primeros tracks cósmicos reconstruidos.\n";
-        else
-            os<<"VEREDICTO: TRACKING LIMITADO POR LIGHT YIELD: discriminante mejora pureza (Q+r) pero la\n"
-              <<"  correlación no alcanza umbral r=0.3. Resultado consistente con límite del reflector TiO₂.\n"
-              <<"  r_corr_Qr_X="<<rX_qr<<"  r_corr_ph_X="<<rX_ph<<"\n";
+        os<<"  r_corr_Qr_X = "<<rX_qr<<"\n";
+        os<<"  r_corr_ph_X = "<<rX_ph<<"\n";
+        os<<"  max_r = "<<max_r<<"\n";
     };
     print_summary(std::cout);
     {std::ofstream sf(outdir/"summary_cosmic_tracks.txt");print_summary(sf);}

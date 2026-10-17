@@ -832,26 +832,8 @@ int main(int argc, char** argv) {
             os<<"  r(x2019(π_A), x2018) = "<<res.r_pearson_A<<"\n\n";
         }
 
-        // Veredictos
-        os<<"================================================================\n";
-        os<<"VEREDITOS\n";
-        os<<"================================================================\n\n";
-
-        auto verdict = [&](const CoordResult& res) -> std::string {
-            const double tauA0 = res.tau_A0, tauAB = res.tau_AB;
-            if (tauA0 > 0.85)
-                return "MAPEO CONFIRMADO: el orden propuesto es consistente con los datos (τ = "
-                       + std::to_string(tauA0).substr(0,5) + ").";
-            int n_swaps=0;
-            for(int c=0;c<16;++c) if(res.rank_A[c]>=0&&res.rank_0[c]>=0&&res.rank_A[c]!=res.rank_0[c]) ++n_swaps;
-            n_swaps/=2;
-            if(tauA0 > 0.6 && tauAB > 0.8)
-                return "MAPEO PARCIALMENTE CORREGIDO: se sugieren ~"+std::to_string(n_swaps)+" intercambios; ver tabla. (τ_A0="+std::to_string(tauA0).substr(0,5)+")";
-            return "MAPEO INCIERTO: métodos A y B no coinciden o estadística insuficiente. Requiere verificación física.";
-        };
-
-        os<<"hod2019 X: "<<verdict(rX)<<"\n";
-        os<<"hod2019 Y: "<<verdict(rY)<<"\n\n";
+        os<<"hod2019 X: tau_A0 = "<<rX.tau_A0<<"  tau_AB = "<<rX.tau_AB<<"\n";
+        os<<"hod2019 Y: tau_A0 = "<<rY.tau_A0<<"  tau_AB = "<<rY.tau_AB<<"\n\n";
 
         os<<"Mapeo inferido π_A (recomendado si τ_AB > 0.9):\n";
         os<<"  hod2019 X: {";

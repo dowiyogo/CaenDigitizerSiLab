@@ -521,27 +521,8 @@ int main(int argc,char**argv){
         row("r_X (masked, N="+std::to_string(rx18.size())+")",fmt(rX_masked),"N/A");
         os<<"\n";
 
-        if(rama_A){
-            os<<"VEREDICTO (RAMA A):\n";
-            const double sig_best=sig_x>sig_y?sig_x:sig_y;
-            const double eps_best=sig_x>sig_y?tp_X_all.eps_true:tp_Y_all.eps_true;
-            const double serr_best=sig_x>sig_y?tp_X_all.sigma_eps:tp_Y_all.sigma_eps;
-            os<<"DETECCIÓN ESTADÍSTICA DE MUONES EN HOD2019: ε_true = "
-              <<std::setprecision(2)<<eps_best*100<<"% ± "<<serr_best*100
-              <<" ("<<std::setprecision(1)<<sig_best<<"σ significancia). La señal de muón\n"
-              <<"cósmico se detecta sobre fondo accidental usando hod2018 como referencia,\n"
-              <<"pero la eficiencia es demasiado baja para tracking evento-a-evento.\n"
-              <<"Confirma que la tecnología detecta muones; el light yield (reflector TiO₂) es el limitante.\n";
-        } else {
-            os<<"VEREDICTO (RAMA B):\n";
-            os<<"SIN DETECCIÓN ESTADÍSTICA SIGNIFICATIVA (sig_max = "<<std::setprecision(2)<<max_sig<<"σ < 5σ):\n"
-              <<"hod2019 no muestra exceso de carga en las posiciones predichas por hod2018.\n"
-              <<"La detección de muones cósmicos con el reflector TiO₂ y barras de 1 mm\n"
-              <<"está por debajo del umbral medible con esta estadística.\n"
-              <<"Resultado consistente con la limitación del reflector TiO₂.\n"
-              <<"Canales calientes enmascarados: significancia max = "
-              <<std::max(sig_xm,sig_ym)<<"σ (sin cambio significativo).\n";
-        }
+        os<<"  significance max = "<<std::setprecision(2)<<max_sig<<" sigma\n";
+        os<<"  significance max (masked) = "<<std::setprecision(2)<<std::max(sig_xm,sig_ym)<<" sigma\n";
         os<<"\nFiguras producidas:\n";
         os<<"  tagprobe_charge_same_vs_mixed_X.png\n";
         os<<"  tagprobe_charge_same_vs_mixed_Y.png\n";

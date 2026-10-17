@@ -558,8 +558,7 @@ int main(int argc,char**argv){
         if(std::abs(tA)<0.3)return "MAPEO "+ax+" INCIERTO — estadística/SNR insuficiente";
         return "MAPEO "+ax+" PARCIALMENTE CORREGIDO";
     };
-    std::cout<<">>> "<<verdict(tau_AX,tau_BX,"X")<<"\n";
-    std::cout<<">>> "<<verdict(tau_AY,tau_BY,"Y")<<"\n\n";
+
 
     //==========================================================================
     // FASE 3 — Reconstrucción con abst19_opt + corte XY
@@ -653,19 +652,7 @@ int main(int argc,char**argv){
     row("r_y (tracks + XY cut)","−0.059",std::to_string(ry).substr(0,6));
     row("τ_A_X","0.12",std::to_string(tau_AX).substr(0,6));
     row("τ_A_Y","−0.17",std::to_string(tau_AY).substr(0,6));
-    row("Veredicto mapeo X","INCIERTO",verdict(tau_AX,tau_BX,"X").substr(0,25));
 
-    std::cout<<"\n>>> CRITERIO DE ÉXITO:\n";
-    if(rx>0.3&&tau_AX>0.75)std::cout<<"  ✓ r>0.3 Y τ>0.75: experimento exitoso, mapeo verificado.\n";
-    else if(rx>0.3)std::cout<<"  ~ r>0.3: reconstrucción funciona, mapeo parcialmente verificado.\n";
-    else if(rx>0.1)std::cout<<"  ~ r entre 0.1-0.3: correlación débil pero presente.\n";
-    else{
-        std::cout<<"  ✗ r<0.1: señal insuficiente.\n";
-        if((long long)vx18.size()>10){
-            const double N_need=(long long)vx18.size()*(0.3*0.3)/(rx*rx+1e-12);
-            std::cout<<"  Estimación: se necesitarían ~"<<(long long)std::min(N_need,1e8)
-                     <<" trazas para r=0.3 (escala 1/√N).\n";}
-    }
 
     //==========================================================================
     // Guarda figuras y archivos
@@ -743,9 +730,7 @@ int main(int argc,char**argv){
      sf<<"  τ(A,0) X="<<tau_AX<<"  Y="<<tau_AY<<"\n";
      sf<<"  τ(B,0) X="<<tau_BX<<"  Y="<<tau_BY<<"\n";
      sf<<"  τ(A,B) X="<<tau_ABX<<"  Y="<<tau_ABY<<"\n";
-     sf<<"  r(π₀) X="<<r_pi0X<<"  r(π_A) X="<<r_piAX<<"\n";
-     sf<<"  Veredicto X: "<<verdict(tau_AX,tau_BX,"X")<<"\n";
-     sf<<"  Veredicto Y: "<<verdict(tau_AY,tau_BY,"Y")<<"\n\n";
+     sf<<"  r(π₀) X="<<r_pi0X<<"  r(π_A) X="<<r_piAX<<"\n\n";
      sf<<"FASE 3:\n";
      sf<<"  Cutflow: tot="<<n_total<<" 19c="<<cf_19c<<" 19m="<<cf_19m
        <<" 18c="<<cf_18c<<" xy="<<cf_xy<<" trk="<<cf_trk<<"\n";
@@ -756,8 +741,7 @@ int main(int argc,char**argv){
          {"abst19_opt","N/A",std::to_string((int)abst19_opt)},
          {"N_clean",std::to_string(best_sw.n>0?52LL:52LL),std::to_string(best_sw.n)},
          {"r_x","0.069",std::to_string(rx).substr(0,6)},
-         {"τ_A_X","0.12",std::to_string(tau_AX).substr(0,6)},
-         {"Veredicto","INCIERTO",verdict(tau_AX,tau_BX,"X").substr(0,25)}})
+         {"τ_A_X","0.12",std::to_string(tau_AX).substr(0,6)}})
          sf<<std::setw(25)<<m<<std::setw(20)<<v7<<v8<<"\n";}
 
     std::cout<<"\nOutput: "<<outdir<<"\n";

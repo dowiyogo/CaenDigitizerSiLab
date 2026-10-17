@@ -177,6 +177,11 @@ int main(int argc,char**argv){
         if(!tree->GetBranch(bn))continue;
         tree->SetBranchStatus(bn,1);tree->SetBranchAddress(bn,&cw[c]);}
     tree->SetBranchStatus("time",1);tree->SetBranchAddress("time",&tw);
+    Long_t ts_val = 0;
+    if(tree->GetBranch("timestamp")){
+        tree->SetBranchStatus("timestamp",1);
+        tree->SetBranchAddress("timestamp",&ts_val);
+    }
 
     // Inverse maps for hod2019
     std::array<int,kNCh> inv19x{},inv19y{};inv19x.fill(-1);inv19y.fill(-1);
@@ -186,10 +191,13 @@ int main(int argc,char**argv){
     std::cout<<"Loading "<<nEnt<<" events into RAM...\n";
     std::vector<EvData> evs; evs.reserve(nEnt);
 
+    Long_t ts_first = 0, ts_last = 0;
     bool checked_step = false;
     for(Long64_t iev=0;iev<nEnt;iev++){
         tree->GetEntry(iev);
         if(iev%30000==0)std::cout<<"  "<<iev<<"/"<<nEnt<<"\r"<<std::flush;
+        if(iev==0) ts_first = ts_val;
+        if(iev==nEnt-1) ts_last = ts_val;
         if(!tw||tw->empty())continue;
         const auto& tv=*tw;
         if (!checked_step && tv.size() > 1) {
@@ -432,6 +440,7 @@ int main(int argc,char**argv){
     //==========================================================================
     // PASO 4: Summary
     //==========================================================================
+    const double dur_h = (nEnt > 0 && ts_last > ts_first) ? (double)(ts_last - ts_first) / 3.6e9 : 0.0;
     auto print=[&](std::ostream&os){
         os<<"=== Primer Tracking Real con Ventana Temporal Correcta ===\n\n";
         os<<"Ventana muón: ["<<kMuonTlo<<", "<<kMuonThi<<"] ns (AMBOS hodoscopios, Δt=0 verificado)\n";
@@ -439,8 +448,7 @@ int main(int argc,char**argv){
         os<<"PASO 1 — Tag-and-probe corregido:\n";
         os<<"  N_tag="<<n_tag<<"  N_same="<<n_same<<"  N_mixed="<<n_mixed<<"\n";
         os<<"  ε_true="<<eps_true*100<<"% ± "<<std::sqrt(so*so+sa*sa)*100<<"%\n";
-        os<<"  Significancia: "<<sig_tp<<"σ\n";
-        os<<"  Veredicto: "<<(sig_tp>=5?"SEÑAL CONFIRMADA (sig>5σ)":"SEÑAL MARGINAL (sig<5σ)")<<"\n\n";
+        os<<"  Significancia: "<<sig_tp<<"σ\n\n";
         os<<"PASO 2 — Cutflow tracking:\n";
         os<<"  Eventos con hit en ventana muón: "<<cf_any<<"\n";
         os<<"  hod2018 X+Y:                     "<<cf_18c<<"\n";
@@ -453,30 +461,26 @@ int main(int argc,char**argv){
         os<<"  X: r="<<rx<<"  slope="<<slx<<"  intercept="<<icx<<" mm\n";
         os<<"  Y: r="<<ry<<"  slope="<<sly<<"  intercept="<<icy<<" mm\n\n";
         // Comparison with expected
-        os<<"N_3D observado: "<<cf_3D<<"  vs esperado: ~374 (del MC geométrico)\n";
-        os<<"Ratio obs/exp: "<<(374>0?(double)cf_3D/374:0)<<"\n\n";
+        constexpr double kFBoth = 0.0167; // fraction of bench triggers crossing both stations; geometric MC with dN/dOmega ~ cos^3(theta), D = 98.4 mm (Muographers 2026 proceeding, section "Fraction of triggers that cross the stations")
+        const double expected = kFBoth * nEnt;
+        os<<"N_3D observado: "<<cf_3D<<"  vs esperado: "<<std::fixed<<std::setprecision(0)<<expected<<" (del MC geométrico)\n";
+        os<<"Ratio obs/exp: "<<std::setprecision(4)<<(expected>0?(double)cf_3D/expected:0)<<"\n\n";
         // Citable text
         os<<"TEXTO CITABLE:\n";
         os<<'"';
         os<<"Using the corrected muon time window [4000,4400] ns for hod2018 ";
         os<<"(eliminating the t≈3510 ns background), ";
         os<<"we reconstruct N_3D="<<cf_3D<<" three-dimensional cosmic-muon tracks ";
-        os<<"in run v8 (143k events, "<<std::setprecision(2)<<3600.0*143814.0/143814.0<<" h), ";
+        os<<"in run v8 (143k events, "<<std::setprecision(2)<<dur_h<<" h), ";
         os<<"with spatial correlation r_X="<<std::setprecision(3)<<rx;
-        os<<" (slope="<<slx<<")";
-        if(std::abs(rx)>0.3) os<<", confirming that hod2019 detects muons and the mapping is [verified/partially verified].";
-        else os<<". Spatial correlation is weak; further analysis needed.";
+        os<<" (slope="<<slx<<").";
         os<<'"';
         os<<"\n\n";
         // Mapping assessment
         os<<"Evaluación del mapeo (pendiente≈1 → mapeo correcto):\n";
         if(cf_3D>=10){
-            os<<"  Pendiente X="<<std::setprecision(3)<<slx;
-            if(std::abs(slx-1.0)<0.3)os<<" → MAPEO X CONSISTENTE\n";
-            else os<<" → MAPEO X DIFIERE DE 1.0 → posible error en mapeo\n";
-            os<<"  Pendiente Y="<<sly;
-            if(std::abs(sly-1.0)<0.3)os<<" → MAPEO Y CONSISTENTE\n";
-            else os<<" → MAPEO Y DIFIERE DE 1.0\n";
+            os<<"  Pendiente X="<<std::setprecision(3)<<slx<<"\n";
+            os<<"  Pendiente Y="<<sly<<"\n";
         } else {
             os<<"  Insuficientes tracks para evaluación de mapeo (N_3D="<<cf_3D<<"<10)\n";}
     };

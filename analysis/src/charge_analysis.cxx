@@ -689,8 +689,6 @@ int main(int argc, char** argv){
         for(int v=0;v<2;v++)for(int pp:{P18X,P19X})
             os<<std::setw(14)<<fmt(v==0?snrQ(fv7_data.planes[pp]):snrQ(fv8_data.planes[pp]));
         os<<"\n";
-        os<<std::setw(26)<<"SNR_ph (análisis previo)";
-        os<<std::setw(14)<<"19.7"<<std::setw(14)<<"N/A"<<std::setw(14)<<"14"<<std::setw(14)<<"14\n";
         os<<std::setw(26)<<"umbral_Q natural [mV·ns]";
         for(int v=0;v<2;v++)for(int pp:{P18X,P19X})
             os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].umbral_Q:fv8_data.planes[pp].umbral_Q);
@@ -698,30 +696,7 @@ int main(int argc, char** argv){
         os<<std::setw(26)<<"ε(umbral_Q_nat) [%]";
         for(int v=0;v<2;v++)for(int pp:{P18X,P19X})
             os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].eff_nat_Q:fv8_data.planes[pp].eff_nat_Q,2);
-        os<<"\n\n";
-        // Interpretaciones
-        os<<"Veredicto automático hod2019:\n";
-        auto snrQ19v8=snrQ(fv8_data.planes[P19X]);
-        constexpr double snrph19=14.0;
-        if(snrQ19v8>snrph19*1.5)
-            os<<"  INTEGRACIÓN DE CARGA MEJORA SNR: SNR_Q="+std::to_string((int)snrQ19v8)
-              +" vs SNR_ph="+std::to_string((int)snrph19)+" → usar Q como observable\n";
-        else if(snrQ19v8>snrph19*0.8)
-            os<<"  SNR_Q ≈ SNR_ph: integración de carga no mejora significativamente el SNR\n";
-        else
-            os<<"  SNR_Q < SNR_ph: el fit Landau no convergió o señal insuficiente\n";
-
-        if(fv8_data.planes[P19X].umbral_Q>0)
-            os<<"  SEPARACIÓN PEDESTAL-SEÑAL en Q: umbral_Q natural = "
-              <<fmt(fv8_data.planes[P19X].umbral_Q)<<" mV·ns\n";
-
-        const double eff_Q19=fv8_data.planes[P19X].eff_nat_Q;
-        const double eff_ph19=1.3;  // from previous analysis
-        if(eff_Q19>2*eff_ph19)
-            os<<"  MAYOR EFICIENCIA CON CRITERIO DE CARGA: ε_Q="+std::to_string((int)eff_Q19)
-              +"% vs ε_ph="+std::to_string((int)eff_ph19)+"%\n";
-        else
-            os<<"  ε_Q("+fmt(eff_Q19,1)+"%) similar a ε_ph("+fmt(eff_ph19,1)+"%) — sin mejora de eficiencia\n";
+        os<<"\n";
     };
     print_table(std::cout);
     {std::ofstream sf(outdir/"summary_charge.txt");print_table(sf);}

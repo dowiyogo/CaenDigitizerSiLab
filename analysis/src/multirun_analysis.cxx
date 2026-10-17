@@ -497,15 +497,9 @@ int main(int argc,char**argv){
               <<std::setw(8)<<std::setprecision(2)<<r.sig_x<<"\n";
         os<<"\nSignificancia global combinada (~Q_norm>10sigma): "<<std::setprecision(2)<<sig_global<<"σ\n";
         os<<"ε_true_global = "<<std::setprecision(4)<<eps_true_g*100<<"% ± "<<sigma_eps_g*100<<"%\n\n";
-        if(std::abs(sig_global)>=5)
-            os<<"VEREDICTO: DETECCIÓN ESTADÍSTICA en la muestra combinada ("<<sig_global<<"σ).\n";
-        else
-            os<<"VEREDICTO: LÍMITE DEFINITIVO: ni "<<results.size()<<" runs, barrido de voltaje, "
-              <<"integración de carga y tag-and-probe combinado detectan señal de muón en hod2019\n"
-              <<"sobre fondo. La detección de muones cósmicos con TiO₂+1mm es física irreductiblemente\n"
-              <<"limitada por el número de fotones. Vikuiti es la corrección requerida.\n"
-              <<"Cota superior ε_true < "<<std::setprecision(2)
-              <<(std::abs(eps_true_g)+2*sigma_eps_g)*100<<"% (95% CL)\n";
+        os<<"  significance = "<<sig_global<<" sigma\n";
+        os<<"  cota superior ε_true < "<<std::setprecision(2)
+          <<(std::abs(eps_true_g)+2*sigma_eps_g)*100<<"% (95% CL)\n";
     };
     print_summ(std::cout);
     {std::ofstream sf(outdir/"summary_multirun.txt");print_summ(sf);}

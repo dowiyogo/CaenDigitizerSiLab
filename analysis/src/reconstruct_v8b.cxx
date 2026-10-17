@@ -597,8 +597,6 @@ int main(int argc,char**argv){
           <<" ns  (n="<<(long long)h_ptY_hi->Integral()<<")\n";
         os<<"  Δt_cable(Y−X) con señales reales = "
           <<(h_ptY_hi->GetMean()-h_ptX_hi->GetMean())<<" ns\n";
-        os<<"  CONCLUSIÓN: los canales 'rápidos' (~4000 ns) al umbral bajo son ruido\n";
-        os<<"    (mínimo de ventana [3000,5000] en ruido gaussiano tiene media = 4000 ns).\n";
         os<<"    Las señales reales llegan a t ≈ "<<std::setprecision(0)<<h_ptX_hi->GetMean()
           <<" ns (X) y "<<h_ptY_hi->GetMean()<<" ns (Y).\n";
         os<<"    Diferencia real de cable X-Y: "

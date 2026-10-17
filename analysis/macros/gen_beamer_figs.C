@@ -632,8 +632,6 @@ void gen_beamer_figs() {
         sf << "N_3D = " << n_3d << "\n";
         sf << "N_hod2018_XY = " << n18c << "\n";
         sf << "N_hod2019_XY = " << n19c << "\n\n";
-        sf << "NOTE: XZ/YZ tracks are candidates; accidental-dominated because\n";
-        sf << "hod2019 has only ~4/16 strips active (TiO2 reflector limitation).\n\n";
         sf << "Figure paths:\n";
         for (const auto& p : {
             "map2d_hod2018_XY.png", "map2d_hod2019_XY.png",
