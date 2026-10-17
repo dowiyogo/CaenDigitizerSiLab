@@ -211,17 +211,24 @@ t ≈ 3510 ns selected that pickup, not muons.
 3. The configuration and the bias voltage are not stored with the data.
 4. Bias voltages for v1-v10: not recorded.
 5. outputs/ is not in git; analysis results exist only on this disk.
-6. Five analysis programs hardcode a sampling period of 1e9 / 65e6 ≈ 15.3846 ns (kDt_ns)
+6. Five analysis programs hardcoded a sampling period of 1e9 / 65e6 ≈ 15.3846 ns (kDt_ns)
    instead of the 16.0 ns step recorded in data_dig.time: analysis/src/charge_analysis.cxx:50,
    analysis/src/multirun_analysis.cxx:42, analysis/src/reconstruct_corrected.cxx:49,
    analysis/src/reconstruct_cosmic_tracks.cxx:48, and analysis/src/tagprobe_analysis.cxx:45 [V: grep B3].
-   As a consequence, integrated charge Q is computed with Δt = 15.38 ns and is therefore
-   3.8 % low (factor 16.0/15.3846 = 1.04); pulse times and muon window gates read the
-   time branch directly and are not affected.
-7. Analysis codes (reconstruct_corrected.cxx:53-54, gen_beamer_figs.C:43-44) define thresholds
-   of 50 and 35 labeled as ADC counts, but compare them directly against waveform values stored
+   Fixed in fix/analysis-units on 2026-10-17 (commit "Analysis: sampling period 16 ns, mV labels, step check"):
+   kDt_ns corrected to 16.0 ns (VX1740, 62.5 MS/s) matching the data_dig.time step, a one-time
+   runtime sampling step check added, and numeric Q cuts rescaled x1.04 (16.0/15.3846) so event
+   selections remain unchanged. Results in outputs/ dated before 2026-10-17 have charges computed with
+   15.38 ns and are therefore 3.8% low (factor 16.0/15.3846 = 1.04).
+7. Analysis codes (reconstruct_corrected.cxx:53-54, gen_beamer_figs.C:43-44) defined thresholds
+   of 50 and 35 labeled as ADC counts, but compared them directly against waveform values stored
    in mV without converting units; for a 2 Vpp 12-bit digitizer (0.4884 mV/count), the effective
    thresholds applied were 50 mV (≈102 ADC counts) and 35 mV (≈72 ADC counts).
+   Fixed in fix/analysis-units on 2026-10-17 (commit "Analysis: sampling period 16 ns, mV labels, step check"):
+   threshold comments corrected to 50 mV (= 102 ADC counts) and 35 mV (= 72 ADC counts), and unit labels
+   referring to Ch waveform quantities replaced from "ADC" to "mV" (amplitudes/pulse heights) and "mV·ns"
+   (integrated charges) across comments, histogram titles, axis titles, and summary text. Results in outputs/
+   dated before 2026-10-17 have labels in "ADC" that mean mV.
 
 ## Open questions
 

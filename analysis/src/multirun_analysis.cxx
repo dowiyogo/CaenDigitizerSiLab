@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -39,7 +40,7 @@ namespace fs = std::filesystem;
 // Constantes fijas
 //==============================================================================
 constexpr double kPre_ns = 2500.0;
-constexpr double kDt_ns  = 1e9/65e6;   // 15.3846 ns/muestra
+constexpr double kDt_ns = 16.0;  // VX1740, 62.5 MS/s; equals the data_dig.time step
 constexpr int    kNpre=3, kNpost=8, kNwin=12;
 constexpr int    kNCh = 64;
 constexpr double kPitch = 2.0;
@@ -157,14 +158,24 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
         t->GetEntry(iev);
         if(!tw||tw->empty())continue;
         const auto& tv=*tw;
+        static bool checked_step = false;
+        if (!checked_step && tv.size() > 1) {
+            checked_step = true;
+            if (std::fabs((tv[1] - tv[0]) - kDt_ns) > 1e-3) {
+                std::fprintf(stderr, "Sampling step %.4f ns != kDt_ns %.4f ns; aborting\n", tv[1]-tv[0], kDt_ns);
+                return rr;
+            }
+        }
         for(int c=32;c<64;c++){
             if(!cw[c]||cw[c]->empty())continue;
             QResult qr=get_Q(*cw[c],tv,3000,5000);
-            if(qr.pt>0&&qr.Q>100)h_pt19.Fill(qr.pt);}
+            if(qr.pt>0&&qr.Q>104.0)h_pt19.Fill(qr.pt);  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
+        }
         for(int c=0;c<32;c++){
             if(!cw[c]||cw[c]->empty())continue;
             QResult qr=get_Q(*cw[c],tv,3500,7000);
-            if(qr.pt>0&&qr.Q>500)h_pt18.Fill(qr.pt);}
+            if(qr.pt>0&&qr.Q>520.0)h_pt18.Fill(qr.pt);  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
+        }
     }
     // t_peak_19: posición del máximo del histograma de tiempos hod2019 (umbral alto)
     if(h_pt19.GetEntries()>5){
@@ -299,7 +310,7 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     const double t_muon_hi=std::min(5000.0,rr.t_peak_19+300);
 
     long long n_obs=0,n_acc=0;
-    const double Q_thr=2346.2;  // ADC·ns (del charge_analysis v8)
+    const double Q_thr=2440.048;  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
 
     // Local shuffle (semilla fija por run)
     std::vector<size_t> local_shuf(nev);
@@ -419,7 +430,7 @@ int main(int argc,char**argv){
     {TCanvas cc("c_snr","",1000,680);cc.SetLeftMargin(0.12);cc.SetBottomMargin(0.13);
      TGraphErrors gmpv(nRuns,run_nums.data(),mpvQ_19x.data(),
          std::vector<double>(nRuns,0.2).data(),std::vector<double>(nRuns,0).data());
-     gmpv.SetTitle("MPV_Q y SNR_Q hod2019X vs run (proxy de voltaje);Run;MPV_Q [ADC#upointns]");
+     gmpv.SetTitle("MPV_Q y SNR_Q hod2019X vs run (proxy de voltaje);Run;MPV_Q [mV#upointns]");
      gmpv.SetMarkerStyle(20);gmpv.SetMarkerColor(kBlue+1);gmpv.SetLineColor(kBlue+1);gmpv.SetLineWidth(2);
      gmpv.Draw("APL");
      cc.SaveAs((outdir/"mpv_and_pedestal_vs_run.png").string().c_str());}
@@ -444,7 +455,7 @@ int main(int argc,char**argv){
      cc.SaveAs((outdir/"tagprobe_combined_same_vs_mixed.png").string().c_str());}
 
     // Significancia global combinada (umbral Q_norm > 15 sigma del pedestal)
-    // Justificación: MPV_Q hod2019 v8 ≈ 4131 ADC·ns, sigma_Q ≈ 83 → Q_norm_signal ≈ 50
+    // Justificación: MPV_Q hod2019 v8 ≈ 4131 mV·ns, sigma_Q ≈ 83 → Q_norm_signal ≈ 50
     // Un umbral de 15 sigma separa señal real de fluctuaciones de pedestal
     const double Qnorm_thr=15.0;
     const double Ntot_tag=h_same_all->Integral();
@@ -459,7 +470,7 @@ int main(int argc,char**argv){
 
     // ── CSV por run ───────────────────────────────────────────────────────────
     {std::ofstream fc(outdir/"per_run_parameters.csv");
-     fc<<"run,n_events,t_peak_19_ns,sigmaQ_19x_ADCns,mpvQ_19x_ADCns,snrQ_19x,n_tag_x,eps_true_x_pct,sigma_eps_x_pct,sig_x\n";
+     fc<<"run,n_events,t_peak_19_ns,sigmaQ_19x_mVns,mpvQ_19x_mVns,snrQ_19x,n_tag_x,eps_true_x_pct,sigma_eps_x_pct,sig_x\n";
      for(const auto&r:results)
          fc<<r.label<<','<<r.n_events<<','<<r.t_peak_19<<','<<r.sigmaQ[2]<<','
            <<r.mpvQ[2]<<','<<r.snrQ[2]<<','<<r.n_tag_x<<','<<r.eps_true_x*100<<','

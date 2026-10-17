@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -42,7 +43,7 @@ namespace fs = std::filesystem;
 // Constantes
 //==============================================================================
 constexpr double kPre_ns = 2500.0;
-constexpr double kDt_ns  = 1e9 / 65e6;        // 15.3846 ns/muestra
+constexpr double kDt_ns = 16.0;  // VX1740, 62.5 MS/s; equals the data_dig.time step
 constexpr int    kNpre=3, kNpost=8, kNwin=12;   // ventana de integración Q
 constexpr int    kNCh = 64;
 constexpr double kPitch = 2.0;   // mm
@@ -56,7 +57,7 @@ static const double kThi[4]={7000,7000,5000,5000};
 constexpr double kMuonTlo = 3900.0, kMuonThi = 4500.0;  // ns
 
 // Umbral_Q para el barrido de eficiencia (de charge_analysis)
-constexpr double kUmbralQ = 2346.2;  // ADC·ns
+constexpr double kUmbralQ = 2440.048;  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
 
 // Mapeo hod2019
 static const std::array<int,16> kH19X={53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};
@@ -116,7 +117,7 @@ struct EvData {
     int ncls18x=0, ncls18y=0;      // number of clusters
     bool tag_x=false, tag_y=false; // hod2018 tag conditions
     // hod2019: charge + pulse_time per strip (16 strips each plane)
-    std::array<double,16> Q19x{}, Q19y{};   // ADC·ns
+    std::array<double,16> Q19x{}, Q19y{};   // mV·ns
     std::array<double,16> pt19x{}, pt19y{}; // ns (-1 = no pulse)
 };
 
@@ -151,6 +152,14 @@ static std::vector<EvData> load_all(const std::string& fname) {
         if(iev%30000==0)std::cout<<"    "<<iev<<"/"<<nEnt<<"\r"<<std::flush;
         if(!tw||tw->empty())continue;
         const auto& tv=*tw;
+        static bool checked_step = false;
+        if (!checked_step && tv.size() > 1) {
+            checked_step = true;
+            if (std::fabs((tv[1] - tv[0]) - kDt_ns) > 1e-3) {
+                std::fprintf(stderr, "Sampling step %.4f ns != kDt_ns %.4f ns; aborting\n", tv[1]-tv[0], kDt_ns);
+                return {};
+            }
+        }
 
         EvData ev;
         ev.pt19x.fill(-1); ev.pt19y.fill(-1);
@@ -345,12 +354,12 @@ int main(int argc,char**argv){
     //==========================================================================
     // ANÁLISIS 2 — Canales calientes
     //==========================================================================
-    // Ocupancia: eventos donde Q>500 ADC·ns AND pt ∈ muon window
+    // Ocupancia: eventos donde Q>520 mV·ns AND pt ∈ muon window
     std::array<long long,16> occ19x{},occ19y{};
     for(const auto&ev:evs){
         for(int k=0;k<16;k++){
-            if(ev.Q19x[k]>500&&ev.pt19x[k]>=kMuonTlo&&ev.pt19x[k]<=kMuonThi) occ19x[k]++;
-            if(ev.Q19y[k]>500&&ev.pt19y[k]>=kMuonTlo&&ev.pt19y[k]<=kMuonThi) occ19y[k]++;
+            if(ev.Q19x[k]>520.0&&ev.pt19x[k]>=kMuonTlo&&ev.pt19x[k]<=kMuonThi) occ19x[k]++;  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
+            if(ev.Q19y[k]>520.0&&ev.pt19y[k]>=kMuonTlo&&ev.pt19y[k]<=kMuonThi) occ19y[k]++;  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
         }
     }
     // Mediana de ocupancia
@@ -425,7 +434,7 @@ int main(int argc,char**argv){
         cc.cd(1);gPad->SetLogy();gPad->SetLeftMargin(0.12);gPad->SetBottomMargin(0.12);
         tp.h_same->SetLineColor(kBlue+1);tp.h_same->SetLineWidth(2);tp.h_same->SetStats(0);
         tp.h_mixed->SetLineColor(kOrange+7);tp.h_mixed->SetLineWidth(2);
-        tp.h_same->GetXaxis()->SetTitle("Q [ADC#upointns]");tp.h_same->GetYaxis()->SetTitle("Events");
+        tp.h_same->GetXaxis()->SetTitle("Q [mV#upointns]");tp.h_same->GetYaxis()->SetTitle("Events");
         tp.h_same->SetTitle(("Tag-and-probe hod2019"+coord).c_str());
         tp.h_same->Draw("HIST");tp.h_mixed->Draw("HIST SAME");
         TLine lq(kUmbralQ,gPad->GetUymin()<0?0.5:0.5,kUmbralQ,tp.h_same->GetMaximum()*0.5);
@@ -442,7 +451,7 @@ int main(int argc,char**argv){
         // Panel inferior: diferencia
         cc.cd(2);gPad->SetLeftMargin(0.12);gPad->SetBottomMargin(0.14);
         tp.h_diff->SetLineColor(kGreen+2);tp.h_diff->SetLineWidth(2);tp.h_diff->SetStats(0);
-        tp.h_diff->GetXaxis()->SetTitle("Q [ADC#upointns]");tp.h_diff->GetYaxis()->SetTitle("H_{same}#minusH_{mixed}");
+        tp.h_diff->GetXaxis()->SetTitle("Q [mV#upointns]");tp.h_diff->GetYaxis()->SetTitle("H_{same}#minusH_{mixed}");
         tp.h_diff->SetTitle("Diferencia (exceso de señal)");tp.h_diff->Draw("HIST");
         TLine l0(tp.h_diff->GetXaxis()->GetXmin(),0,tp.h_diff->GetXaxis()->GetXmax(),0);
         l0.SetLineColor(kRed);l0.SetLineStyle(2);l0.Draw();
@@ -453,7 +462,7 @@ int main(int argc,char**argv){
 
     // Fig 2: efficiency_with_without_hotchannel_mask.png
     {TCanvas cc("c_eff_mask","",1000,680);cc.SetLeftMargin(0.12);cc.SetBottomMargin(0.13);
-     TH1D fr("fr","#varepsilon_{true} vs Q_{thr};Q_{thr} [ADC#upointns];#varepsilon_{true}",100,0,5000);
+     TH1D fr("fr","#varepsilon_{true} vs Q_{thr};Q_{thr} [mV#upointns];#varepsilon_{true}",100,0,5000);
      fr.SetMinimum(-0.005);fr.SetMaximum(0.02);fr.SetStats(0);fr.Draw();
      const int nsw=(int)tp_X_all.Q_sweep.size();
      std::vector<double> xs(tp_X_all.Q_sweep.begin(),tp_X_all.Q_sweep.end());
@@ -483,7 +492,7 @@ int main(int argc,char**argv){
         os<<"=== Tag-and-Probe: detección estadística de muones en hod2019 ===\n\n";
         os<<"Parámetros:\n";
         os<<"  Archivo: "<<fv8<<"\n";
-        os<<"  umbral_Q = "<<kUmbralQ<<" ADC·ns\n";
+        os<<"  umbral_Q = "<<kUmbralQ<<" mV·ns\n";
         os<<"  Ventana temporal muón: ["<<kMuonTlo<<", "<<kMuonThi<<"] ns\n";
         os<<"  Event mixing: shuffle fijo (seed=42)\n\n";
 

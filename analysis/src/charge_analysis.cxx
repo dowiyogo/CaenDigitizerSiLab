@@ -1,5 +1,5 @@
 // charge_analysis.cxx
-// Análisis de carga integrada Q = Σ(pedestal − V(t)) × Δt_sample [ADC·ns]
+// Análisis de carga integrada Q = Σ(pedestal − V(t)) × Δt_sample [mV·ns]
 // para hod2018 y hod2019 en ambos archivos v7.root y v8.root.
 //
 // Ventaja vs pulse_height: un spike de 1 muestra tiene ph alto pero Q pequeño
@@ -7,7 +7,7 @@
 //
 // Integración adaptativa: para cada evento/canal, integra en
 //   [t_min − N_pre·Δt, t_min + N_post·Δt] donde t_min es el tiempo del mínimo.
-// Δt_sample = 1e9/65e6 ≈ 15.38 ns/muestra. N_pre=3, N_post=8 → 11 muestras.
+// Δt_sample = 16.0 ns/muestra (VX1740, 62.5 MS/s). N_pre=3, N_post=8 → 12 muestras.
 //
 // Build: g++ $(root-config --cflags --libs) -std=c++17 -O2 -o charge_analysis charge_analysis.cxx
 
@@ -30,6 +30,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -47,7 +48,7 @@ namespace fs = std::filesystem;
 //==============================================================================
 constexpr double kPre_ns  = 2500.0;   // fin región baseline [ns]
 constexpr int    kNCh     = 64;
-constexpr double kDt_ns   = 1e9 / 65e6;  // ≈ 15.38 ns/muestra
+constexpr double kDt_ns = 16.0;  // VX1740, 62.5 MS/s; equals the data_dig.time step
 constexpr int    kNpre    = 3;            // muestras antes del mínimo
 constexpr int    kNpost   = 8;            // muestras después del mínimo
 constexpr int    kNwin    = kNpre + kNpost + 1;  // = 12 muestras total
@@ -72,20 +73,20 @@ static int ch_k(int c){
     return -1;}
 
 // Umbral alto para Step 0 (selección de señales reales para timing)
-constexpr double kThrHigh18 = 15.0;   // ADC — hod2018
-constexpr double kThrHigh19_v7 = 17.0; // ADC — hod2019 v7
-constexpr double kThrHigh19_v8 = 35.0; // ADC — hod2019 v8 (sobre el valle 38.5)
+constexpr double kThrHigh18 = 15.0;   // mV — hod2018
+constexpr double kThrHigh19_v7 = 17.0; // mV — hod2019 v7
+constexpr double kThrHigh19_v8 = 35.0; // mV, pulse height from pedestal; = 72 ADC counts
 
 //==============================================================================
 // Resultado de extracción de pulso + carga integrada
 //==============================================================================
 struct CQ {
     bool   valid  = false;
-    double ped    = 0;       // pedestal [ADC]
-    double noise  = 0;       // RMS baseline [ADC]
-    double ph     = 0;       // pulse height [ADC]
+    double ped    = 0;       // pedestal [mV]
+    double noise  = 0;       // RMS baseline [mV]
+    double ph     = 0;       // pulse height [mV]
     double pt     = -1;      // tiempo del mínimo [ns]
-    double Q      = 0;       // carga integrada [ADC·ns]
+    double Q      = 0;       // carga integrada [mV·ns]
     double sigma_Q = 0;      // error en Q por ruido: noise × Δt × √N_samples
     int    nw     = 0;       // muestras en la ventana de integración
     // r = Q / (ph × N × Δt) — indicador de forma del pulso
@@ -227,7 +228,7 @@ static void process_file_Q(FileQ& fq, const std::string& fname,
         const bool is19=(pl>=P19X);
         const double Qlo=is19?Qlo19:Qlo18, Qhi=is19?Qhi19:Qhi18;
         const std::string nm=fq.label+"_"+kPname[pl];
-        p.h_Q    =new TH1D((nm+"_Q").c_str(),   (std::string(kPname[pl])+" "+fq.label+";Q_{max} [ADC#upointns];Entries").c_str(),200,Qlo,Qhi);
+        p.h_Q    =new TH1D((nm+"_Q").c_str(),   (std::string(kPname[pl])+" "+fq.label+";Q_{max} [mV#upointns];Entries").c_str(),200,Qlo,Qhi);
         p.h_Qall =new TH1D((nm+"_Qall").c_str(), "",200,Qlo,Qhi);
         p.h_pt_hi=new TH1D((nm+"_pth").c_str(),  (std::string(kPname[pl])+" t_{pulso} (umbral alto);t [ns];Hits").c_str(),100,2500,8000);
     }
@@ -240,7 +241,7 @@ static void process_file_Q(FileQ& fq, const std::string& fname,
             fq.h_Q_ch[c]=new TH1D(bn,bn,200,Qlo,Qhi);}
     // Q vs ph para Ch50 (hod2019X k=10)
     fq.h_QvsPH =new TH2D((fq.label+"_Qvph").c_str(),
-        ("Q vs PH Ch50 hod2019X "+fq.label+";Pulse height [ADC];Q [ADC#upointns];Eventos").c_str(),
+        ("Q vs PH Ch50 hod2019X "+fq.label+";Pulse height [mV];Q [mV#upointns];Eventos").c_str(),
         100,0,100,100,Qlo19,Qhi19);
     fq.h_ratio_r=new TH1D((fq.label+"_r").c_str(),
         ("Ratio r = Q/(ph#timesN#timesdt) "+fq.label+";r;Hits").c_str(),
@@ -251,6 +252,14 @@ static void process_file_Q(FileQ& fq, const std::string& fname,
         if(iev%30000==0)std::cout<<"    "<<iev<<"/"<<nEnt<<"\r"<<std::flush;
         if(!tw||tw->empty())continue;
         const auto& tv=*tw;
+        static bool checked_step = false;
+        if (!checked_step && tv.size() > 1) {
+            checked_step = true;
+            if (std::fabs((tv[1] - tv[0]) - kDt_ns) > 1e-3) {
+                std::fprintf(stderr, "Sampling step %.4f ns != kDt_ns %.4f ns; aborting\n", tv[1]-tv[0], kDt_ns);
+                return;
+            }
+        }
 
         // Máximo Q por plano para este evento
         double maxQ[4]={-1e9,-1e9,-1e9,-1e9};
@@ -401,7 +410,7 @@ static void make_figures(FileQ& fq, const FileQ& fq_other,
 
     //── Step 3: Q vs ph + ratio r ────────────────────────────────────────────
     if(is_primary){
-        {sl2(fq.h_QvsPH,"Pulse height [ADC]","Q [ADC#upointns]");
+        {sl2(fq.h_QvsPH,"Pulse height [mV]","Q [mV#upointns]");
          TCanvas c3("c3","",900,820);c3.SetLeftMargin(0.13);c3.SetRightMargin(0.17);c3.SetBottomMargin(0.13);
          fq.h_QvsPH->Draw("COLZ");
          // Línea de ratio r=0.5 (señal tipo Landau)
@@ -413,7 +422,7 @@ static void make_figures(FileQ& fq, const FileQ& fq_other,
          TLatex lt;lt.SetNDC();lt.SetTextSize(0.032);lt.SetTextColor(kRed);
          lt.DrawLatex(0.50,0.93,"r=0.5 (pulso SiPM)");
          c3.SaveAs((out/"charge_vs_ph_hod2019X_v8.png").string().c_str());}
-        {sl(fq.h_ratio_r,"r = Q/(ph#timesN#timesdt)","Hits (ph>5 ADC)");
+        {sl(fq.h_ratio_r,"r = Q/(ph#timesN#timesdt)","Hits (ph>5 mV)");
          fq.h_ratio_r->SetLineColor(col);fq.h_ratio_r->SetLineWidth(2);
          TCanvas cr("cr","",900,680);cr.SetLeftMargin(0.12);cr.SetBottomMargin(0.13);
          fq.h_ratio_r->Draw("HIST");
@@ -440,7 +449,7 @@ static void make_charge_histos(const FileQ& v7, const FileQ& v8, const fs::path&
             TH1D* h=fq.planes[pl].h_Q;
             if(!h){gPad->Clear();continue;}
             h->SetLineColor(cols[v]);h->SetLineWidth(2);h->SetStats(0);
-            sl(h,"Q_{max} [ADC#upointns]","Entradas");
+            sl(h,"Q_{max} [mV#upointns]","Entradas");
             h->Draw("HIST");
             // Línea umbral Q natural
             const double uQ=fq.planes[pl].umbral_Q;
@@ -482,7 +491,7 @@ static void make_eff_Q(const FileQ& v7, const FileQ& v8, const fs::path& out){
     TCanvas cc("c_effQ","",900,680);cc.SetLeftMargin(0.12);cc.SetBottomMargin(0.13);
     const FileQ* fqs[2]={&v7,&v8};
     const int cols[2]={kBlue+1,kOrange+7};
-    TH1D frame("fr","ε(Q_{thr}) hod2019X;Q_{umbral} [ADC#upointns];#varepsilon",
+    TH1D frame("fr","ε(Q_{thr}) hod2019X;Q_{umbral} [mV#upointns];#varepsilon",
                100,0,3500);
     frame.SetMinimum(0);frame.SetMaximum(1.05);frame.SetStats(0);frame.Draw();
     for(int v=0;v<2;v++){
@@ -518,15 +527,15 @@ static void make_summary_fig(const FileQ& v7, const FileQ& v8, const fs::path& o
 
     //── [1,1] hod2018X v8 con fits ────────────────────────────────────────────
     cc.cd(1);gPad->SetLogy();gPad->SetLeftMargin(0.14);gPad->SetBottomMargin(0.14);
-    {TH1D*h=v8.planes[P18X].h_Q;if(h){h->SetLineColor(kOrange+7);h->SetLineWidth(2);h->SetStats(0);sl(h,"Q_{max} [ADC#upointns]","Entradas");h->Draw("HIST");
+    {TH1D*h=v8.planes[P18X].h_Q;if(h){h->SetLineColor(kOrange+7);h->SetLineWidth(2);h->SetStats(0);sl(h,"Q_{max} [mV#upointns]","Entradas");h->Draw("HIST");
      if(v8.planes[P18X].gaus_ped.ok){TF1 fg("_f1","gaus",h->GetXaxis()->GetXmin(),v8.planes[P18X].umbral_Q);fg.SetParameters(h->GetBinContent(h->FindBin(0)),v8.planes[P18X].gaus_ped.mean,v8.planes[P18X].gaus_ped.sigma);fg.SetLineColor(kGreen+2);fg.SetLineWidth(2);fg.Draw("SAME");}
      if(v8.planes[P18X].lan_Q.ok){TF1 fl("_fl1","TMath::Landau(x,[0],[1],0)",v8.planes[P18X].umbral_Q,h->GetXaxis()->GetXmax());fl.SetParameters(v8.planes[P18X].lan_Q.mpv,v8.planes[P18X].lan_Q.sigma);fl.SetLineColor(kMagenta);fl.SetLineWidth(2);fl.Draw("SAME");}
      TLatex lt;lt.SetNDC();lt.SetTextSize(0.042);lt.DrawLatex(0.15,0.93,"hod2018X v8");
-     if(v8.planes[P18X].lan_Q.ok){char buf[40];std::snprintf(buf,sizeof(buf),"MPV=%.0f ADC·ns",v8.planes[P18X].lan_Q.mpv);lt.DrawLatex(0.40,0.85,buf);}}}
+     if(v8.planes[P18X].lan_Q.ok){char buf[40];std::snprintf(buf,sizeof(buf),"MPV=%.0f mV·ns",v8.planes[P18X].lan_Q.mpv);lt.DrawLatex(0.40,0.85,buf);}}}
 
     //── [1,2] hod2019X v8 + flecha señal ─────────────────────────────────────
     cc.cd(2);gPad->SetLogy();gPad->SetLeftMargin(0.14);gPad->SetBottomMargin(0.14);
-    {TH1D*h=v8.planes[P19X].h_Q;if(h){h->SetLineColor(kOrange+7);h->SetLineWidth(2);h->SetStats(0);sl(h,"Q_{max} [ADC#upointns]","Entradas");h->Draw("HIST");
+    {TH1D*h=v8.planes[P19X].h_Q;if(h){h->SetLineColor(kOrange+7);h->SetLineWidth(2);h->SetStats(0);sl(h,"Q_{max} [mV#upointns]","Entradas");h->Draw("HIST");
      const double uQ=v8.planes[P19X].umbral_Q;
      if(uQ>0){gPad->Update();TLine lu(uQ,std::pow(10,gPad->GetUymin()),uQ,std::pow(10,gPad->GetUymax()*0.9));lu.SetLineColor(kRed);lu.SetLineStyle(2);lu.SetLineWidth(2);lu.Draw();}
      TLatex lt;lt.SetNDC();lt.SetTextSize(0.042);lt.DrawLatex(0.15,0.93,"hod2019X v8");}}
@@ -539,20 +548,20 @@ static void make_summary_fig(const FileQ& v7, const FileQ& v8, const fs::path& o
      if(h8->Integral()>0)h8->Scale(1.0/h8->Integral());
      h7->SetLineColor(kBlue+1);h7->SetLineWidth(2);h7->SetStats(0);
      h8->SetLineColor(kOrange+7);h8->SetLineWidth(2);
-     sl(h7,"Q_{max} [ADC#upointns]","Densidad");h7->Draw("HIST");h8->Draw("HIST SAME");
+     sl(h7,"Q_{max} [mV#upointns]","Densidad");h7->Draw("HIST");h8->Draw("HIST SAME");
      TLegend lg(0.55,0.75,0.90,0.90);lg.SetBorderSize(0);lg.SetFillStyle(0);
      lg.AddEntry(h7,"v7","l");lg.AddEntry(h8,"v8","l");lg.Draw();
      TLatex lt;lt.SetNDC();lt.SetTextSize(0.042);lt.DrawLatex(0.15,0.93,"hod2019X v7 vs v8");}
 
     //── [2,2] Q vs ph TH2D ────────────────────────────────────────────────────
     cc.cd(4);gPad->SetLeftMargin(0.14);gPad->SetRightMargin(0.18);gPad->SetBottomMargin(0.14);
-    {sl2(v8.h_QvsPH,"Pulse height [ADC]","Q [ADC#upointns]");
+    {sl2(v8.h_QvsPH,"Pulse height [mV]","Q [mV#upointns]");
      v8.h_QvsPH->Draw("COLZ");
      TLatex lt;lt.SetNDC();lt.SetTextSize(0.042);lt.DrawLatex(0.15,0.93,"Ch50 hod2019X v8");}
 
     //── [3,1] Eficiencia vs Q para hod2019X ──────────────────────────────────
     cc.cd(5);gPad->SetLeftMargin(0.14);gPad->SetBottomMargin(0.14);
-    {TH1D fr("fr5","ε vs Q_{thr} hod2019X;Q [ADC#upointns];#varepsilon",100,0,3000);
+    {TH1D fr("fr5","ε vs Q_{thr} hod2019X;Q [mV#upointns];#varepsilon",100,0,3000);
      fr.SetMinimum(0);fr.SetMaximum(1.05);fr.SetStats(0);fr.Draw();
      const FileQ* fqs[2]={&v7,&v8};const int cols[2]={kBlue+1,kOrange+7};
      const std::vector<double> Qt={0,100,200,500,1000,1500,2000};
@@ -663,11 +672,11 @@ int main(int argc, char** argv){
               <<std::setw(14)<<fmt(fv8_data.planes[pl].gaus_ped.sigma)
               <<std::setw(14)<<fmt(pl==P18X?0:fv7_data.planes[pl==P19X?P19X:pl].gaus_ped.sigma)
               <<std::setw(14)<<fmt(fv8_data.planes[pl].gaus_ped.sigma)<<"\n";};
-        os<<std::setw(26)<<"σ_Q pedestal [ADC·ns]";
+        os<<std::setw(26)<<"σ_Q pedestal [mV·ns]";
         for(int v=0;v<2;v++)for(int pp:{P18X,P19X})
             os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].gaus_ped.sigma:fv8_data.planes[pp].gaus_ped.sigma);
         os<<"\n";
-        os<<std::setw(26)<<"MPV_Q Landau [ADC·ns]";
+        os<<std::setw(26)<<"MPV_Q Landau [mV·ns]";
         for(int v=0;v<2;v++)for(int pp:{P18X,P19X})
             os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].lan_Q.mpv:fv8_data.planes[pp].lan_Q.mpv);
         os<<"\n";
@@ -681,7 +690,7 @@ int main(int argc, char** argv){
         os<<"\n";
         os<<std::setw(26)<<"SNR_ph (análisis previo)";
         os<<std::setw(14)<<"19.7"<<std::setw(14)<<"N/A"<<std::setw(14)<<"14"<<std::setw(14)<<"14\n";
-        os<<std::setw(26)<<"umbral_Q natural [ADC·ns]";
+        os<<std::setw(26)<<"umbral_Q natural [mV·ns]";
         for(int v=0;v<2;v++)for(int pp:{P18X,P19X})
             os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].umbral_Q:fv8_data.planes[pp].umbral_Q);
         os<<"\n";
@@ -703,7 +712,7 @@ int main(int argc, char** argv){
 
         if(fv8_data.planes[P19X].umbral_Q>0)
             os<<"  SEPARACIÓN PEDESTAL-SEÑAL en Q: umbral_Q natural = "
-              <<fmt(fv8_data.planes[P19X].umbral_Q)<<" ADC·ns\n";
+              <<fmt(fv8_data.planes[P19X].umbral_Q)<<" mV·ns\n";
 
         const double eff_Q19=fv8_data.planes[P19X].eff_nat_Q;
         const double eff_ph19=1.3;  // from previous analysis

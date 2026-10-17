@@ -29,6 +29,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -45,7 +46,7 @@ namespace fs = std::filesystem;
 // Constantes y mapeo
 //==============================================================================
 constexpr double kPre_ns  = 2500.0;
-constexpr double kDt_ns   = 1e9 / 65e6;   // 15.3846 ns/muestra
+constexpr double kDt_ns = 16.0;  // VX1740, 62.5 MS/s; equals the data_dig.time step
 constexpr int    kNpre    = 3, kNpost = 8; // ventana de integración
 constexpr int    kNwin    = kNpre + kNpost + 1;  // 12 muestras
 constexpr int    kNCh     = 64;
@@ -134,7 +135,7 @@ static void linfit(const std::vector<double>&x,const std::vector<double>&y,doubl
 // Almacenamiento de hits por evento en RAM
 //==============================================================================
 struct EvCache{
-    // hod2019 hits (todos los que tienen ph>1 ADC)
+    // hod2019 hits (todos los que tienen ph>1 mV)
     std::vector<CQ> h19x, h19y;
     // hod2018 clusters (best = max amplitude)
     double best18x_pos=0, best18x_amp=0;
@@ -164,6 +165,14 @@ static std::vector<EvCache> load_events(const std::string& fname){
         if(iev%30000==0)std::cout<<"    "<<iev<<"/"<<nEnt<<"\r"<<std::flush;
         if(!tw||tw->empty())continue;
         const auto& tv=*tw;
+        static bool checked_step = false;
+        if (!checked_step && tv.size() > 1) {
+            checked_step = true;
+            if (std::fabs((tv[1] - tv[0]) - kDt_ns) > 1e-3) {
+                std::fprintf(stderr, "Sampling step %.4f ns != kDt_ns %.4f ns; aborting\n", tv[1]-tv[0], kDt_ns);
+                return {};
+            }
+        }
         EvCache ev;
         // hod2018 hits
         std::vector<Hit18> h18x,h18y;
@@ -177,7 +186,7 @@ static std::vector<EvCache> load_events(const std::string& fname){
             else if(pl==2&&cq.ph>1.0)ev.h19x.push_back(cq);
             else if(pl==3&&cq.ph>1.0)ev.h19y.push_back(cq);
         }
-        // hod2018 clusters (threshold=10 ADC)
+        // hod2018 clusters (threshold=10 mV)
         {auto cls=clust18(h18x,10.0);ev.ncls18x=(int)cls.size();
          if(!cls.empty()){const auto& best=*std::max_element(cls.begin(),cls.end(),[](const Cl18&a,const Cl18&b){return a.amp<b.amp;});ev.best18x_pos=best.pos;ev.best18x_amp=best.amp;}}
         {auto cls=clust18(h18y,10.0);ev.ncls18y=(int)cls.size();
@@ -209,7 +218,7 @@ static void p2fit(TH2D*h,double sl,double ic,double r,const fs::path&p){
 int main(int argc,char**argv){
     std::string fv8="lectura_vx1740_ext_nim_1M_v8.root";
     std::string fv7="lectura_vx1740_ext_nim_1M_v7.root";
-    double umbral_Q19x=2346.2, umbral_Q19y=2346.2;  // ADC·ns, del charge_analysis
+    double umbral_Q19x=2440.048, umbral_Q19y=2440.048;  // rescaled x1.04 on 2026-10-17 (kDt_ns 15.3846 -> 16 ns); selection unchanged
     double r_lo=0.20, r_hi=0.80;  // valores iniciales; calibrados del histograma
     for(int i=1;i<argc;i++){
         std::string a=argv[i];
@@ -222,7 +231,7 @@ int main(int argc,char**argv){
     const fs::path outdir=fs::path("outputs")/("cosmic_tracks_"+std::string(ds));
     fs::create_directories(outdir);
     std::cout<<"=== reconstruct_cosmic_tracks ===\nv8: "<<fv8<<"\nOut: "<<outdir<<"\n";
-    std::cout<<"umbral_Q = "<<umbral_Q19x<<" ADC·ns  D = "<<kD_mm<<" mm  pitch = "<<kPitch<<" mm\n\n";
+    std::cout<<"umbral_Q = "<<umbral_Q19x<<" mV·ns  D = "<<kD_mm<<" mm  pitch = "<<kPitch<<" mm\n\n";
     gROOT->SetBatch(kTRUE);TH1::AddDirectory(kFALSE);
     gStyle->SetOptStat(0);gStyle->SetPalette(kViridis);
 
@@ -272,7 +281,7 @@ int main(int argc,char**argv){
     std::vector<double> xB18,xB19,yB18,yB19;  // ph control (ph>umbral equivalente)
     // umbral ph equivalente ~ umbral_Q / (kNwin × kDt_ns)
     const double ph_equiv = umbral_Q19x / (kNwin * kDt_ns);
-    std::cout<<"  ph_equiv = "<<ph_equiv<<" ADC (equivalente a Q>"<<umbral_Q19x<<" ADC·ns)\n";
+    std::cout<<"  ph_equiv = "<<ph_equiv<<" mV (equivalente a Q>"<<umbral_Q19x<<" mV·ns)\n";
 
     long long n_coinc_Xqr=0,n_coinc_Yqr=0,n_coinc_Xph=0,n_coinc_Yph=0;
     long long n_3D_qr=0,n_3D_ph=0;
@@ -458,7 +467,7 @@ int main(int argc,char**argv){
      } else {
          // RAMA B: charge spectrum + SNR comparison
          ch.cd(1);gPad->SetLogy();gPad->SetLeftMargin(0.13);gPad->SetBottomMargin(0.13);
-         TH1D hQ("hQsumm","Charge hod2019X (v8);Q_{max} [ADC#upointns];Events",200,-500,5000);
+         TH1D hQ("hQsumm","Charge hod2019X (v8);Q_{max} [mV#upointns];Events",200,-500,5000);
          for(const auto&ev:evs){double mx=-1e9;for(const auto&cq:ev.h19x)if(cq.Q>mx)mx=cq.Q;if(mx>-1e8)hQ.Fill(mx);}
          hQ.SetLineColor(kBlue+1);hQ.SetLineWidth(2);hQ.Draw("HIST");
          ch.cd(2);gPad->SetLeftMargin(0.14);gPad->SetBottomMargin(0.14);
@@ -495,9 +504,9 @@ int main(int argc,char**argv){
         os<<"=== Reconstrucción de Tracks Cósmicos — Discriminante Q+r ===\n\n";
         os<<"Parámetros:\n";
         os<<"  D = "<<kD_mm<<" mm (real, NO de diseño)\n";
-        os<<"  umbral_Q_hod2019X = "<<umbral_Q19x<<" ADC·ns\n";
+        os<<"  umbral_Q_hod2019X = "<<umbral_Q19x<<" mV·ns\n";
         os<<"  r_lo = "<<r_lo<<"  r_hi = "<<r_hi<<" (calibrado del histograma)\n";
-        os<<"  ph_equiv = "<<ph_equiv<<" ADC (control)\n\n";
+        os<<"  ph_equiv = "<<ph_equiv<<" mV (control)\n\n";
         os<<"Cutflow:\n";
         os<<std::setw(32)<<std::left<<"  Eventos cargados"<<N<<"\n";
         os<<std::setw(32)<<"  Coinc. XZ (Q+r)"<<n_coinc_Xqr<<"\n";

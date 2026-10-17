@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -46,12 +47,12 @@ namespace fs = std::filesystem;
 constexpr double kMuonTlo =  4000.0;  // ns
 constexpr double kMuonThi =  4400.0;  // ns
 constexpr double kPrePulse =  2500.0;  // ns (región de baseline)
-constexpr double kDt_ns    = 1e9/65e6; // 15.38 ns/muestra
+constexpr double kDt_ns = 16.0;  // VX1740, 62.5 MS/s; equals the data_dig.time step
 constexpr int    kNpre=3, kNpost=8, kNwin=12; // integración Q
 
 // Umbrales verificados
-constexpr double kPh18 = 50.0;  // ADC — separa muón(4170ns) de fondo(3510ns) en hod2018
-constexpr double kPh19 = 35.0;  // ADC — señal sincronizada confirmada en hod2019
+constexpr double kPh18 = 50.0;  // mV, pulse height from pedestal; = 102 ADC counts
+constexpr double kPh19 = 35.0;  // mV, pulse height from pedestal; = 72 ADC counts
 
 // Geometría real de la medición
 constexpr double kPitch = 2.0;   // mm
@@ -68,9 +69,9 @@ static const std::array<int,16> kH19Y={37,45,38,46,39,47,36,44,35,43,34,42,33,41
 struct MuonHit {
     bool   valid  = false;
     int    k      = -1;     // índice físico (0..15)
-    double ph     = 0;      // pulse height [ADC]
+    double ph     = 0;      // pulse height [mV]
     double pt     = -1;     // tiempo del mínimo [ns]
-    double Q      = 0;      // carga integrada [ADC·ns]
+    double Q      = 0;      // carga integrada [mV·ns]
     double pos    = 0;      // posición física [mm]
 };
 
@@ -157,7 +158,7 @@ int main(int argc,char**argv){
     std::cout<<"=== reconstruct_corrected ===\n";
     std::cout<<"File: "<<fname<<"\nOut: "<<outdir<<"\n";
     std::cout<<"Muon window: ["<<kMuonTlo<<", "<<kMuonThi<<"] ns (BOTH hodoscopes)\n";
-    std::cout<<"Thresholds: hod2018 ph>"<<kPh18<<" ADC,  hod2019 ph>"<<kPh19<<" ADC\n\n";
+    std::cout<<"Thresholds: hod2018 ph>"<<kPh18<<" mV,  hod2019 ph>"<<kPh19<<" mV\n\n";
 
     gROOT->SetBatch(kTRUE);TH1::AddDirectory(kFALSE);
     gStyle->SetOptStat(0);gStyle->SetPalette(kViridis);
@@ -189,6 +190,14 @@ int main(int argc,char**argv){
         if(iev%30000==0)std::cout<<"  "<<iev<<"/"<<nEnt<<"\r"<<std::flush;
         if(!tw||tw->empty())continue;
         const auto& tv=*tw;
+        static bool checked_step = false;
+        if (!checked_step && tv.size() > 1) {
+            checked_step = true;
+            if (std::fabs((tv[1] - tv[0]) - kDt_ns) > 1e-3) {
+                std::fprintf(stderr, "Sampling step %.4f ns != kDt_ns %.4f ns; aborting\n", tv[1]-tv[0], kDt_ns);
+                return 1;
+            }
+        }
         EvData ev;
         for(int c=0;c<kNCh;c++){
             if(!cw[c]||cw[c]->empty())continue;
@@ -404,7 +413,7 @@ int main(int argc,char**argv){
      TCanvas ct("ct","",900,620);ct.SetLeftMargin(0.12);ct.SetBottomMargin(0.13);
      int np=(int)ph_thrs.size();
      TGraph gxz(np,ph_thrs.data(),n_xz_v.data()),g3d(np,ph_thrs.data(),n_3d_v.data());
-     gxz.SetTitle("N tracks vs umbral hod2019;ph_{thr,hod2019} [ADC];N tracks");
+     gxz.SetTitle("N tracks vs umbral hod2019;ph_{thr,hod2019} [mV];N tracks");
      gxz.SetMarkerStyle(20);gxz.SetLineColor(kBlue+1);gxz.SetMarkerColor(kBlue+1);gxz.SetLineWidth(2);
      g3d.SetMarkerStyle(21);g3d.SetLineColor(kRed+1);g3d.SetMarkerColor(kRed+1);g3d.SetLineWidth(2);
      gxz.Draw("APL");g3d.Draw("PL SAME");
@@ -425,7 +434,7 @@ int main(int argc,char**argv){
     auto print=[&](std::ostream&os){
         os<<"=== Primer Tracking Real con Ventana Temporal Correcta ===\n\n";
         os<<"Ventana muón: ["<<kMuonTlo<<", "<<kMuonThi<<"] ns (AMBOS hodoscopios, Δt=0 verificado)\n";
-        os<<"Umbral hod2018: ph>"<<kPh18<<" ADC  |  hod2019: ph>"<<kPh19<<" ADC\n\n";
+        os<<"Umbral hod2018: ph>"<<kPh18<<" mV  |  hod2019: ph>"<<kPh19<<" mV\n\n";
         os<<"PASO 1 — Tag-and-probe corregido:\n";
         os<<"  N_tag="<<n_tag<<"  N_same="<<n_same<<"  N_mixed="<<n_mixed<<"\n";
         os<<"  ε_true="<<eps_true*100<<"% ± "<<std::sqrt(so*so+sa*sa)*100<<"%\n";

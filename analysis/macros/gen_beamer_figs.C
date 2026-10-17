@@ -40,8 +40,8 @@ namespace fs = std::filesystem;
 // ─── Constants ────────────────────────────────────────────────────────────────
 const double T_MU_LO = 4000.0, T_MU_HI = 4400.0; // muon window [ns]
 const double T_PRE   = 2500.0;                     // baseline region end [ns]
-const double PH_18   = 50.0;  // hod2018 threshold [ADC]
-const double PH_19   = 35.0;  // hod2019 threshold [ADC]
+const double PH_18   = 50.0;  // mV, pulse height from pedestal; = 102 ADC counts
+const double PH_19   = 35.0;  // mV, pulse height from pedestal; = 72 ADC counts
 const double PITCH   = 2.0;   // mm
 const double D_MM    = 98.4;  // mm
 const double HOD_H   = 16.5;  // mm half-width of active area
@@ -66,7 +66,7 @@ void setup_style() {
 }
 
 // ─── Per-channel hit extraction ───────────────────────────────────────────────
-struct Hit { double ph; double pos; }; // ph [ADC], position [mm]
+struct Hit { double ph; double pos; }; // ph [mV], position [mm]
 
 Hit extract_hit(const std::vector<float>& wf, const std::vector<float>& t, int k) {
     Hit h{0, (k + 0.5 - 8.0) * PITCH};
@@ -493,9 +493,9 @@ void gen_beamer_figs() {
         // Legend and annotations
         TLegend lg(0.42, 0.72, 0.94, 0.92);
         lg.SetBorderSize(0); lg.SetFillStyle(0); lg.SetTextSize(0.036);
-        lg.AddEntry(h_ch0_hi, "hod2018 Ch0 (ph>50 ADC)  muon signal", "l");
-        lg.AddEntry(h_ch50_hi,"hod2019 Ch50 (ph>35 ADC) muon signal", "l");
-        lg.AddEntry(h_ch0_lo, "hod2018 Ch0 (ph>5 ADC)   background",  "l");
+        lg.AddEntry(h_ch0_hi, "hod2018 Ch0 (ph>50 mV)   muon signal", "l");
+        lg.AddEntry(h_ch50_hi,"hod2019 Ch50 (ph>35 mV)  muon signal", "l");
+        lg.AddEntry(h_ch0_lo, "hod2018 Ch0 (ph>5 mV)    background",  "l");
         lg.Draw();
 
         TLatex lt; lt.SetTextSize(0.036);
