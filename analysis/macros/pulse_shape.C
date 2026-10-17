@@ -201,30 +201,67 @@ void pulse_shape() {
     std::cout << "  Falls below  1% of peak (" << 0.01 * peak19 << " mV) at offset = " << off1_19
               << " (" << off1_19 * 16.0 << " ns)\n";
 
-    // Integral fractions: window [-3, +8] vs [-10, +40]
-    double tot_int18 = 0.0, win_int18 = 0.0;
-    double tot_int19 = 0.0, win_int19 = 0.0;
-
-    for (int k = kMinOff; k <= kMaxOff; ++k) {
+    // Integral over [-3, +40] and cumulative fractions in [-3, +n] for n = 8..40
+    double tot_int18_3_40 = 0.0;
+    double tot_int19_3_40 = 0.0;
+    for (int k = -3; k <= 40; ++k) {
         int idx = k - kMinOff;
-        tot_int18 += mean18[idx] * 16.0;
-        tot_int19 += mean19[idx] * 16.0;
-        if (k >= -3 && k <= 8) {
-            win_int18 += mean18[idx] * 16.0;
-            win_int19 += mean19[idx] * 16.0;
-        }
+        tot_int18_3_40 += mean18[idx] * 16.0;
+        tot_int19_3_40 += mean19[idx] * 16.0;
     }
 
-    double frac18 = (tot_int18 > 0) ? (win_int18 / tot_int18) : 0.0;
-    double frac19 = (tot_int19 > 0) ? (win_int19 / tot_int19) : 0.0;
+    double win_int18 = 0.0;
+    double win_int19 = 0.0;
+    for (int k = -3; k <= 8; ++k) {
+        int idx = k - kMinOff;
+        win_int18 += mean18[idx] * 16.0;
+        win_int19 += mean19[idx] * 16.0;
+    }
 
-    std::cout << "\n=== Integral Fractions (current window [-3, +8] samples vs [-10, +40]) ===\n";
-    std::cout << "hod2018X: Integral [-10, +40] = " << tot_int18 << " mV*ns, "
-              << "[-3, +8] = " << win_int18 << " mV*ns, "
-              << "Fraction = " << frac18 * 100.0 << " %\n";
-    std::cout << "hod2019X: Integral [-10, +40] = " << tot_int19 << " mV*ns, "
-              << "[-3, +8] = " << win_int19 << " mV*ns, "
-              << "Fraction = " << frac19 * 100.0 << " %\n";
+    std::cout << "\n=== Integral over [-3, +8] (12 samples) and [-3, +40] (44 samples) ===\n";
+    std::cout << "hod2018X: Integral [-3, +8] = " << win_int18 << " mV*ns, "
+              << "[-3, +40] = " << tot_int18_3_40 << " mV*ns, "
+              << "Fraction = " << (tot_int18_3_40 != 0.0 ? (win_int18 / tot_int18_3_40) * 100.0 : 0.0) << " %\n";
+    std::cout << "hod2019X: Integral [-3, +8] = " << win_int19 << " mV*ns, "
+              << "[-3, +40] = " << tot_int19_3_40 << " mV*ns, "
+              << "Fraction = " << (tot_int19_3_40 != 0.0 ? (win_int19 / tot_int19_3_40) * 100.0 : 0.0) << " %\n\n";
+
+    std::cout << "=== Cumulative fraction of integral over [-3, +40] contained in [-3, +n] for n = 8..40 ===\n";
+    std::cout << std::setw(4) << "n"
+              << std::setw(12) << "t_n [ns]"
+              << std::setw(18) << "int18 [-3,+n]"
+              << std::setw(14) << "frac18"
+              << std::setw(18) << "int19 [-3,+n]"
+              << std::setw(14) << "frac19"
+              << "\n";
+    std::cout << std::string(80, '-') << "\n";
+
+    int n95_18 = -1, n95_19 = -1;
+    for (int n = 8; n <= 40; ++n) {
+        double cum18 = 0.0, cum19 = 0.0;
+        for (int k = -3; k <= n; ++k) {
+            int idx = k - kMinOff;
+            cum18 += mean18[idx] * 16.0;
+            cum19 += mean19[idx] * 16.0;
+        }
+        double f18 = (tot_int18_3_40 != 0.0) ? (cum18 / tot_int18_3_40) : 0.0;
+        double f19 = (tot_int19_3_40 != 0.0) ? (cum19 / tot_int19_3_40) : 0.0;
+
+        if (n95_18 < 0 && f18 >= 0.95) n95_18 = n;
+        if (n95_19 < 0 && f19 >= 0.95) n95_19 = n;
+
+        std::cout << std::setw(4) << n
+                  << std::setw(12) << std::fixed << std::setprecision(1) << (n * 16.0)
+                  << std::setw(18) << std::fixed << std::setprecision(3) << cum18
+                  << std::setw(14) << std::fixed << std::setprecision(4) << f18
+                  << std::setw(18) << std::fixed << std::setprecision(3) << cum19
+                  << std::setw(14) << std::fixed << std::setprecision(4) << f19
+                  << "\n";
+    }
+
+    std::cout << "\nn95 thresholds (smallest n with cumulative fraction >= 0.95):\n";
+    std::cout << "  hod2018X: n95 = " << n95_18 << "\n";
+    std::cout << "  hod2019X: n95 = " << n95_19 << "\n";
 
     // Create output directory and plot
     std::time_t now = std::time(nullptr);
@@ -270,3 +307,4 @@ void pulse_shape() {
     c.SaveAs(outpng.string().c_str());
     std::cout << "\nPlot saved to: " << outpng << "\n";
 }
+
