@@ -5,5 +5,12 @@
 *.txt
 CaenDigitizerSiLabDict.cxx
 example
+test_open
+test_acquire_sw
+test_acquire_ext_nim
+test_caencomm_open
+analysis/bin/
+attic/bin_pre_reorg/
+logs/
 .vscode/
 %00.desktop

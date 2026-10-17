@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUTDIR="outputs/channel_health_20261016"
+cd "$(dirname "$0")/../.."
 
+OUTDIR="outputs/channel_health_20261016"
 for input in \
   lectura_vx1740_ext_nim_1M.root \
   lectura_vx1740_ext_nim_1M_v2.root \
@@ -13,11 +14,9 @@ for input in \
   lectura_vx1740_ext_nim_1M_v7.root \
   lectura_vx1740_ext_nim_1M_v8.root \
   lectura_vx1740_ext_nim_1M_v9.root; do
-  if [[ ! -f "$input" ]]; then
-    echo "Missing required input: $input" >&2
-    exit 1
-  fi
+  [[ -f "$input" ]] || { echo "Missing required input: $input" >&2; exit 1; }
 done
 
-g++ -O2 -std=c++17 channel_health_analysis.cpp $(root-config --cflags --libs) -o channel_health_analysis
-./channel_health_analysis "$OUTDIR"
+make -C analysis bin/channel_health_refit
+analysis/bin/channel_health_refit "$OUTDIR"
+cat "$OUTDIR/summary_channel_health.txt"

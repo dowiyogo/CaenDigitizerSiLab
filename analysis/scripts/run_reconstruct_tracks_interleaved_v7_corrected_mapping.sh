@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+cd "$(dirname "$0")/../.."
+
 OUTDIR="outputs/track_reconstruction_interleaved_v7_corrected_mapping"
-INPUT="candidate_events_windowed.csv"
+INPUT="outputs/v7_windowed/candidate_events_windowed.csv"
 
 if [[ ! -f "${INPUT}" ]]; then
   echo "Primero genera candidate_events_windowed.csv con scan_active_channels_windowed sobre el run v7."
@@ -11,10 +13,10 @@ fi
 
 mkdir -p "${OUTDIR}"
 
-g++ -O2 -std=c++17 reconstruct_tracks_interleaved.cpp $(root-config --cflags --libs) -o reconstruct_tracks_interleaved
+make -C analysis bin/reconstruct_tracks_interleaved
 
-./reconstruct_tracks_interleaved \
-  candidate_events_windowed.csv \
+analysis/bin/reconstruct_tracks_interleaved \
+  "${INPUT}" \
   "${OUTDIR}" \
   33.0 \
   98.4

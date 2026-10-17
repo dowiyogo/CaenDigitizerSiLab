@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUTDIR="outputs/spe_gain_20261016"
+cd "$(dirname "$0")/../.."
+
+OUTDIR="outputs/channel_health_20261016"
+
 for input in \
   lectura_vx1740_ext_nim_1M.root \
   lectura_vx1740_ext_nim_1M_v2.root \
@@ -12,8 +15,11 @@ for input in \
   lectura_vx1740_ext_nim_1M_v7.root \
   lectura_vx1740_ext_nim_1M_v8.root \
   lectura_vx1740_ext_nim_1M_v9.root; do
-  [[ -f "$input" ]] || { echo "Missing required input: $input" >&2; exit 1; }
+  if [[ ! -f "$input" ]]; then
+    echo "Missing required input: $input" >&2
+    exit 1
+  fi
 done
 
-g++ -O2 -std=c++17 spe_gain_analysis.cpp $(root-config --cflags --libs) -o spe_gain_analysis
-./spe_gain_analysis "$OUTDIR"
+make -C analysis bin/channel_health_analysis
+analysis/bin/channel_health_analysis "$OUTDIR"

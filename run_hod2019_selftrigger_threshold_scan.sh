@@ -6,7 +6,8 @@ set -o pipefail
 BASE_CONFIG="${1:-config_vx1740_autotrigger_hod2019_ch32_63.conf}"
 OUTDIR="outputs/hod2019_threshold_scan"
 EXEC="./test_acquire_sw"
-SCAN_BIN="./scan_active_channels"
+SCAN_BIN="analysis/bin/scan_active_channels"
+RAWDIR="/home/xplus/digitizer/data/raw/hod2019_threshold_scan_$(date +%Y%m%d_%H%M%S)"
 
 # Keep runs short by default for diagnosis.
 NEVENTS="${NEVENTS:-2000}"
@@ -30,15 +31,20 @@ if [[ ! -x "$EXEC" ]]; then
 fi
 
 mkdir -p "$OUTDIR"
+mkdir -p "$RAWDIR"
 
 echo "[INFO] Base config: $BASE_CONFIG"
 echo "[INFO] Outdir: $OUTDIR"
+echo "[INFO] Rawdir: $RAWDIR"
 echo "[INFO] Thresholds: ${THRESHOLDS[*]} mV"
 echo "[INFO] nevents=$NEVENTS timeout=$TIMEOUT s MAX_ROOT_MB=$MAX_ROOT_MB"
 
 if [[ ! -x "$SCAN_BIN" ]]; then
-  echo "[WARN] No se encontro $SCAN_BIN"
-  echo "[WARN] Para postprocesar automaticamente, compila scan_active_channels y vuelve a correr el script."
+  echo "[INFO] Compilando $SCAN_BIN..."
+  make -C analysis bin/scan_active_channels || {
+    echo "[WARN] No se pudo compilar $SCAN_BIN"
+    echo "[WARN] Para postprocesar automaticamente, compila scan_active_channels y vuelve a correr el script."
+  }
 fi
 
 for thr in "${THRESHOLDS[@]}"; do
@@ -53,8 +59,8 @@ for thr in "${THRESHOLDS[@]}"; do
     tag="p${thr}"
   fi
 
-  cfg_tmp="$OUTDIR/config_tmp_thr_${tag}.conf"
-  root_out="$OUTDIR/hod2019_thr_${tag}.root"
+  cfg_tmp="$RAWDIR/config_tmp_thr_${tag}.conf"
+  root_out="$RAWDIR/hod2019_thr_${tag}.root"
 
   awk -v thr="$thr" -v nevt="$NEVENTS" -v tout="$TIMEOUT" '
     BEGIN { seen_thr=0; seen_nev=0; seen_tout=0 }
@@ -123,6 +129,12 @@ for thr in "${THRESHOLDS[@]}"; do
   fi
 
 done
+
+if ls "$RAWDIR"/* 1> /dev/null 2>&1; then
+  echo "[INFO] Generando SHA256SUMS y protegiendo datos en $RAWDIR..."
+  (cd "$RAWDIR" && sha256sum * > SHA256SUMS)
+  chmod a-w "$RAWDIR"/* "$RAWDIR"
+fi
 
 echo
 echo "[DONE] Barrido finalizado. Resultados en $OUTDIR"
