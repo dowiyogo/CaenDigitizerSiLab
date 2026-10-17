@@ -72,10 +72,16 @@ public:
   int event;
   int64_t timestamp;
 
-public:
- CaenDigitizerSiLab() : kPolarizationType(0), kEnableMask(0xff), kSamples(100), kDoCalibration(kFALSE) {}
+  // New connection members
+  CAEN_DGTZ_ConnectionType kConnectionType;
+  int kLinkNum;
+  int kConetNode;
+  uint32_t kVMEBaseAddress;
+
+ public:
+ CaenDigitizerSiLab() : kPolarizationType(0), kEnableMask(0xff), kSamples(100), kDoCalibration(kFALSE), kConnectionType(CAEN_DGTZ_USB), kLinkNum(0), kConetNode(0), kVMEBaseAddress(0) {}
  CaenDigitizerSiLab( int8_t p, uint32_t em, int32_t s, bool docal): kPolarizationType(p), kEnableMask(em), kSamples(s), kDoCalibration(docal) {init();}
-  ~CaenDigitizerSiLab();
+   ~CaenDigitizerSiLab();
   int32_t init();
   int32_t finish();
   int32_t getInfo();
@@ -103,6 +109,7 @@ public:
   int32_t setAllCoincidencesToAND();
   void printTriggerConfiguration(); 
   int32_t enableAllChannelsORTrigger();
+  int32_t enableAllGroupsORTrigger(uint32_t groupMask = 0xFF);
   int32_t enableChannelPairsANDTrigger(uint8_t coinc_window, uint8_t majority_level);
   int32_t readEventsTree(int32_t maxEvents,bool automatic,int32_t start_event,double tm, uint32_t triggerSource);
   int32_t storeDataTree();
@@ -119,36 +126,49 @@ public:
     std::string msg = "Model not supported. Setting default model: DT5730";
     kModel = model;
     switch (kModel) {
-      case 5730:  MaxNCh = 8;
-                  MaxVpp = 2;
-                  NBit = 14;
-                  msg = "Model DT5730";
-                  kTempSupported = kTRUE;
-                  kCalibrationSupported = kTRUE;
-                  kSamplingTime = 0.000000002;
-                  break;
-      case 5724:  MaxNCh = 4;
-                  MaxVpp = 2.25;
-                  NBit = 14;
-                  msg = "Model DT5724";
-                  kTempSupported = kFALSE;
-                  kCalibrationSupported = kFALSE;
-                  kSamplingTime = 0.00000001;
-                  break;
-      case 5740:  MaxNCh = 32;
-                  MaxVpp = 2;
-                  NBit = 12;
-                  msg = "Model DT5740";
-                  kTempSupported = kFALSE;
-                  kCalibrationSupported = kFALSE;
-                  kSamplingTime = 0.000000016;
-                  break;
-      default:    MaxNCh = 8;
-                  MaxVpp = 2;
-                  NBit = 14;
-                  kTempSupported = kTRUE;
-                  kCalibrationSupported = kTRUE;
-                  kSamplingTime = 0.000000002;
+      case 5730:
+        MaxNCh = 8;
+        MaxVpp = 2;
+        NBit = 14;
+        msg = "Model DT5730";
+        kTempSupported = kTRUE;
+        kCalibrationSupported = kTRUE;
+        kSamplingTime = 0.000000002;
+        break;
+      case 5724:
+        MaxNCh = 4;
+        MaxVpp = 2.25;
+        NBit = 14;
+        msg = "Model DT5724";
+        kTempSupported = kFALSE;
+        kCalibrationSupported = kFALSE;
+        kSamplingTime = 0.00000001;
+        break;
+      case 5740:
+        MaxNCh = 32;
+        MaxVpp = 2;
+        NBit = 12;
+        msg = "Model DT5740";
+        kTempSupported = kFALSE;
+        kCalibrationSupported = kFALSE;
+        kSamplingTime = 0.000000016;
+        break;
+      case 1740:
+        MaxNCh = 64;
+        MaxVpp = 2;
+        NBit = 12;
+        msg = "Model VX1740";
+        kTempSupported = kFALSE;
+        kCalibrationSupported = kFALSE;
+        kSamplingTime = 0.000000016;
+        break;
+      default:
+        MaxNCh = 8;
+        MaxVpp = 2;
+        NBit = 14;
+        kTempSupported = kTRUE;
+        kCalibrationSupported = kTRUE;
+        kSamplingTime = 0.000000002;
     }
     std::cout<<msg<<"\nChannels: "<<MaxNCh<<"\nVpp = "<<MaxVpp<<"\nADC bits = "<<NBit<<"\r"<<std::endl;
     return 0;
@@ -167,71 +187,130 @@ public:
         }
   }
 
-  void setTime2Nsamples(Float_t tm, int32_t trigger_size=60)
+  // Configure connection type/link/node/address
+  int32_t setConnection(int connectionType = 0,
+                        int linkNum = 0,
+                        int conetNode = 0,
+                        uint32_t vmeBaseAddress = 0)
   {
-    kSamples = (tm/kSamplingTime);
-    ret = CAEN_DGTZ_SetRecordLength(handle,kSamples);
-    ret = CAEN_DGTZ_SetPostTriggerSize(handle,trigger_size);
-    std::cout<<"New number of samples per aqc = "<<kSamples<<std::endl;
-  }
+      kLinkNum = linkNum;
+      kConetNode = conetNode;
+      kVMEBaseAddress = vmeBaseAddress;
 
-  int32_t readTemp(int32_t ch)
-  {
-    if (kTempSupported)
-      ret = CAEN_DGTZ_ReadTemperature(handle, ch, &chTemp);
-    else {
-      std::cout<<"Temperature measurement not supported"<<std::endl;
-      return -1;
-    }
-    return 0;
-  }
+      switch(connectionType) {
+          case 0:
+              kConnectionType = CAEN_DGTZ_USB;
+              std::cout << "Connection: USB direct" << std::endl;
+              break;
 
-  int32_t readTempAll(bool print=true)
-  {
-    if (kTempSupported)
-    {
-      std::cout<<"ch\ttemp (°C)\n";
-      for (int32_t i =0; i<MaxNCh; i++)
-      {
-        if ((kEnableMask>>i)&0x1)
-        {
+          case 1:
+              kConnectionType = CAEN_DGTZ_OpticalLink;
+              std::cout << "Connection: OpticalLink/CONET" << std::endl;
+              break;
+
+          case 2:
+              kConnectionType = CAEN_DGTZ_USB_A4818;
+              std::cout << "Connection: A4818 USB-to-CONET2" << std::endl;
+              break;
+
+          case 3:
+              kConnectionType = CAEN_DGTZ_USB_A4818_V2718;
+              std::cout << "Connection: A4818_V2718" << std::endl;
+              break;
+
+          case 4:
+              kConnectionType = CAEN_DGTZ_USB_A4818_V3718;
+              std::cout << "Connection: A4818_V3718" << std::endl;
+              break;
+
+          case 5:
+              kConnectionType = CAEN_DGTZ_USB_A4818_V4718;
+              std::cout << "Connection: A4818_V4718" << std::endl;
+              break;
+
+          default:
+              std::cout << "Unknown connectionType=" << connectionType
+                        << ". Falling back to USB direct." << std::endl;
+              kConnectionType = CAEN_DGTZ_USB;
+              kLinkNum = 0;
+              kConetNode = 0;
+              kVMEBaseAddress = 0;
+              break;
+      }
+
+      std::cout << "CAEN connection enum = " << static_cast<int>(kConnectionType)
+                << ", LinkNum/PID = " << kLinkNum
+                << ", ConetNode = " << kConetNode
+                << ", VMEBaseAddress = 0x" << std::hex << kVMEBaseAddress << std::dec
+                << std::endl;
+
+      return 0;
+  }
+   void setTime2Nsamples(Float_t tm, int32_t trigger_size=60)
+   {
+     kSamples = (tm/kSamplingTime);
+     ret = CAEN_DGTZ_SetRecordLength(handle,kSamples);
+     ret = CAEN_DGTZ_SetPostTriggerSize(handle,trigger_size);
+     std::cout<<"New number of samples per aqc = "<<kSamples<<std::endl;
+   }
+
+   int32_t readTemp(int32_t ch)
+   {
+     if (kTempSupported)
+       ret = CAEN_DGTZ_ReadTemperature(handle, ch, &chTemp);
+     else {
+       std::cout<<"Temperature measurement not supported"<<std::endl;
+       return -1;
+     }
+     return 0;
+   }
+
+   int32_t readTempAll(bool print=true)
+   {
+     if (kTempSupported)
+     {
+       std::cout<<"ch\ttemp (°C)\n";
+       for (int32_t i =0; i<MaxNCh; i++)
+       {
+         if ((kEnableMask>>i)&0x1)
+         {
   	       readTemp(i);
   	        if (print) std::cout<<i<<"\t\t"<<chTemp<<std::endl;
-        }
-      }
-    }
-    else {
-      std::cout<<"Temperature measurement not supported"<<std::endl;
-      return -1;
-    }
-    return 0;
-  }
+         }
+       }
+     }
+     else {
+       std::cout<<"Temperature measurement not supported"<<std::endl;
+       return -1;
+     }
+     return 0;
+   }
 
 
-  int32_t storeTempAll(bool print=true)
-  {
-    if (kTempSupported)
-    {
-      tempFile<<"ch\ttemp (°C)\tdate\n";
-      for (int32_t i =0; i<MaxNCh; i++)
-      {
-        if ((kEnableMask>>i)&0x1)
-        {
+   int32_t storeTempAll(bool print=true)
+   {
+     if (kTempSupported)
+     {
+       tempFile<<"ch\ttemp (°C)\tdate\n";
+       for (int32_t i =0; i<MaxNCh; i++)
+       {
+         if ((kEnableMask>>i)&0x1)
+         {
   	       readTemp(i);
   	        if (print) tempFile<<i<<"\t"<<chTemp<<"\t"<<time(0)<<std::endl;
-        }
-      }
-    }
-    else {
-      std::cout<<"Temperature measurement not supported"<<std::endl;
-      return -1;
-    }
-    return 0;
-  }
+         }
+       }
+     }
+     else {
+       std::cout<<"Temperature measurement not supported"<<std::endl;
+       return -1;
+     }
+     return 0;
+   }
 
 
-  uint32_t th2int(float value)
-  {
+   uint32_t th2int(float value)
+   {
 	uint32_t ret = 0;
 	switch(kPolarizationType){
 	case -1:	ret = (uint32_t) ((MaxVpp+value)*(0x1<<NBit)/MaxVpp);
@@ -246,91 +325,91 @@ public:
   }
 
 
-  void setPolarizationType(int pol=0)
-  {
-    kPolarizationType = pol;
-    switch (kPolarizationType)
-      {
-      case 0: //rango de -1V a 1V, centrado en 0V
-            	kOffset=0x7FFF;
-            	break;
-      case -1://Rango de -2V a 0V, centrado en -1V
-            	kOffset=0x08c0; //offset adaptado para que el cero calze con lo esperado
-            	break;
-      case 1: //Rango de 0V a 2V, centrado en 1V
-              kOffset=0xf7a3; //offset adaptado para que el cero calze con lo esperado
-              //kOffset=0xffff;
-      }
-    uint32_t dat = 0;
+   void setPolarizationType(int pol=0)
+   {
+     kPolarizationType = pol;
+     switch (kPolarizationType)
+       {
+       case 0: //rango de -1V a 1V, centrado en 0V
+             	kOffset=0x7FFF;
+             	break;
+       case -1://Rango de -2V a 0V, centrado en -1V
+             	kOffset=0x08c0; //offset adaptado para que el cero calze con lo esperado
+             	break;
+       case 1: //Rango de 0V a 2V, centrado en 1V
+               kOffset=0xf7a3; //offset adaptado para que el cero calze con lo esperado
+               //kOffset=0xffff;
+       }
+     uint32_t dat = 0;
 
-    if(kModel==5740){
-      for (int k =0; k<MaxNCh/8;k++)
-      {
-        ret = CAEN_DGTZ_ReadRegister(handle,(0x1088+k*0x100),&dat);
-        //Funcion especial para configurar cada uno uno de los 4 grupos de 8 canales
-        ret = CAEN_DGTZ_SetGroupDCOffset(handle,k,kOffset);
+    if(kModel==5740 || kModel==1740){
+        for (int k =0; k<MaxNCh/8;k++)
+        {
+          ret = CAEN_DGTZ_ReadRegister(handle,(0x1088+k*0x100),&dat);
+          //Funcion especial para configurar cada uno uno de los 4 grupos de 8 canales
+          ret = CAEN_DGTZ_SetGroupDCOffset(handle,k,kOffset);
+        }
       }
-    }
-    else{
-      for (int k =0; k<MaxNCh;k++)
-      {
-        ret = CAEN_DGTZ_ReadRegister(handle,(0x1088+k*0x100),&dat);
-        ret = CAEN_DGTZ_SetChannelDCOffset(handle,k,kOffset);
+      else{
+        for (int k =0; k<MaxNCh;k++)
+        {
+          ret = CAEN_DGTZ_ReadRegister(handle,(0x1088+k*0x100),&dat);
+          ret = CAEN_DGTZ_SetChannelDCOffset(handle,k,kOffset);
+        }
+        calibrate();
       }
-      calibrate();
-    }
-    
-  }
-
-  void setNSamples(int32_t nsamples=50, uint32_t trigger_size=60)
-  {
-    kSamples=nsamples;
-    ret = CAEN_DGTZ_SetRecordLength(handle,kSamples);
-    uint32_t configured_kSamples = 0;
-    ret = CAEN_DGTZ_GetRecordLength(handle, &configured_kSamples);
-    std::cout<<"New number of samples per aqc = "<<configured_kSamples<<std::endl;
-    
-    if(kModel==5740){
-      //Se configura manualmente el posttrigger size. La funcin no funciona aqui.
-      //El posttrigger size se calibra segun error de 75 muestras de desfase, propio del Digitizer
-      ret = CAEN_DGTZ_WriteRegister(handle,0x8114,trigger_size*configured_kSamples/100-10);
-    }
-    else{
-      //El posttrigger size se calibra segun error de 75 muestras de desfase, propio del Digitizer
-      int calibracion = (75*100)/configured_kSamples;
-      ret = CAEN_DGTZ_SetPostTriggerSize(handle,(trigger_size-calibracion));
-
-      //Se agrega variable para leer el posttrigger size configurado en el digitizer.
-      uint32_t configured_trigger_size = 0;
-      ret = CAEN_DGTZ_GetPostTriggerSize(handle, &configured_trigger_size);
-      std::cout<<"New postTrigger Size= "
-        <<configured_trigger_size+calibracion<< "\% | Equal to: "
-        << kSamples*(configured_trigger_size+calibracion)/100
-        <<" samples."<<std::endl;
-    }
       
-    ret = CAEN_DGTZ_FreeReadoutBuffer(&buffer);
-    ret = CAEN_DGTZ_MallocReadoutBuffer(handle,&buffer,(uint32_t *)&size);
-  
-  }
+    }
+
+    void setNSamples(int32_t nsamples=50, uint32_t trigger_size=60)
+    {
+      kSamples=nsamples;
+      ret = CAEN_DGTZ_SetRecordLength(handle,kSamples);
+      uint32_t configured_kSamples = 0;
+      ret = CAEN_DGTZ_GetRecordLength(handle, &configured_kSamples);
+      std::cout<<"New number of samples per aqc = "<<configured_kSamples<<std::endl;
+      
+    if(kModel==5740 || kModel==1740){
+        //Se configura manualmente el posttrigger size. La funcin no funciona aqui.
+        //El posttrigger size se calibra segun error de 75 muestras de desfase, propio del Digitizer
+        ret = CAEN_DGTZ_WriteRegister(handle,0x8114,trigger_size*configured_kSamples/100-10);
+      }
+      else{
+        //El posttrigger size se calibra segun error de 75 muestras de desfase, propio del Digitizer
+        int calibracion = (75*100)/configured_kSamples;
+        ret = CAEN_DGTZ_SetPostTriggerSize(handle,(trigger_size-calibracion));
+
+        //Se agrega variable para leer el posttrigger size configurado en el digitizer.
+        uint32_t configured_trigger_size = 0;
+        ret = CAEN_DGTZ_GetPostTriggerSize(handle, &configured_trigger_size);
+        std::cout<<"New postTrigger Size= "
+          <<configured_trigger_size+calibracion<< "\% | Equal to: "
+          << kSamples*(configured_trigger_size+calibracion)/100
+          <<" samples."<<std::endl;
+      }
+        
+      ret = CAEN_DGTZ_FreeReadoutBuffer(&buffer);
+      ret = CAEN_DGTZ_MallocReadoutBuffer(handle,&buffer,(uint32_t *)&size);
+    
+    }
 
 
-  void calibrate()
-  {
-    if (kCalibrationSupported)
-    {
-      waitTempStabilization();// var <0.5
-      std::cout<<"starting calibration\n";
-      readTempAll();
-      ret = CAEN_DGTZ_Calibrate(handle);
-      std::cout<<"Done. ret: "<<ret<<std::endl<<std::endl;
-      sleep(5);
-    }
-    else
-    {
-      std::cout<<"Calibration not supported"<<std::endl;
-    }
-  }
+   void calibrate()
+   {
+     if (kCalibrationSupported)
+     {
+       waitTempStabilization();// var <0.5
+       std::cout<<"starting calibration\n";
+       readTempAll();
+       ret = CAEN_DGTZ_Calibrate(handle);
+       std::cout<<"Done. ret: "<<ret<<std::endl<<std::endl;
+       sleep(5);
+     }
+     else
+     {
+       std::cout<<"Calibration not supported"<<std::endl;
+     }
+   }
 
 
 ClassDef(CaenDigitizerSiLab,1)

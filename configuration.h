@@ -25,6 +25,14 @@ extern uint32_t ptriggersize;
 extern int triggerpolaritymode;
 extern int timeout;
 extern int triggerSource;
+extern uint32_t triggerGroupMask;
+
+// New connection / addressing parameters
+extern int connectionType; // 0=USB direct, 1=OpticalLink/CONET, 2=A4818, 3/4/5=A4818 bridge variants
+extern int linkNum;        // link number or PID for A4818
+extern int conetNode;      // CONET node (board position)
+extern uint32_t vmeBaseAddress; // VME base address (hex allowed)
+
 //extern char filename[200];
 
 

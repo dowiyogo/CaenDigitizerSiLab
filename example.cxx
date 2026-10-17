@@ -78,6 +78,9 @@ int main(int argc,char *argv[])
 
   dig = new CaenDigitizerSiLab();
 
+  // Configure connection parameters from configuration
+  dig->setConnection(connectionType, linkNum, conetNode, vmeBaseAddress);
+  
   dig->setModel(model);
   dig->setTriggerPolarity(triggerpolaritymode);
   printf("\nDigitizer initialization...\n"

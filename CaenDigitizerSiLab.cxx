@@ -1,7 +1,65 @@
 #include "CaenDigitizerSiLab.h"
+#include "configuration.h"
+#include <algorithm>
 using namespace std::chrono;
 
 ClassImp(CaenDigitizerSiLab)
+
+namespace {
+void CAEN_DGTZ_DecodeError(CAEN_DGTZ_ErrorCode errorCode, char* errorString)
+{
+  const char* message = "Unknown CAEN_DGTZ error";
+
+  switch (errorCode) {
+    case CAEN_DGTZ_Success: message = "Operation completed successfully"; break;
+    case CAEN_DGTZ_CommError: message = "Communication error"; break;
+    case CAEN_DGTZ_GenericError: message = "Unspecified error"; break;
+    case CAEN_DGTZ_InvalidParam: message = "Invalid parameter"; break;
+    case CAEN_DGTZ_InvalidLinkType: message = "Invalid Link Type"; break;
+    case CAEN_DGTZ_InvalidHandle: message = "Invalid device handle"; break;
+    case CAEN_DGTZ_MaxDevicesError: message = "Maximum number of devices exceeded"; break;
+    case CAEN_DGTZ_BadBoardType: message = "The operation is not allowed on this type of board"; break;
+    case CAEN_DGTZ_BadInterruptLev: message = "The interrupt level is not allowed"; break;
+    case CAEN_DGTZ_BadEventNumber: message = "The event number is bad"; break;
+    case CAEN_DGTZ_ReadDeviceRegisterFail: message = "Unable to read the registry"; break;
+    case CAEN_DGTZ_WriteDeviceRegisterFail: message = "Unable to write into the registry"; break;
+    case CAEN_DGTZ_InvalidChannelNumber: message = "The channel number is invalid"; break;
+    case CAEN_DGTZ_ChannelBusy: message = "The channel is busy"; break;
+    case CAEN_DGTZ_FPIOModeInvalid: message = "Invalid FPIO mode"; break;
+    case CAEN_DGTZ_WrongAcqMode: message = "Wrong acquisition mode"; break;
+    case CAEN_DGTZ_FunctionNotAllowed: message = "This function is not allowed for this module"; break;
+    case CAEN_DGTZ_Timeout: message = "Communication timeout"; break;
+    case CAEN_DGTZ_InvalidBuffer: message = "The buffer is invalid"; break;
+    case CAEN_DGTZ_EventNotFound: message = "The event is not found"; break;
+    case CAEN_DGTZ_InvalidEvent: message = "The event is invalid"; break;
+    case CAEN_DGTZ_OutOfMemory: message = "Out of memory"; break;
+    case CAEN_DGTZ_CalibrationError: message = "Unable to calibrate the board"; break;
+    case CAEN_DGTZ_DigitizerNotFound: message = "Unable to open the digitizer"; break;
+    case CAEN_DGTZ_DigitizerAlreadyOpen: message = "The digitizer is already open"; break;
+    case CAEN_DGTZ_DigitizerNotReady: message = "The digitizer is not ready to operate"; break;
+    case CAEN_DGTZ_InterruptNotConfigured: message = "The digitizer has not the IRQ configured"; break;
+    case CAEN_DGTZ_DigitizerMemoryCorrupted: message = "The digitizer flash memory is corrupted"; break;
+    case CAEN_DGTZ_DPPFirmwareNotSupported: message = "The digitizer DPP firmware is not supported in this library version"; break;
+    case CAEN_DGTZ_InvalidLicense: message = "Invalid firmware license"; break;
+    case CAEN_DGTZ_InvalidDigitizerStatus: message = "The digitizer is found in a corrupted status"; break;
+    case CAEN_DGTZ_UnsupportedTrace: message = "The given trace is not supported by the digitizer"; break;
+    case CAEN_DGTZ_InvalidProbe: message = "The given probe is not supported for the given digitizer's trace"; break;
+    case CAEN_DGTZ_UnsupportedBaseAddress: message = "The base address is not supported"; break;
+    case CAEN_DGTZ_NotYetImplemented: message = "The function is not yet implemented"; break;
+  }
+
+  snprintf(errorString, 256, "%s", message);
+}
+
+uint32_t groupMaskFromCount(int groups)
+{
+  if (groups <= 0)
+    return 0;
+  if (groups >= 32)
+    return 0xFFFFFFFFu;
+  return (1u << groups) - 1u;
+}
+}
 
 int32_t CaenDigitizerSiLab::init()
 {
@@ -13,7 +71,7 @@ int32_t CaenDigitizerSiLab::init()
     storedVarTemp= new float[MaxNCh];
     tempFile.open("temp_measurements.txt");
     kNSamplesTemp=30; // number of samples to determine mean an var. of channel temperature.
-    kDtTemp=1;// samplinbg time for temperature measurements.
+    kDtTemp=1;// sampling time for temperature measurements.
   }
 
 
@@ -22,13 +80,13 @@ int32_t CaenDigitizerSiLab::init()
   switch (kPolarizationType)
   {
   case 0:
-    kOffset=0x7FFF;//-1.52590218966963675e-05
+    kOffset=0x7FFF;
     break;
   case -1:
-    kOffset=0x1000; // (1 - -1)*0x1000/0xffff - 1 = -8.74998092622262913e-01
+    kOffset=0x1000;
     break;
   case 1:
-    kOffset=0xefff;//8.74998092622262913e-01
+    kOffset=0xefff;
     break;
   }
   triggermode = CAEN_DGTZ_TRGMODE_ACQ_ONLY;
@@ -36,75 +94,69 @@ int32_t CaenDigitizerSiLab::init()
   acqmode = CAEN_DGTZ_SW_CONTROLLED;
   buffer = NULL;
   evtptr = NULL;
-  ret = CAEN_DGTZ_OpenDigitizer(CAEN_DGTZ_USB,0,0,0,&handle);
+
+  ret = CAEN_DGTZ_OpenDigitizer(kConnectionType, kLinkNum, kConetNode, kVMEBaseAddress, &handle);
   if(ret != CAEN_DGTZ_Success) {
-    printf("Can't open digitizer\n");
+    char errorString[256];
+    CAEN_DGTZ_DecodeError(ret, errorString);
+
+    printf("Can't open digitizer. ret=%d, connection enum=%d, linkNum=%d, conetNode=%d, vmeBaseAddress=0x%08x\n",
+           ret, (int)kConnectionType, kLinkNum, kConetNode, kVMEBaseAddress);
+    printf("CAEN error string: %s\n", errorString);
     return -1;
   }
+
   ret = CAEN_DGTZ_Reset(handle);// resetting Digitizer
   if (kDoCalibration)
   {
     calibrate();
   }
-  //std::cout<<"number of samnples per acq: "<<kSamples<<std::endl;
-  ret = CAEN_DGTZ_SetRecordLength(handle,kSamples); // samples a grabar por acquisition windows CAMBIAR es decir tamaño de buffer
-  
-  if (kModel==5740){
-    ret = CAEN_DGTZ_SetGroupEnableMask(handle,0xF);//Todos habilitados
+
+  ret = CAEN_DGTZ_SetRecordLength(handle,kSamples);
+
+  if (kModel==5740 || kModel==1740){
+    uint32_t groupMask = (kModel==1740) ? 0xFF : 0xF; // 8 groups for 1740, 4 for 5740
+    ret = CAEN_DGTZ_SetGroupEnableMask(handle, groupMask);
   }
   else {
     ret = CAEN_DGTZ_SetChannelEnableMask(handle,kEnableMask);
   }
 
-
   trigthresh=mV2adc(10);
-  //std::cout<<"trigthreshold: "<< adc2mV(trigthresh)<<std::endl;
 
   uint32_t dat=0;
   uint32_t reg = 0x1088;
-  if (kModel==5740){
+  if (kModel==5740 || kModel==1740){
     for (int32_t k=0;k<MaxNCh/8;k++)
     {
         ret = CAEN_DGTZ_ReadRegister(handle,(reg+k*0x100),&dat);
         ret = CAEN_DGTZ_SetGroupDCOffset(handle,k,kOffset);
-        ret = CAEN_DGTZ_SetGroupTriggerThreshold(handle,k,trigthresh);                  /* Set selfTrigger threshold */
-        //ret = CAEN_DGTZ_SetTriggerPolarity(handle, k, CAEN_DGTZ_TriggerOnFallingEdge);
+        ret = CAEN_DGTZ_SetGroupTriggerThreshold(handle,k,trigthresh);
         ret = CAEN_DGTZ_SetTriggerPolarity(handle, k, kTriggerpolaritymode);
     }
-
   }
   else{
     for (int32_t k=0;k<MaxNCh;k++)
     {
         ret = CAEN_DGTZ_ReadRegister(handle,(reg+k*0x100),&dat);
         ret = CAEN_DGTZ_SetChannelDCOffset(handle,k,kOffset);
-        ret = CAEN_DGTZ_SetChannelTriggerThreshold(handle,k,trigthresh);                  /* Set selfTrigger threshold */
-        //ret = CAEN_DGTZ_SetTriggerPolarity(handle, k, CAEN_DGTZ_TriggerOnFallingEdge);
+        ret = CAEN_DGTZ_SetChannelTriggerThreshold(handle,k,trigthresh);
         ret = CAEN_DGTZ_SetTriggerPolarity(handle, k, kTriggerpolaritymode);
     }
   }
-  
-
 
   ret = CAEN_DGTZ_WriteRegister(handle, 0x811C, 0x000001); // Set Trig-In Trig-Out as TTL (not NIM)
-  ret = CAEN_DGTZ_SetSWTriggerMode(handle, triggermode);//modo trigger
+  ret = CAEN_DGTZ_SetSWTriggerMode(handle, triggermode);
   ret = CAEN_DGTZ_SetPostTriggerSize(handle,60);
-  //% a grabar por cada trigger del record length
-  ret = CAEN_DGTZ_SetAcquisitionMode(handle, acqmode);			// modo de adquisicion
-  ret = CAEN_DGTZ_SetMaxNumEventsBLT(handle,1);//numero maximo de eventos por transferencia
+  ret = CAEN_DGTZ_SetAcquisitionMode(handle, acqmode);
+  ret = CAEN_DGTZ_SetMaxNumEventsBLT(handle,1);
 
-  //CAEN_DGTZ_SetChannelPairTriggerLogic(handle,6,7,CAEN_DGTZ_LOGIC_AND,2);
   if(ret != CAEN_DGTZ_Success) {
     printf("Errors during Digitizer Configuration.\n");
   }
 
-  //TESTING LINE
   ret = CAEN_DGTZ_MallocReadoutBuffer(handle,&buffer,(uint32_t *)&size);
 
-
-  //localiza buffer pointer en la memoria
-  //the *buffer MUST be initialized to NULL
-  //the size in byte of the buffer allocated
   return 0;
 }
 
@@ -133,7 +185,7 @@ int32_t CaenDigitizerSiLab::newFileTree(const char* name)
     Chn.resize(NCh);
 
     // Crear TTree
-    datatree = new TTree("data", "amp (adc ch) and time (nsample) time_stamp (us)");
+    datatree = new TTree("data_dig", "amp (adc ch) and time (nsample) time_stamp (us)");
 
     // Inicializar vectores si no están
     vtime.clear();
@@ -162,7 +214,7 @@ int32_t CaenDigitizerSiLab::setTrigADC(int32_t trigthresh)
 {
   std::cout<<"trigthreshold: "<<adc2mV(trigthresh)<<std::endl;
   uint32_t dat = 0;
-  if(kModel==5740){
+  if(kModel==5740 || kModel==1740){
     for (int32_t k=0;k<MaxNCh/8;k++)
     {
         ret = CAEN_DGTZ_ReadRegister(handle,(0x1088+k*0x100),&dat);
@@ -201,6 +253,9 @@ int32_t CaenDigitizerSiLab::getInfo()
   printf("\nConnected to CAEN Digitizer Model %s\n", BoardInfo.ModelName);
   printf("\tROC FPGA Release is %s\n", BoardInfo.ROC_FirmwareRel);
   printf("\tAMC FPGA Release is %s\n\n", BoardInfo.AMC_FirmwareRel);
+  // Diagnostic printouts
+  std::cout << "kModel=" << kModel << ", MaxNCh=" << MaxNCh << ", NBit=" << NBit << ", SamplingTime(ns)=" << (kSamplingTime*1e9) << std::endl;
+  std::cout << "ConnectionType=" << (int)kConnectionType << ", linkNum=" << kLinkNum << ", conetNode=" << kConetNode << ", vmeBaseAddress=0x" << std::hex << kVMEBaseAddress << std::dec << std::endl;
   return 0;
 }
 
@@ -233,16 +288,16 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t events,bool automatic,int32_t st
       
       CAEN_DGTZ_GetIOLevel (handle, &myLevel);
     }
-    else if ((0<=triggerSource)&&(triggerSource<=7)&&(kModel!=5740)){
+    else if ((0<=triggerSource)&&(triggerSource<=7)&&(kModel!=5740)&&(kModel!=1740)){
       ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
       ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_DISABLED,0xFF);
       ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,0x1<<triggerSource);
     }
     else{
-      if(kModel==5740){
-        ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
-        ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_DISABLED,0xFF);
-        ret = CAEN_DGTZ_SetGroupSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,(0x1<<0));
+      if(kModel==5740 || kModel==1740){
+        int32_t trigger_ret = enableAllGroupsORTrigger(triggerGroupMask);
+        if (trigger_ret != 0)
+          return trigger_ret;
       }
       else{
         printf("Invalid Trigger Source, setting Ch0 as default source.\n");
@@ -295,7 +350,7 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t events,bool automatic,int32_t st
       ret = CAEN_DGTZ_FreeEvent(handle,(void **)&Evt);
     }
 
-    delete data_arr;
+    delete[] data_arr;
     count +=numEvents;
   }
 
@@ -320,24 +375,39 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
   {
     //ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,(3<<6)); //Adjacent channels paired.
     //ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,(0x3f<<2)); //Adjacent channels paired.
-    if(triggerSource == 9)
-    {
-      /* 
-      ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_DISABLED,0x00);
-      ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY);
-      printf("\n");
-      */
-      ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY);
+	    if(triggerSource == 9)
+	    {
+	      std::cout << "Configuring external trigger input: NIM, ACQ_ONLY" << std::endl;
 
-      CAEN_DGTZ_IOLevel_t myLevel={};
-      CAEN_DGTZ_GetIOLevel (handle, &myLevel);
-      
-      CAEN_DGTZ_SetIOLevel (handle, CAEN_DGTZ_IOLevel_NIM);
-      
-      CAEN_DGTZ_GetIOLevel (handle, &myLevel);
-      
-    }
-    else if ((0<=triggerSource)&&(triggerSource<=7)&&(kModel!=5740))
+	      if (kModel == 5740 || kModel == 1740) {
+	          ret = CAEN_DGTZ_SetGroupSelfTrigger(handle,
+	                                              CAEN_DGTZ_TRGMODE_DISABLED,
+	                                              0xFF);
+	          std::cout << "Disable group self trigger ret=" << ret << std::endl;
+	      } else {
+	          ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,
+	                                                CAEN_DGTZ_TRGMODE_DISABLED,
+	                                                0xFFFFFFFF);
+	          std::cout << "Disable channel self trigger ret=" << ret << std::endl;
+	      }
+
+	      ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY);
+	      std::cout << "SetExtTriggerInputMode ACQ_ONLY ret=" << ret << std::endl;
+
+	      ret = CAEN_DGTZ_SetIOLevel(handle, CAEN_DGTZ_IOLevel_NIM);
+	      std::cout << "SetIOLevel NIM ret=" << ret << std::endl;
+	      
+	      CAEN_DGTZ_IOLevel_t ioLevel;
+	      ret = CAEN_DGTZ_GetIOLevel(handle, &ioLevel);
+	      std::cout << "GetIOLevel ret=" << ret
+	                << ", ioLevel=" << static_cast<int>(ioLevel)
+	                << " (NIM expected)" << std::endl;
+
+	      ret = CAEN_DGTZ_SetSWTriggerMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
+	      std::cout << "SetSWTriggerMode DISABLED ret=" << ret << std::endl;
+	      
+	    }
+    else if ((0<=triggerSource)&&(triggerSource<=7)&&(kModel!=5740)&&(kModel!=1740))
     {
       ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
       ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,0x0<<triggerSource);
@@ -345,9 +415,10 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
     }
     else
     {
-      if(kModel==5740){
-        ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
-        ret = CAEN_DGTZ_SetGroupSelfTrigger(handle,CAEN_DGTZ_TRGMODE_ACQ_ONLY,(0x1<<0));
+      if(kModel==5740 || kModel==1740){
+        int32_t trigger_ret = enableAllGroupsORTrigger(triggerGroupMask);
+        if (trigger_ret != 0)
+          return trigger_ret;
       }
       else
       {
@@ -369,7 +440,10 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
   //forceGlobalTriggerMask(0xFF,10);
   //enableAllChannelsORTrigger();
   //enableChannelPairsANDTrigger(8, 0);
-  printTriggerConfiguration();
+  if (kModel == 5740 || kModel == 1740)
+    printTriggerConfiguration_DT5740();
+  else
+    printTriggerConfiguration();
   //setMajorCoincidence(0x1, 0,0);
   startSWAcq();
 
@@ -410,7 +484,7 @@ int32_t  CaenDigitizerSiLab::readEvents(int32_t maxEvents,bool automatic,int32_t
       ret = CAEN_DGTZ_FreeEvent(handle,(void **)&Evt);
     }
 
-    delete data_arr;
+    delete[] data_arr;
     count +=numEvents;
     gettimeofday(&tf,NULL);
     time_elapsed = tf.tv_sec-ti.tv_sec + tf.tv_usec/1e6-ti.tv_usec/1e6;
@@ -442,20 +516,47 @@ int32_t CaenDigitizerSiLab::readEventsTree(int32_t maxEvents, bool automatic, in
     {
         if (triggerSource == 9)
         {
+            std::cout << "Configuring external trigger input: NIM, ACQ_ONLY" << std::endl;
+
+            if (kModel == 5740 || kModel == 1740) {
+                ret = CAEN_DGTZ_SetGroupSelfTrigger(handle,
+                                                    CAEN_DGTZ_TRGMODE_DISABLED,
+                                                    0xFF);
+                std::cout << "Disable group self trigger ret=" << ret << std::endl;
+            } else {
+                ret = CAEN_DGTZ_SetChannelSelfTrigger(handle,
+                                                      CAEN_DGTZ_TRGMODE_DISABLED,
+                                                      0xFFFFFFFF);
+                std::cout << "Disable channel self trigger ret=" << ret << std::endl;
+            }
+
             ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY);
-            CAEN_DGTZ_SetIOLevel(handle, CAEN_DGTZ_IOLevel_NIM);
+            std::cout << "SetExtTriggerInputMode ACQ_ONLY ret=" << ret << std::endl;
+
+            ret = CAEN_DGTZ_SetIOLevel(handle, CAEN_DGTZ_IOLevel_NIM);
+            std::cout << "SetIOLevel NIM ret=" << ret << std::endl;
+
+            CAEN_DGTZ_IOLevel_t ioLevel;
+            ret = CAEN_DGTZ_GetIOLevel(handle, &ioLevel);
+            std::cout << "GetIOLevel ret=" << ret
+                      << ", ioLevel=" << static_cast<int>(ioLevel)
+                      << " (NIM expected)" << std::endl;
+
+            ret = CAEN_DGTZ_SetSWTriggerMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
+            std::cout << "SetSWTriggerMode DISABLED ret=" << ret << std::endl;
         }
-        else if ((0 <= triggerSource) && (triggerSource <= 7) && (kModel != 5740))
+        else if ((0 <= triggerSource) && (triggerSource <= 7) && (kModel != 5740) && (kModel != 1740))
         {
             ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
             ret = CAEN_DGTZ_SetChannelSelfTrigger(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY, (0x1 << triggerSource));
         }
         else
         {
-            if (kModel == 5740)
+            if (kModel == 5740 || kModel == 1740)
             {
-                ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
-                ret = CAEN_DGTZ_SetGroupSelfTrigger(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY, (0x1 << 0));
+                int32_t trigger_ret = enableAllGroupsORTrigger(triggerGroupMask);
+                if (trigger_ret != 0)
+                    return trigger_ret;
             }
             else
             {
@@ -466,7 +567,10 @@ int32_t CaenDigitizerSiLab::readEventsTree(int32_t maxEvents, bool automatic, in
         }
     }
 
-    printTriggerConfiguration();
+    if (kModel == 5740 || kModel == 1740)
+        printTriggerConfiguration_DT5740();
+    else
+        printTriggerConfiguration();
     startSWAcq();
 
     ret = CAEN_DGTZ_ReadRegister(handle, 0x810C, &dat);
@@ -493,21 +597,48 @@ int32_t CaenDigitizerSiLab::readEventsTree(int32_t maxEvents, bool automatic, in
             ret = CAEN_DGTZ_GetEventInfo(handle, buffer, bsize, i, &eventInfo, (char**)&evtptr);
             ret = CAEN_DGTZ_DecodeEvent(handle, evtptr, (void**)&Evt);
 
-            int nsamples = Evt->ChSize[0];  // se asume que todos los canales tienen igual cantidad de muestras
+            int logicalEvent = count + i;
+
+            if (logicalEvent < 3) {
+                std::cout << "\nEvent " << logicalEvent << "\n";
+                std::cout << "  EventSize=" << eventInfo.EventSize << "\n";
+                std::cout << "  BoardId=" << eventInfo.BoardId << "\n";
+                std::cout << "  Pattern=" << eventInfo.Pattern << "\n";
+                std::cout << "  ChannelMask=0x" << std::hex << eventInfo.ChannelMask << std::dec << "\n";
+                std::cout << "  TriggerTimeTag=" << eventInfo.TriggerTimeTag << "\n";
+                std::cout << "  numEvents=" << numEvents << "\n";
+                for (int ch = 0; ch < NCh; ++ch) {
+                    if (Evt->ChSize[ch] > 0)
+                        std::cout << "  Ch" << ch << " size=" << Evt->ChSize[ch] << "\n";
+                }
+            }
+
+            int nsamples = 0;
+            for (int ch = 0; ch < NCh; ++ch) {
+                if (Evt->ChSize[ch] > 0 && Evt->DataChannel[ch] != NULL) {
+                    nsamples = std::min((int)Evt->ChSize[ch], kSamples);
+                    break;
+                }
+            }
 
             // Llenar vectores por canal
             for (int ch = 0; ch < NCh; ++ch)
             {
                 Chn[ch].clear();
-                for (int j = 0; j < nsamples && j < kSamples; ++j)
-                {
+
+                if (Evt->ChSize[ch] <= 0 || Evt->DataChannel[ch] == NULL) {
+                    continue;
+                }
+
+                int nToCopy = std::min((int)Evt->ChSize[ch], kSamples);
+                for (int j = 0; j < nToCopy; ++j) {
                     int val_adc = Evt->DataChannel[ch][j];
                     Chn[ch].push_back(adc2mV(val_adc));
                 }
             }
 
             vtime.clear();
-            for (int j = 0; j < nsamples && j < kSamples; ++j)
+            for (int j = 0; j < nsamples; ++j)
                 vtime.push_back(j * (kSamplingTime * 1e9)); // tiempo relativo en ns
 
             event = count + i + start_event;
@@ -529,47 +660,6 @@ int32_t CaenDigitizerSiLab::readEventsTree(int32_t maxEvents, bool automatic, in
     stopSWAcq();
     return 0;
 }
-
-int32_t CaenDigitizerSiLab::getTempMeanVar()
-  {
-    if (kTempSupported)
-    {
-      for (int32_t i =0; i<MaxNCh; i++)
-      {
-        meanTemp[i]=0;
-        varTemp[i]=0;
-      }
-
-      for (int32_t k=0;k<kNSamplesTemp;k++)
-      {
-        for (int32_t i =0; i<MaxNCh; i++)
-        {
-  	       if ((kEnableMask>>i)&0x1)
-           {
-          	  readTemp(i);
-          	  meanTemp[i]+=chTemp;
-          	  varTemp[i]+=chTemp*chTemp;
-  	       }
-         }
-         sleep(kDtTemp);
-      }
-
-      for (int32_t i =0; i<MaxNCh; i++)
-      {
-        meanTemp[i]/=kNSamplesTemp;
-        varTemp[i]=(varTemp[i]/kNSamplesTemp-meanTemp[i]*meanTemp[i]);
-      }
-    }
-    else
-    {
-      std::cout<<"Temperature measurement not supported"<<std::endl;
-      return -1;
-    }
-
-    return 0;
-
-  }
-
 
 int32_t CaenDigitizerSiLab::storeData()
 {
@@ -805,9 +895,8 @@ void CaenDigitizerSiLab::printTriggerConfiguration() {
       else
           printf("  - Majority Trigger        = DISABLED\n");
 
-      // Bits 30: software trigger, 31: external trigger
-      printf("  - Software Trigger        = %s\n", (data & (1U << 30)) ? "ENABLED" : "DISABLED");
-      printf("  - External Trigger        = %s\n", (data & (1U << 31)) ? "ENABLED" : "DISABLED");
+      printf("  - External Trigger        = %s\n", (data & (1U << 30)) ? "ENABLED" : "DISABLED");
+      printf("  - Software Trigger        = %s\n", (data & (1U << 31)) ? "ENABLED" : "DISABLED");
 
       // Canal individual habilitado
       printf("  - Channel Trigger Enable:\n");
@@ -892,6 +981,59 @@ int32_t CaenDigitizerSiLab::enableAllChannelsORTrigger() {
   return 0;
 }
 
+int32_t CaenDigitizerSiLab::enableAllGroupsORTrigger(uint32_t requestedGroupMask) {
+  if (kModel != 5740 && kModel != 1740) {
+      return enableAllChannelsORTrigger();
+  }
+
+  int32_t ret = 0;
+  uint32_t data = 0;
+  const int group_count = MaxNCh / 8;
+  const uint32_t group_mask_limit = groupMaskFromCount(group_count);
+  const uint32_t group_mask = requestedGroupMask & group_mask_limit;
+
+  if (group_mask == 0) {
+      printf("Invalid group trigger mask 0x%08X for %d groups\n", requestedGroupMask, group_count);
+      return -1;
+  }
+
+  for (int group = 0; group < group_count; ++group) {
+      uint32_t addr = 0x1084 + (group << 8);
+      ret = CAEN_DGTZ_ReadRegister(handle, addr, &data);
+      if (ret != 0) {
+          printf("Error reading trigger logic for group %d\n", group);
+          return ret;
+      }
+
+      data = (data & ~0x3) | 0x3;
+      ret = CAEN_DGTZ_WriteRegister(handle, addr, data);
+      if (ret != 0) {
+          printf("Error setting OR trigger logic for group %d\n", group);
+          return ret;
+      }
+  }
+
+  ret = CAEN_DGTZ_SetExtTriggerInputMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
+  if (ret != 0)
+      return ret;
+
+  ret = CAEN_DGTZ_SetSWTriggerMode(handle, CAEN_DGTZ_TRGMODE_DISABLED);
+  if (ret != 0)
+      return ret;
+
+  ret = CAEN_DGTZ_SetGroupSelfTrigger(handle, CAEN_DGTZ_TRGMODE_DISABLED, group_mask_limit);
+  if (ret != 0)
+      return ret;
+
+  ret = CAEN_DGTZ_SetGroupSelfTrigger(handle, CAEN_DGTZ_TRGMODE_ACQ_ONLY, group_mask);
+  if (ret != 0)
+      return ret;
+
+  printf("x740: %d groups configured in OR and enabled for self-trigger (mask 0x%02X).\n",
+         group_count, group_mask);
+  return 0;
+}
+
 void CaenDigitizerSiLab::printTriggerConfiguration_DT5740() {
   if (handle < 0) {
       printf("Digitizer handle is invalid.\n");
@@ -901,17 +1043,21 @@ void CaenDigitizerSiLab::printTriggerConfiguration_DT5740() {
   uint32_t data = 0;
   int ret;
 
-  printf("\n========== TRIGGER CONFIGURATION (DT5740) ==========\n");
+  const int group_count = MaxNCh / 8;
+  const uint32_t group_mask_limit = groupMaskFromCount(group_count);
+
+  printf("\n========== TRIGGER CONFIGURATION (x740) ==========\n");
 
   // 1. Trigger Thresholds por canal
-  printf("Trigger Thresholds per Channel:\n");
-  for (int ch = 0; ch < 8; ++ch) {
-      uint32_t addr = 0x1080 + (ch << 8);  // Registro de umbral por canal
+  printf("Trigger Thresholds per Group:\n");
+  for (int group = 0; group < group_count; ++group) {
+      uint32_t addr = 0x1080 + (group << 8);
       ret = CAEN_DGTZ_ReadRegister(handle, addr, &data);
       if (ret == 0)
-          printf("  - Channel %d: Threshold = %u\n", ch, data & 0x3FFF);
+          printf("  - Group %d (CH%d-CH%d): Threshold = %u\n",
+                 group, group * 8, group * 8 + 7, data & 0x3FFF);
       else
-          printf("  - Channel %d: Error reading threshold\n", ch);
+          printf("  - Group %d: Error reading threshold\n", group);
   }
 
   // 2. Trigger Source Enable Mask (0x810C)
@@ -919,7 +1065,7 @@ void CaenDigitizerSiLab::printTriggerConfiguration_DT5740() {
   if (ret == 0) {
       printf("\nTrigger Source Enable Mask (0x810C): 0x%08X\n", data);
 
-      uint8_t group_mask     = data & 0x3;             // Grupos 0 y 1
+      uint32_t group_mask    = data & group_mask_limit;
       uint8_t coinc_window   = (data >> 20) & 0xF;
       uint8_t majority_level = (data >> 24) & 0x7;
       constexpr double Tclk_ns = 8.0;
@@ -931,13 +1077,13 @@ void CaenDigitizerSiLab::printTriggerConfiguration_DT5740() {
       else
           printf("  - Majority Trigger        = DISABLED\n");
 
-      printf("  - Software Trigger        = %s\n", (data & (1U << 30)) ? "ENABLED" : "DISABLED");
-      printf("  - External Trigger        = %s\n", (data & (1U << 31)) ? "ENABLED" : "DISABLED");
+      printf("  - External Trigger        = %s\n", (data & (1U << 30)) ? "ENABLED" : "DISABLED");
+      printf("  - Software Trigger        = %s\n", (data & (1U << 31)) ? "ENABLED" : "DISABLED");
 
       printf("  - Group Trigger Enable:\n");
-      for (int g = 0; g < 2; ++g) {
+      for (int g = 0; g < group_count; ++g) {
           bool enabled = data & (1 << g);
-          printf("    · Group %d (CH%d–CH%d): %s\n", g, g * 4, g * 4 + 3, enabled ? "ENABLED" : "DISABLED");
+          printf("    - Group %d (CH%d-CH%d): %s\n", g, g * 8, g * 8 + 7, enabled ? "ENABLED" : "DISABLED");
       }
   } else {
       printf("\nTrigger Source Enable Mask: Error reading\n");
@@ -945,13 +1091,13 @@ void CaenDigitizerSiLab::printTriggerConfiguration_DT5740() {
 
   // 3. Coincidence Logic por grupo
   printf("\nGroup Coincidence Logic:\n");
-  for (int g = 0; g < 2; ++g) {
+  for (int g = 0; g < group_count; ++g) {
       uint32_t addr = 0x1084 + (g << 8);  // Dirección base para grupo g
       ret = CAEN_DGTZ_ReadRegister(handle, addr, &data);
       if (ret == 0) {
           uint32_t mode = data & 0x3;
           const char* mode_str[] = {"AND", "Only N", "Only N+1", "OR"};
-          printf("  - Group %d (CH%d–CH%d): Mode = %s (0x%X)\n", g, g * 4, g * 4 + 3, mode_str[mode], mode);
+          printf("  - Group %d (CH%d-CH%d): Mode = %s (0x%X)\n", g, g * 8, g * 8 + 7, mode_str[mode], mode);
       } else {
           printf("  - Group %d: Error reading coincidence mode\n", g);
       }

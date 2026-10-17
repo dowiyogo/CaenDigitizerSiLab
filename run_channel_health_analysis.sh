@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+OUTDIR="outputs/channel_health_20261016"
+
+for input in \
+  lectura_vx1740_ext_nim_1M.root \
+  lectura_vx1740_ext_nim_1M_v2.root \
+  lectura_vx1740_ext_nim_1M_v3.root \
+  lectura_vx1740_ext_nim_1M_v4.root \
+  lectura_vx1740_ext_nim_1M_v5.root \
+  lectura_vx1740_ext_nim_1M_v6.root \
+  lectura_vx1740_ext_nim_1M_v7.root \
+  lectura_vx1740_ext_nim_1M_v8.root \
+  lectura_vx1740_ext_nim_1M_v9.root; do
+  if [[ ! -f "$input" ]]; then
+    echo "Missing required input: $input" >&2
+    exit 1
+  fi
+done
+
+g++ -O2 -std=c++17 channel_health_analysis.cpp $(root-config --cflags --libs) -o channel_health_analysis
+./channel_health_analysis "$OUTDIR"
