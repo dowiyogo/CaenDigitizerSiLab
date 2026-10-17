@@ -73,7 +73,8 @@ struct MuonHit {
 static MuonHit extract_muon_hit(const std::vector<float>& wf,
                                 const std::vector<float>& t,
                                 int k,
-                                int kNpost) {
+                                int kNpost,
+                                bool use_loc) {
     MuonHit h; h.k = k;
     const int n = (int)wf.size();
     if (n < 4 || (int)t.size() != n) return h;
@@ -88,9 +89,16 @@ static MuonHit extract_muon_hit(const std::vector<float>& wf,
     h.valid = true;
     h.ph  = ped - vmin;
     h.pt  = t[imin];
+    // Baseline for Q integration
+    double ped_Q = ped;
+    if (use_loc && imin >= 12 && imin - 4 < n) {
+        double s_loc = 0;
+        for (int j = -12; j <= -4; ++j) s_loc += wf[imin + j];
+        ped_Q = s_loc / 9.0;
+    }
     // Carga integrada alrededor del mínimo
     const double tilo = h.pt - kNpre*kDt_ns, tihi = h.pt + kNpost*kDt_ns;
-    for (int i=0;i<n;i++) if(t[i]>=tilo && t[i]<=tihi) h.Q += (ped-wf[i])*kDt_ns;
+    for (int i=0;i<n;i++) if(t[i]>=tilo && t[i]<=tihi) h.Q += (ped_Q-wf[i])*kDt_ns;
     h.pos = (k + 0.5 - 8.0) * kPitch;
     return h;
 }
@@ -212,7 +220,7 @@ int main(int argc,char**argv){
             else if(inv19x[c]>=0) k=inv19x[c];
             else if(inv19y[c]>=0) k=inv19y[c];
             if(k<0)continue;
-            MuonHit h=extract_muon_hit(*cw[c],tv,k, is19 ? kNpost19 : kNpost18);
+            MuonHit h=extract_muon_hit(*cw[c],tv,k, is19 ? kNpost19 : kNpost18, is19 ? kQLocalPed19 : kQLocalPed18);
             if(!h.valid)continue;
             // Store in appropriate plane
             if(c>=0&&c<=15)  ev.hits18x.push_back(h);

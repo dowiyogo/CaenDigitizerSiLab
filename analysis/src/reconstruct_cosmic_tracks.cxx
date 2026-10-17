@@ -74,7 +74,7 @@ static double strip_coord(int k){return (k+0.5-8.0)*kPitch;}
 struct CQ{bool valid=false;double ped=0,noise=0,ph=0,pt=-1,Q=0,r=0;int nw=0;int k=-1;};
 
 static CQ extract_cq(const std::vector<float>&wf,const std::vector<float>&t,
-                      double tlo,double thi,int k,int kNpost){
+                      double tlo,double thi,int k,int kNpost,bool use_loc){
     CQ r; r.k=k;
     const int n=(int)wf.size();
     if(n<4||(int)t.size()!=n)return r;
@@ -87,9 +87,16 @@ static CQ extract_cq(const std::vector<float>&wf,const std::vector<float>&t,
     for(int i=0;i<n;i++)if(t[i]>=tlo&&t[i]<=thi&&wf[i]<vmin){vmin=wf[i];imin=i;}
     if(imin<0)return r;
     r.ph=r.ped-vmin; r.pt=t[imin];
+    // Baseline for Q integration
+    double ped_Q = r.ped;
+    if(use_loc && imin >= 12 && imin - 4 < n){
+        double s_loc = 0;
+        for(int j = -12; j <= -4; ++j) s_loc += wf[imin + j];
+        ped_Q = s_loc / 9.0;
+    }
     const double tilo=r.pt-kNpre*kDt_ns, tihi=r.pt+kNpost*kDt_ns;
     double Q=0;int nw=0;
-    for(int i=0;i<n;i++)if(t[i]>=tilo&&t[i]<=tihi){Q+=(r.ped-wf[i])*kDt_ns;nw++;}
+    for(int i=0;i<n;i++)if(t[i]>=tilo&&t[i]<=tihi){Q+=(ped_Q-wf[i])*kDt_ns;nw++;}
     r.Q=Q; r.nw=nw;
     if(r.ph>0.5&&nw>0)r.r=Q/(r.ph*nw*kDt_ns);
     return r;
@@ -178,7 +185,7 @@ static std::vector<EvCache> load_events(const std::string& fname){
         for(int c=0;c<kNCh;c++){
             if(!cw[c]||cw[c]->empty())continue;
             const int pl=ch_plane(c);if(pl<0)continue;
-            CQ cq=extract_cq(*cw[c],tv,kTlo[pl],kThi[pl],ch_k(c), (c < 32 ? kNpost18 : kNpost19));
+            CQ cq=extract_cq(*cw[c],tv,kTlo[pl],kThi[pl],ch_k(c), (c < 32 ? kNpost18 : kNpost19), (c < 32 ? kQLocalPed18 : kQLocalPed19));
             if(!cq.valid||cq.ph<0.5)continue;
             if(pl==0)h18x.push_back({cq.k,cq.ph,cq.pt});
             else if(pl==1)h18y.push_back({cq.k,cq.ph,cq.pt});
@@ -278,10 +285,9 @@ int main(int argc,char**argv){
     // Q+r: exactamente 1 canal limpio en hod2019 + hod2018 con hits
     std::vector<double> xA18,xA19,yA18,yA19;  // Q+r XZ e YZ
     std::vector<double> xB18,xB19,yB18,yB19;  // ph control (ph>umbral equivalente)
-    // umbral ph equivalente ~ umbral_Q / (kNwin × kDt_ns)
-    const int kNwin19 = kNpre + kNpost19 + 1;
-    const double ph_equiv = umbral_Q19x / (kNwin19 * kDt_ns);
-    std::cout<<"  ph_equiv = "<<ph_equiv<<" mV (equivalente a Q>"<<umbral_Q19x<<" mV·ns)\n";
+    // umbral ph control = kPh19_mV (mismo umbral que reconstruct_corrected)
+    const double ph_equiv = kPh19_mV;
+    std::cout<<"  ph_equiv = "<<ph_equiv<<" mV (kPh19_mV control)\n";
 
     long long n_coinc_Xqr=0,n_coinc_Yqr=0,n_coinc_Xph=0,n_coinc_Yph=0;
     long long n_3D_qr=0,n_3D_ph=0;

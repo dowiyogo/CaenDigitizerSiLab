@@ -93,7 +93,7 @@ struct CQ {
 };
 
 static CQ extract_cq(const std::vector<float>& wf, const std::vector<float>& t,
-                      double tlo, double thi, int kNpost) {
+                      double tlo, double thi, int kNpost, bool use_loc) {
     CQ r;
     const int n = (int)wf.size();
     if (n < 4 || (int)t.size() != n) return r;
@@ -113,12 +113,20 @@ static CQ extract_cq(const std::vector<float>& wf, const std::vector<float>& t,
     r.ph = r.ped - vmin;
     r.pt = t[imin];
 
+    // Baseline for Q integration
+    double ped_Q = r.ped;
+    if (use_loc && imin >= 12 && imin - 4 < n) {
+        double s_loc = 0;
+        for (int j = -12; j <= -4; ++j) s_loc += wf[imin + j];
+        ped_Q = s_loc / 9.0;
+    }
+
     // Ventana de integración adaptativa: [t_min - kNpre×Δt, t_min + kNpost×Δt]
     const double t_int_lo = r.pt - kNpre * kDt_ns;
     const double t_int_hi = r.pt + kNpost * kDt_ns;
     double Q = 0; int nw = 0;
     for(int i=0;i<n;i++) if(t[i]>=t_int_lo&&t[i]<=t_int_hi){
-        Q += (r.ped - wf[i]) * kDt_ns; nw++;}
+        Q += (ped_Q - wf[i]) * kDt_ns; nw++;}
     r.Q = Q;
     r.nw = nw;
     r.sigma_Q = r.noise * kDt_ns * std::sqrt(std::max(nw,1));
@@ -297,7 +305,8 @@ static void process_file_Q(FileQ& fq, const std::string& fname,
             const int pl=ch_plane(c);if(pl<0)continue;
             const bool is19=(c>=32);
             const int npost=is19?kNpost19:kNpost18;
-            const CQ cq=extract_cq(*cw[c],tv,kTlo[pl],kThi[pl],npost);
+            const bool use_loc=is19?kQLocalPed19:kQLocalPed18;
+            const CQ cq=extract_cq(*cw[c],tv,kTlo[pl],kThi[pl],npost,use_loc);
             if(!cq.valid)continue;
 
             // Estimador de carga robusto: pulsos con ph > umbral de estación y pt en ventana de muones
@@ -748,7 +757,7 @@ int main(int argc, char** argv){
         os<<std::setw(28)<<"Mediana Q [mV·ns]";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++)
             os<<std::setw(14)<<fmt(v==0?fv7_data.planes[pp].med_Q:fv8_data.planes[pp].med_Q);
-        os<<"\n";
+        os<<"  (Q of pulses above the ph threshold; not a gain estimator)\n";
 
         os<<std::setw(28)<<"Percentil 10 Q [mV·ns]";
         for(int pp:{P18X,P19X})for(int v=0;v<2;v++)

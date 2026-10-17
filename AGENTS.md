@@ -232,7 +232,8 @@ t ≈ 3510 ns selected that pickup, not muons.
    dated before 2026-10-17 have labels in "ADC" that mean mV.
 8. charge_analysis summaries before commit "Analysis: fixed muon window, per-station Q window, robust Q estimator, column order" print columns 18X-v8 and 19X-v7 swapped.
 9. multirun_analysis outputs before commit "Analysis: fixed muon window, per-station Q window, robust Q estimator, column order" use a muon window derived from noise for v5-v10 (t_peak = 3008 ns) and Landau MPVs pinned at the 4500 mV·ns limit; not valid.
-10. Q integration windows: hod2018 [-3,+8], hod2019 [-3,+22] samples (kNpost18 = 8, kNpost19 = 22, 95% of the mean pulse integral, v8).
+10. Q integration windows: hod2018 [-3,+12] with ped_loc, hod2019 [-3,+22] with ped_glob samples (kNpost18 = 12, kNpost19 = 22, 95% containment up to zero-crossing n0, v8).
+11. Baseline shift between t < 2500 ns and [3700, 3950] ns (A2, v8 first 20000 entries): hod2018X mean = +0.0156 mV (RMS 1.17 mV event / 4.71 mV ch-event), hod2018Y mean = +0.0007 mV (RMS 1.03 mV event / 4.12 mV ch-event); hod2019X mean = +0.0008 mV (RMS 0.095 mV event / 0.355 mV ch-event), hod2019Y mean = -0.0006 mV (RMS 0.094 mV event / 0.368 mV ch-event) (in no-pulse events: hod2018X +0.1447 mV, hod2018Y +0.4922 mV; hod2019X +0.0031 mV, hod2019Y +0.0042 mV). ph uses the pedestal of t < 2500 ns; its bias in the muon window equals the mean b_shift of A2; not corrected (ph thresholds and published counts depend on it).
 
 ## Open questions
 

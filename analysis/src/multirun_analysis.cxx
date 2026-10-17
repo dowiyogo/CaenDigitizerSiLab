@@ -60,7 +60,7 @@ static const std::vector<int> kHotY={3,10,15}; // k indices (Ch46, Ch34, Ch40)
 struct QResult{double Q=0,pt=-1;};
 
 static QResult get_Q(const std::vector<float>&wf,const std::vector<float>&t,
-                      double tlo,double thi,int kNpost){
+                      double tlo,double thi,int kNpost,bool use_loc){
     QResult r;
     const int n=(int)wf.size();
     if(n<4||(int)t.size()!=n)return r;
@@ -74,9 +74,16 @@ static QResult get_Q(const std::vector<float>&wf,const std::vector<float>&t,
     for(int i=0;i<n;i++)if(t[i]>=tlo&&t[i]<=thi&&wf[i]<vmin){vmin=wf[i];imin=i;}
     if(imin<0)return r;
     r.pt=t[imin];
+    // Baseline for Q integration
+    double ped_Q = ped;
+    if(use_loc && imin >= 12 && imin - 4 < n){
+        double s_loc = 0;
+        for(int j = -12; j <= -4; ++j) s_loc += wf[imin + j];
+        ped_Q = s_loc / 9.0;
+    }
     const double tilo=r.pt-kNpre*kDt_ns, tihi=r.pt+kNpost*kDt_ns;
     double Q=0;
-    for(int i=0;i<n;i++)if(t[i]>=tilo&&t[i]<=tihi)Q+=(ped-wf[i])*kDt_ns;
+    for(int i=0;i<n;i++)if(t[i]>=tilo&&t[i]<=tihi)Q+=(ped_Q-wf[i])*kDt_ns;
     r.Q=Q;
     return r;
 }
@@ -258,7 +265,8 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
             sum_ped[pl]+=ped; sum_noise_ev[pl]+=noise; n_ch[pl]++;
 
             // Q
-            QResult qr=get_Q(*cw[c],tv,tlo,thi,npost);
+            const bool use_loc = is19 ? kQLocalPed19 : kQLocalPed18;
+            QResult qr=get_Q(*cw[c],tv,tlo,thi,npost,use_loc);
             const double Q=qr.Q;
 
             if(Q>maxQ[pl])maxQ[pl]=Q;
@@ -568,7 +576,8 @@ int main(int argc,char**argv){
     auto print_summ=[&](std::ostream&os){
         os<<"=== Análisis Multi-Run: barrido de voltaje MPPC ===\n\n";
         os<<"Parámetros de ventana muon: ["<<kMuonTlo<<", "<<kMuonThi<<"] ns (ambas estaciones)\n";
-        os<<"Umbrales de pulso diagnóstico: hod2018 ph > "<<kPh18_mV<<" mV, hod2019 ph > "<<kPh19_mV<<" mV\n\n";
+        os<<"Umbrales de pulso diagnóstico: hod2018 ph > "<<kPh18_mV<<" mV, hod2019 ph > "<<kPh19_mV<<" mV\n";
+        os<<"Med_Q: (Q of pulses above the ph threshold; not a gain estimator)\n\n";
         os<<std::setw(6)<<std::left<<"Run"<<std::setw(9)<<"N"<<std::setw(8)<<"tpk18"<<std::setw(8)<<"tpk19"
           <<std::setw(8)<<"N_sig"<<std::setw(10)<<"Med_Q"<<std::setw(9)<<"Q_10"<<std::setw(9)<<"Q_90"
           <<std::setw(10)<<"MPV_Q"<<std::setw(8)<<"status"<<std::setw(10)<<"chi2ndf"<<std::setw(10)<<"limit"
