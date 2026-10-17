@@ -1,4 +1,5 @@
 *.o
+*.so*
 *.d
 *.pcm
 *.root
@@ -12,5 +13,6 @@ test_caencomm_open
 analysis/bin/
 attic/bin_pre_reorg/
 logs/
+outputs/
 .vscode/
 %00.desktop

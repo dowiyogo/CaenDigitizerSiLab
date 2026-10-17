@@ -2,8 +2,8 @@
 
 > **Document Status**: Operational Guide for Autonomous Agents & Developers  
 > **Repository Path**: `/home/xplus/digitizer/CaenDigitizerSiLab-jai`  
-> **Last Reorganization**: 2026-10-17 (Branch: `snapshot/2026-10-17`)  
-> **Host**: Linux / systemd (x86_64), ROOT 6.30/04, GCC 11.4.0  
+> **Last Reorganization**: 2026-10-17 (Branch: `reorg/2026-10-17`)  
+> **Host**: Linux / systemd (x86_64), ROOT 6.32.10, GCC 13.3.0  
 
 ---
 
@@ -93,7 +93,7 @@ All production runs (v1 through v10) are stored as ROOT files containing a singl
 - **Buffer Flushing**: In production runs v1–v5 and v7–v10, ROOT `AutoSave` and `AutoFlush` occurred automatically every **1,092 to 1,548 entries** (corresponding to roughly **35 to 45 minutes** of acquisition at $\approx 0.57$ Hz) [V: C12; `reorg_r0_root_metadata.txt`].
 - **Short Run v6**: Run v6 was terminated after only 642 entries and **never reached its first flush** (negative default metadata values present) [V: C12].
 - **Unclosed Run v10**: Run v10 was interrupted without calling `TTree::Write()` or `TFile::Close()`. When opening in ROOT, a single key recovery occurs automatically at file offset 5936588098, recovering 242,520 valid entries. Any events acquired after the last AutoSave cycle were lost [V: C11].
-- **Timestamp Definition**: `timestamp` represents `std::chrono::steady_clock` (Linux `CLOCK_MONOTONIC`) recorded at host readout [V: `CaenDigitizerSiLab.cxx:592-593`]. It is **not Unix epoch**, **not calendar time**, and **not the digitizer internal trigger time** (CAEN `TriggerTimeTag` is not stored). Calibrated wall-clock intervals are documented in `runs/runs_2026.csv`.
+- **Timestamp Definition**: `timestamp` represents `std::chrono::steady_clock` (Linux `CLOCK_MONOTONIC`) recorded at host readout [V: `CaenDigitizerSiLab.cxx:592-593`]. It is **not Unix epoch**, **not calendar time**, and **not the digitizer internal trigger time** (CAEN `TriggerTimeTag` is not stored). Calendar times are boot_ref + timestamp, uncertainty about 1 min; boot_est drifts from 19:03:22 (v2, v3) to 19:04:12 (v8, v9). Calibrated wall-clock intervals are documented in `runs/runs_2026.csv`.
 
 ---
 
@@ -153,4 +153,5 @@ All analysis shell scripts reside in `analysis/scripts/` and automatically resol
 2. **Timing Window in Tracking**: Muon coincidence between hod2018 and hod2019 occurs strictly in the time window $[4000, 4400]$ ns ($\Delta t \approx 0$). Early analysis scripts that looked at $t \approx 3510$ ns sampled background noise rather than synchronized cosmic muons [V: `reconstruct_corrected.cxx:3-4`].
 3. **Run v10 Crash / Recovery**: Always open `lectura_vx1740_ext_nim_1M_v10.root` in `READ` mode. Opening corrupted/unclosed ROOT files in `UPDATE` mode can invalidate or overwrite the recovered key header [V: C11].
 4. **Bias Voltages**: Operational bias voltages ($V_{\text{bias}}$) for production runs v1 through v10 were not recorded in code, configurations, or logs; they remain marked as `not recorded` [V: R0 audit].
+5. **DAQ Library libCaenDigitizerSiLab.so.1.0.1**: Repo libCaenDigitizerSiLab.so.1.0.1 is the 2025 committed build (a newer local build was overwritten on 2026-10-17); executables do not load it (not in DT_NEEDED); `make` in repo root rebuilds it.
 
