@@ -40,6 +40,7 @@
 #include <numeric>
 #include <string>
 #include <vector>
+#include "hodo_consts.h"
 
 namespace fs = std::filesystem;
 
@@ -47,9 +48,6 @@ namespace fs = std::filesystem;
 // Constantes y mapeo
 //==============================================================================
 constexpr double kPre_ns  = 2500.0;
-constexpr double kDt_ns = 16.0;  // VX1740, 62.5 MS/s; equals the data_dig.time step
-constexpr int    kNpre    = 3, kNpost = 8; // ventana de integración
-constexpr int    kNwin    = kNpre + kNpost + 1;  // 12 muestras
 constexpr int    kNCh     = 64;
 constexpr double kPitch   = 2.0;   // mm
 constexpr double kD_mm    = 98.4;  // separación real entre planos [mm]
@@ -76,7 +74,7 @@ static double strip_coord(int k){return (k+0.5-8.0)*kPitch;}
 struct CQ{bool valid=false;double ped=0,noise=0,ph=0,pt=-1,Q=0,r=0;int nw=0;int k=-1;};
 
 static CQ extract_cq(const std::vector<float>&wf,const std::vector<float>&t,
-                      double tlo,double thi,int k){
+                      double tlo,double thi,int k,int kNpost){
     CQ r; r.k=k;
     const int n=(int)wf.size();
     if(n<4||(int)t.size()!=n)return r;
@@ -180,7 +178,7 @@ static std::vector<EvCache> load_events(const std::string& fname){
         for(int c=0;c<kNCh;c++){
             if(!cw[c]||cw[c]->empty())continue;
             const int pl=ch_plane(c);if(pl<0)continue;
-            CQ cq=extract_cq(*cw[c],tv,kTlo[pl],kThi[pl],ch_k(c));
+            CQ cq=extract_cq(*cw[c],tv,kTlo[pl],kThi[pl],ch_k(c), (c < 32 ? kNpost18 : kNpost19));
             if(!cq.valid||cq.ph<0.5)continue;
             if(pl==0)h18x.push_back({cq.k,cq.ph,cq.pt});
             else if(pl==1)h18y.push_back({cq.k,cq.ph,cq.pt});
@@ -219,7 +217,7 @@ static void p2fit(TH2D*h,double sl,double ic,double r,const fs::path&p){
 int main(int argc,char**argv){
     std::string fv8="lectura_vx1740_ext_nim_1M_v8.root";
     std::string fv7="lectura_vx1740_ext_nim_1M_v7.root";
-    double umbral_Q19x=2318.8, umbral_Q19y=2318.8;  // natural threshold hod2019X v8, outputs/charge_analysis_20261017_103723 (was 2346.2 with 15.38 ns, 10 samples)
+    double umbral_Q19x=2401.2, umbral_Q19y=2401.2;  // natural threshold hod2019X v8 (from charge_analysis with kNpost19=22)
     double r_lo=0.20, r_hi=0.80;  // valores iniciales; calibrados del histograma
     for(int i=1;i<argc;i++){
         std::string a=argv[i];
@@ -281,7 +279,8 @@ int main(int argc,char**argv){
     std::vector<double> xA18,xA19,yA18,yA19;  // Q+r XZ e YZ
     std::vector<double> xB18,xB19,yB18,yB19;  // ph control (ph>umbral equivalente)
     // umbral ph equivalente ~ umbral_Q / (kNwin × kDt_ns)
-    const double ph_equiv = umbral_Q19x / (kNwin * kDt_ns);
+    const int kNwin19 = kNpre + kNpost19 + 1;
+    const double ph_equiv = umbral_Q19x / (kNwin19 * kDt_ns);
     std::cout<<"  ph_equiv = "<<ph_equiv<<" mV (equivalente a Q>"<<umbral_Q19x<<" mV·ns)\n";
 
     long long n_coinc_Xqr=0,n_coinc_Yqr=0,n_coinc_Xph=0,n_coinc_Yph=0;

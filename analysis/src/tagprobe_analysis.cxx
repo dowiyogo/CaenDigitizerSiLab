@@ -37,6 +37,8 @@
 #include <random>
 #include <string>
 #include <vector>
+#define TAGPROBE_MUON_OVERRIDE
+#include "hodo_consts.h"
 
 namespace fs = std::filesystem;
 
@@ -44,8 +46,6 @@ namespace fs = std::filesystem;
 // Constantes
 //==============================================================================
 constexpr double kPre_ns = 2500.0;
-constexpr double kDt_ns = 16.0;  // VX1740, 62.5 MS/s; equals the data_dig.time step
-constexpr int    kNpre=3, kNpost=8, kNwin=12;   // ventana de integración Q
 constexpr int    kNCh = 64;
 constexpr double kPitch = 2.0;   // mm
 constexpr double kD_mm  = 98.4;  // mm
@@ -54,11 +54,12 @@ constexpr double kD_mm  = 98.4;  // mm
 static const double kTlo[4]={3500,3500,3000,3000};
 static const double kThi[4]={7000,7000,5000,5000};
 
-// Ventana de tiempo de muón en hod2019 (señales reales a t≈4175 ns, ±300 ns de jitter)
+// Local override for tagprobe_analysis: wider window [3900, 4500] ns (±300 ns around t≈4200 ns)
+// differs from [4000, 4400] ns in hodo_consts.h; kept as local override
 constexpr double kMuonTlo = 3900.0, kMuonThi = 4500.0;  // ns
 
 // Umbral_Q para el barrido de eficiencia (de charge_analysis)
-constexpr double kUmbralQ = 2318.8;  // natural threshold hod2019X v8, outputs/charge_analysis_20261017_103723 (was 2346.2 with 15.38 ns, 10 samples)
+constexpr double kUmbralQ = 2401.2;  // natural threshold hod2019X v8 (from charge_analysis with kNpost19=22)
 
 // Mapeo hod2019
 static const std::array<int,16> kH19X={53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};
@@ -82,8 +83,8 @@ static StripResult extract_strip(const std::vector<float>&wf, const std::vector<
     for(int i=0;i<n;i++) if(t[i]>=tlo&&t[i]<=thi&&wf[i]<vmin){vmin=wf[i];imin=i;}
     if(imin<0) return r;
     r.pt=t[imin];
-    // Integrar alrededor del mínimo
-    const double tilo=r.pt-kNpre*kDt_ns, tihi=r.pt+kNpost*kDt_ns;
+    // Integrar alrededor del mínimo (canales 32-63 de hod2019 usan kNpost19)
+    const double tilo=r.pt-kNpre*kDt_ns, tihi=r.pt+kNpost19*kDt_ns;
     double Q=0;
     for(int i=0;i<n;i++) if(t[i]>=tilo&&t[i]<=tihi) Q+=(ped-wf[i])*kDt_ns;
     r.Q=Q; r.fired=(Q>0 && vmin<ped-1.0);

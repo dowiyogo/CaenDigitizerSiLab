@@ -35,14 +35,14 @@
 #include <string>
 #include <vector>
 
+#include "hodo_consts.h"
+
 namespace fs = std::filesystem;
 
 //==============================================================================
 // Constantes fijas
 //==============================================================================
 constexpr double kPre_ns = 2500.0;
-constexpr double kDt_ns = 16.0;  // VX1740, 62.5 MS/s; equals the data_dig.time step
-constexpr int    kNpre=3, kNpost=8, kNwin=12;
 constexpr int    kNCh = 64;
 constexpr double kPitch = 2.0;
 
@@ -60,7 +60,7 @@ static const std::vector<int> kHotY={3,10,15}; // k indices (Ch46, Ch34, Ch40)
 struct QResult{double Q=0,pt=-1;};
 
 static QResult get_Q(const std::vector<float>&wf,const std::vector<float>&t,
-                      double tlo,double thi){
+                      double tlo,double thi,int kNpost){
     QResult r;
     const int n=(int)wf.size();
     if(n<4||(int)t.size()!=n)return r;
@@ -87,14 +87,22 @@ static QResult get_Q(const std::vector<float>&wf,const std::vector<float>&t,
 struct RunResult {
     std::string fname, label;
     long long n_events=0;
-    // Ventana de señal (determinada per-run desde distribución de tiempos de pulso)
-    double t_lo_19=3000, t_hi_19=5000, t_peak_19=4175;
-    double t_lo_18=3500, t_hi_18=7000, t_peak_18=5200;
+    // Ventana de señal (fija en kMuonTlo..kMuonThi) y picos diagnósticos (ph > umbral)
+    double t_lo_19=kMuonTlo, t_hi_19=kMuonThi, t_peak_19=0;
+    double t_lo_18=kMuonTlo, t_hi_18=kMuonThi, t_peak_18=0;
     // Estadísticas de carga por plano (0=hod2018X,1=hod2018Y,2=hod2019X,3=hod2019Y)
     double ped_mean[4]={}, noise_mean[4]={}, sigmaQ[4]={};
     double mpvQ[4]={};   // MPV del ajuste Landau
     double snrQ[4]={};   // SNR_Q = MPV/sigma_Q
     double umbral_Q[4]={};  // valle en el espectro Q
+    // Estimador robusto hod2019X (señal con ph > kPh19_mV en [kMuonTlo, kMuonThi])
+    long long n_sig_19x = 0;
+    double med_Q_19x = 0, q10_Q_19x = 0, q90_Q_19x = 0;
+    // Landau fit hod2019X
+    int lan_status = -1;
+    double lan_chi2ndf = 0;
+    bool lan_at_limit = false;
+    bool lan_ok = false;
     // Tag-and-probe (hod2019X, all channels)
     long long n_tag_x=0;
     double eps_true_x=0, sigma_eps_x=0, sig_x=0;
@@ -150,8 +158,8 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     std::array<int,kNCh> inv19x{},inv19y{}; inv19x.fill(-1);inv19y.fill(-1);
     for(int k=0;k<16;k++){inv19x[kH19X[k]]=k;inv19y[kH19Y[k]]=k;}
 
-    // PASO 0: determinar ventana de señal por run desde distribución de tiempos
-    // (scan de 3000 eventos con umbral alto)
+    // PASO 0: t_peak diagnóstico por estación desde pulsos con ph > umbral
+    // (scan de 3000 eventos con umbral de amplitud)
     TH1D h_pt19("_pt19","",100,2500,6000);
     TH1D h_pt18("_pt18","",100,2500,8000);
     const Long64_t scan_n=std::min(nEnt,(Long64_t)3000);
@@ -169,27 +177,33 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
         }
         for(int c=32;c<64;c++){
             if(!cw[c]||cw[c]->empty())continue;
-            QResult qr=get_Q(*cw[c],tv,3000,5000);
-            if(qr.pt>0&&qr.Q>104.0)h_pt19.Fill(qr.pt);  // rescaled x1.04 on 2026-10-17; approximate, Q window changed 10 -> 12 samples
+            const auto& wf=*cw[c]; const int n=(int)wf.size();
+            double s=0;int nb=0;
+            for(int i=0;i<n;i++)if(tv[i]<kPre_ns){s+=wf[i];nb++;}
+            if(nb<2)continue;
+            const double ped=s/nb;
+            double vmin=1e30;int imin=-1;
+            for(int i=0;i<n;i++)if(tv[i]>=2500&&tv[i]<=6000&&wf[i]<vmin){vmin=wf[i];imin=i;}
+            if(imin>=0 && (ped-vmin) > kPh19_mV) h_pt19.Fill(tv[imin]);
         }
         for(int c=0;c<32;c++){
             if(!cw[c]||cw[c]->empty())continue;
-            QResult qr=get_Q(*cw[c],tv,3500,7000);
-            if(qr.pt>0&&qr.Q>520.0)h_pt18.Fill(qr.pt);  // rescaled x1.04 on 2026-10-17; approximate, Q window changed 10 -> 12 samples
+            const auto& wf=*cw[c]; const int n=(int)wf.size();
+            double s=0;int nb=0;
+            for(int i=0;i<n;i++)if(tv[i]<kPre_ns){s+=wf[i];nb++;}
+            if(nb<2)continue;
+            const double ped=s/nb;
+            double vmin=1e30;int imin=-1;
+            for(int i=0;i<n;i++)if(tv[i]>=2500&&tv[i]<=8000&&wf[i]<vmin){vmin=wf[i];imin=i;}
+            if(imin>=0 && (ped-vmin) > kPh18_mV) h_pt18.Fill(tv[imin]);
         }
     }
-    // t_peak_19: posición del máximo del histograma de tiempos hod2019 (umbral alto)
-    if(h_pt19.GetEntries()>5){
-        const int bpk=h_pt19.GetMaximumBin();
-        rr.t_peak_19=h_pt19.GetBinCenter(bpk);
-        const double sigma_t=h_pt19.GetRMS();
-        rr.t_lo_19=std::max(3000.0,rr.t_peak_19-3*std::max(sigma_t,100.0));
-        rr.t_hi_19=std::min(5000.0,rr.t_peak_19+3*std::max(sigma_t,100.0));
-    }
-    if(h_pt18.GetEntries()>5){
-        const int bpk=h_pt18.GetMaximumBin();
-        rr.t_peak_18=h_pt18.GetBinCenter(bpk);
-    }
+    // t_peak diagnóstico por estación
+    rr.t_peak_19 = (h_pt19.GetEntries()>5) ? h_pt19.GetBinCenter(h_pt19.GetMaximumBin()) : 0.0;
+    rr.t_peak_18 = (h_pt18.GetEntries()>5) ? h_pt18.GetBinCenter(h_pt18.GetMaximumBin()) : 0.0;
+    // Ventana de señal fija [kMuonTlo, kMuonThi] para ambos hodoscopios
+    rr.t_lo_19 = kMuonTlo; rr.t_hi_19 = kMuonThi;
+    rr.t_lo_18 = kMuonTlo; rr.t_hi_18 = kMuonThi;
 
     // Histogramas de carga por plano (para este run)
     const double Qlo19=-500,Qhi19=5000,Qlo18=-2000,Qhi18=25000;
@@ -210,6 +224,7 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
         int ncls18x=0,ncls18y=0;
     };
     std::vector<EvTP> evs; evs.reserve(nEnt);
+    std::vector<double> sig_Q_19x;
 
     // Pasada única
     for(Long64_t iev=0;iev<nEnt;iev++){
@@ -229,6 +244,7 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
         for(int c=0;c<kNCh;c++){
             if(!cw[c]||cw[c]->empty())continue;
             const bool is19=(c>=32);
+            const int npost = is19 ? kNpost19 : kNpost18;
             const double tlo=is19?rr.t_lo_19:rr.t_lo_18;
             const double thi=is19?rr.t_hi_19:rr.t_hi_18;
             const int pl=(c>=48)?2:(c>=32)?3:(c>=16)?1:0;
@@ -242,10 +258,19 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
             sum_ped[pl]+=ped; sum_noise_ev[pl]+=noise; n_ch[pl]++;
 
             // Q
-            QResult qr=get_Q(*cw[c],tv,tlo,thi);
+            QResult qr=get_Q(*cw[c],tv,tlo,thi,npost);
             const double Q=qr.Q;
 
             if(Q>maxQ[pl])maxQ[pl]=Q;
+
+            // Estimador de carga robusto: pulsos en hod2019X con ph > kPh19_mV en [kMuonTlo, kMuonThi]
+            if(pl==2){
+                double vmin=ped; int imin=-1;
+                for(int i=0;i<(int)tv.size();i++)if(tv[i]>=tlo&&tv[i]<=thi&&(*cw[c])[i]<vmin){vmin=(*cw[c])[i];imin=i;}
+                if(imin>=0 && (ped-vmin) > kPh19_mV && qr.pt >= kMuonTlo && qr.pt <= kMuonThi){
+                    sig_Q_19x.push_back(Q);
+                }
+            }
 
             // Fill histo planes
             if(pl==2){hQ19x.Fill(Q); int k=inv19x[c];if(k>=0){ev.Q19x[k]=Q;ev.pt19x[k]=qr.pt;}}
@@ -278,40 +303,95 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
     std::cout<<"    "<<nEnt<<"/"<<nEnt<<" ✓\n";
     fin->Close();
 
+    // Estimador robusto hod2019X
+    rr.n_sig_19x = (long long)sig_Q_19x.size();
+    if(!sig_Q_19x.empty()){
+        std::sort(sig_Q_19x.begin(), sig_Q_19x.end());
+        auto get_pct = [&](double pct) {
+            double idx = pct * (sig_Q_19x.size() - 1);
+            size_t i0 = static_cast<size_t>(std::floor(idx));
+            size_t i1 = static_cast<size_t>(std::ceil(idx));
+            double frac = idx - i0;
+            return sig_Q_19x[i0] * (1.0 - frac) + sig_Q_19x[i1] * frac;
+        };
+        rr.med_Q_19x = get_pct(0.50);
+        rr.q10_Q_19x = get_pct(0.10);
+        rr.q90_Q_19x = get_pct(0.90);
+    }
+
     // Normaliza ruido por plano
     for(int pl=0;pl<4;pl++){
         if(n_noise[pl]>0){
             rr.noise_mean[pl]=sum_noise[pl]/n_noise[pl];
-            rr.sigmaQ[pl]=rr.noise_mean[pl]*kDt_ns*std::sqrt(kNwin);}
+            const int nw_pl = kNpre + (pl >= 2 ? kNpost19 : kNpost18) + 1;
+            rr.sigmaQ[pl]=rr.noise_mean[pl]*kDt_ns*std::sqrt(nw_pl);}
     }
 
     // Landau fit hod2019X (si hay datos)
-    {TH1D*h=&hQ19x;
-     if(h->Integral()>10){
-         // Encuentra valle entre pedestal y señal en [200, 3000]
-         int bv=h->FindBin(200.0); double vv=1e30;
-         for(int b=h->FindBin(200.0);b<=h->FindBin(3000.0);b++){
-             double c=h->GetBinContent(b);if(c>0&&c<vv){vv=c;bv=b;}}
-         rr.umbral_Q[2]=h->GetBinCenter(bv);
-         if(rr.umbral_Q[2]<100)rr.umbral_Q[2]=500;
-         // Landau fit
-         const double xhi=std::min(4500.0,h->GetXaxis()->GetXmax());
-         if(rr.umbral_Q[2]<xhi){
-             TF1 fl("_fl","TMath::Landau(x,[0],[1],0)",rr.umbral_Q[2],xhi);
-             const double mpv0=h->GetBinCenter(h->GetMaximumBin());
-             fl.SetParameters(std::max(mpv0,rr.umbral_Q[2]+1),(xhi-rr.umbral_Q[2])*0.15);
-             fl.SetParLimits(0,rr.umbral_Q[2],xhi);
-             if(h->Fit(&fl,"RQNS")==0){
-                 rr.mpvQ[2]=fl.GetParameter(0);
-                 if(rr.sigmaQ[2]>0)rr.snrQ[2]=rr.mpvQ[2]/rr.sigmaQ[2];}}}}
+    {
+        TH1D* h = &hQ19x;
+        if(h->Integral() > 10){
+            // Encuentra valle entre pedestal y señal en [200, 3000]
+            int blo = h->FindBin(200.0);
+            int bhi = h->FindBin(3000.0);
+            int min_b = -1;
+            double min_v = 1e30;
+            for(int b = blo; b <= bhi; b++){
+                double c = h->GetBinContent(b);
+                if(c > 0 && c < min_v){
+                    min_v = c;
+                    min_b = b;
+                }
+            }
+            if(min_b > blo && min_b < bhi){
+                rr.umbral_Q[2] = h->GetBinCenter(min_b);
+            } else {
+                rr.umbral_Q[2] = 0; // no valley
+            }
 
-    // Tag-and-probe (hod2019X, global shuffle + ventana temporal per-run)
+            // Find last bin with >= 5 entries
+            int blast = h->GetNbinsX();
+            while(blast > 1 && h->GetBinContent(blast) < 5.0){
+                blast--;
+            }
+            const double xlo = (rr.umbral_Q[2] > 0) ? rr.umbral_Q[2] : 500.0;
+            const double xhi = h->GetBinLowEdge(blast + 1);
+
+            if(xhi > xlo + 50.0 && h->Integral(h->FindBin(xlo), blast) >= 10){
+                TF1 fl("_fl", "TMath::Landau(x,[0],[1],0)", xlo, xhi);
+                const double mpv0 = h->GetBinCenter(h->GetMaximumBin());
+                fl.SetParameters(std::max(mpv0, xlo + 1.0), (xhi - xlo) * 0.15);
+                fl.SetParLimits(0, xlo, xhi);
+                fl.SetParLimits(1, 1.0, xhi - xlo);
+                rr.lan_status = h->Fit(&fl, "RQNS");
+                if(rr.lan_status == 0){
+                    rr.lan_ok = true;
+                    rr.mpvQ[2] = fl.GetParameter(0);
+                    rr.lan_chi2ndf = fl.GetNDF() > 0 ? fl.GetChisquare() / fl.GetNDF() : 0.0;
+                    double l0, h0, l1, h1;
+                    fl.GetParLimits(0, l0, h0);
+                    fl.GetParLimits(1, l1, h1);
+                    auto near_lim = [](double val, double lo, double hi) {
+                        double span = hi - lo;
+                        return span > 0 && ((std::abs(val - lo) <= 0.001 * span) || (std::abs(val - hi) <= 0.001 * span));
+                    };
+                    if(near_lim(rr.mpvQ[2], l0, h0) || near_lim(fl.GetParameter(1), l1, h1)){
+                        rr.lan_at_limit = true;
+                    }
+                    if(rr.sigmaQ[2] > 0 && !rr.lan_at_limit)
+                        rr.snrQ[2] = rr.mpvQ[2] / rr.sigmaQ[2];
+                }
+            }
+        }
+    }
+
+    // Tag-and-probe (hod2019X, global shuffle + ventana temporal fija [kMuonTlo, kMuonThi])
     const size_t nev=evs.size();
-    const double t_muon_lo=std::max(3000.0,rr.t_peak_19-300);
-    const double t_muon_hi=std::min(5000.0,rr.t_peak_19+300);
+    const double t_muon_lo=kMuonTlo;
+    const double t_muon_hi=kMuonThi;
 
     long long n_obs=0,n_acc=0;
-    const double Q_thr=2318.8;  // natural threshold hod2019X v8, outputs/charge_analysis_20261017_103723 (was 2346.2 with 15.38 ns, 10 samples)
+    const double Q_thr=2401.2;  // natural threshold hod2019X v8 (from charge_analysis with kNpost19=22)
 
     // Local shuffle (semilla fija por run)
     std::vector<size_t> local_shuf(nev);
@@ -404,14 +484,18 @@ int main(int argc,char**argv){
     // Reproducibilidad v8 vs v9 (si ambos existen)
     {const RunResult* rv8=nullptr,*rv9=nullptr,*rv10=nullptr;
      for(const auto&r:results){if(r.label=="v8")rv8=&r;if(r.label=="v9")rv9=&r;if(r.label=="v10")rv10=&r;}
-     if(rv8&&rv9&&rv8->mpvQ[2]>0&&rv9->mpvQ[2]>0){
+     if(rv8&&rv9&&!rv8->lan_at_limit&&!rv9->lan_at_limit&&rv8->mpvQ[2]>0&&rv9->mpvQ[2]>0){
          const double delta=(rv9->mpvQ[2]-rv8->mpvQ[2])/rv8->mpvQ[2];
          std::cout<<"\nReproducibilidad v8 vs v9: ΔMPV_Q/MPV_Q = "<<100*delta<<"%";
          if(std::abs(delta)>0.20)std::cout<<" [FLAG: >20%!]";else std::cout<<" [OK]";std::cout<<"\n";
      }
-     if(rv8&&rv10&&rv8->mpvQ[2]>0&&rv10->mpvQ[2]>0){
-         const double delta=(rv10->mpvQ[2]-rv8->mpvQ[2])/rv8->mpvQ[2];
-         std::cout<<"Reproducibilidad v8 vs v10: ΔMPV_Q/MPV_Q = "<<100*delta<<"%\n";}}
+     if(rv8&&rv9&&rv8->med_Q_19x>0&&rv9->med_Q_19x>0){
+         const double delta=(rv9->med_Q_19x-rv8->med_Q_19x)/rv8->med_Q_19x;
+         std::cout<<"Reproducibilidad v8 vs v9 (mediana Q): ΔMed_Q/Med_Q = "<<100*delta<<"%\n";
+     }
+     if(rv8&&rv10&&rv8->med_Q_19x>0&&rv10->med_Q_19x>0){
+         const double delta=(rv10->med_Q_19x-rv8->med_Q_19x)/rv8->med_Q_19x;
+         std::cout<<"Reproducibilidad v8 vs v10 (mediana Q): ΔMed_Q/Med_Q = "<<100*delta<<"%\n";}}
 
     // ── Figuras ───────────────────────────────────────────────────────────────
     const int nRuns=static_cast<int>(results.size());
@@ -420,18 +504,18 @@ int main(int argc,char**argv){
         const auto&r=results[i];
         run_nums.push_back(i+1);
         t_peaks.push_back(r.t_peak_19);
-        mpvQ_19x.push_back(r.mpvQ[2]);
+        mpvQ_19x.push_back(r.med_Q_19x);
         sigQ_19x.push_back(r.sigmaQ[2]);
         snrQ_19x.push_back(r.snrQ[2]);
         eps_true.push_back(r.eps_true_x*100);
         eps_err.push_back(r.sigma_eps_x*100);
     }
 
-    // SNR y MPV vs run
+    // SNR y Mediana Q vs run
     {TCanvas cc("c_snr","",1000,680);cc.SetLeftMargin(0.12);cc.SetBottomMargin(0.13);
      TGraphErrors gmpv(nRuns,run_nums.data(),mpvQ_19x.data(),
          std::vector<double>(nRuns,0.2).data(),std::vector<double>(nRuns,0).data());
-     gmpv.SetTitle("MPV_Q y SNR_Q hod2019X vs run (proxy de voltaje);Run;MPV_Q [mV#upointns]");
+     gmpv.SetTitle("Mediana Q hod2019X vs run (proxy de voltaje);Run;Mediana Q [mV#upointns]");
      gmpv.SetMarkerStyle(20);gmpv.SetMarkerColor(kBlue+1);gmpv.SetLineColor(kBlue+1);gmpv.SetLineWidth(2);
      gmpv.Draw("APL");
      cc.SaveAs((outdir/"mpv_and_pedestal_vs_run.png").string().c_str());}
@@ -456,8 +540,6 @@ int main(int argc,char**argv){
      cc.SaveAs((outdir/"tagprobe_combined_same_vs_mixed.png").string().c_str());}
 
     // Significancia global combinada (umbral Q_norm > 15 sigma del pedestal)
-    // Justificación: MPV_Q hod2019 v8 ≈ 4131 mV·ns, sigma_Q ≈ 83 → Q_norm_signal ≈ 50
-    // Un umbral de 15 sigma separa señal real de fluctuaciones de pedestal
     const double Qnorm_thr=15.0;
     const double Ntot_tag=h_same_all->Integral();
     double n_obs_comb=0,n_acc_comb=0;
@@ -471,10 +553,13 @@ int main(int argc,char**argv){
 
     // ── CSV por run ───────────────────────────────────────────────────────────
     {std::ofstream fc(outdir/"per_run_parameters.csv");
-     fc<<"run,n_events,t_peak_19_ns,sigmaQ_19x_mVns,mpvQ_19x_mVns,snrQ_19x,n_tag_x,eps_true_x_pct,sigma_eps_x_pct,sig_x\n";
+     fc<<"run,n_events,t_peak_18_ns,t_peak_19_ns,n_sig_19x,med_Q_19x,q10_Q_19x,q90_Q_19x,mpvQ_19x_mVns,lan_status,lan_chi2ndf,lan_at_limit,sigmaQ_19x_mVns,snrQ_19x,n_tag_x,eps_true_x_pct,sigma_eps_x_pct,sig_x\n";
      for(const auto&r:results)
-         fc<<r.label<<','<<r.n_events<<','<<r.t_peak_19<<','<<r.sigmaQ[2]<<','
-           <<r.mpvQ[2]<<','<<r.snrQ[2]<<','<<r.n_tag_x<<','<<r.eps_true_x*100<<','
+         fc<<r.label<<','<<r.n_events<<','<<r.t_peak_18<<','<<r.t_peak_19<<','
+           <<r.n_sig_19x<<','<<r.med_Q_19x<<','<<r.q10_Q_19x<<','<<r.q90_Q_19x<<','
+           <<((r.lan_status==0&&!r.lan_at_limit)?std::to_string(r.mpvQ[2]):"n/a")<<','
+           <<r.lan_status<<','<<r.lan_chi2ndf<<','<<(r.lan_at_limit?1:0)<<','
+           <<r.sigmaQ[2]<<','<<r.snrQ[2]<<','<<r.n_tag_x<<','<<r.eps_true_x*100<<','
            <<r.sigma_eps_x*100<<','<<r.sig_x<<'\n';}
 
     // ── Summary ───────────────────────────────────────────────────────────────
@@ -482,22 +567,43 @@ int main(int argc,char**argv){
 
     auto print_summ=[&](std::ostream&os){
         os<<"=== Análisis Multi-Run: barrido de voltaje MPPC ===\n\n";
-        os<<std::setw(6)<<std::left<<"Run"<<std::setw(10)<<"N"<<std::setw(10)<<"t_peak"
-          <<std::setw(12)<<"sigmaQ_19X"<<std::setw(12)<<"MPV_Q_19X"<<std::setw(8)<<"SNR_Q"
+        os<<"Parámetros de ventana muon: ["<<kMuonTlo<<", "<<kMuonThi<<"] ns (ambas estaciones)\n";
+        os<<"Umbrales de pulso diagnóstico: hod2018 ph > "<<kPh18_mV<<" mV, hod2019 ph > "<<kPh19_mV<<" mV\n\n";
+        os<<std::setw(6)<<std::left<<"Run"<<std::setw(9)<<"N"<<std::setw(8)<<"tpk18"<<std::setw(8)<<"tpk19"
+          <<std::setw(8)<<"N_sig"<<std::setw(10)<<"Med_Q"<<std::setw(9)<<"Q_10"<<std::setw(9)<<"Q_90"
+          <<std::setw(10)<<"MPV_Q"<<std::setw(8)<<"status"<<std::setw(10)<<"chi2ndf"<<std::setw(10)<<"limit"
+          <<std::setw(10)<<"sigmaQ19"<<std::setw(8)<<"SNR_Q"
           <<std::setw(8)<<"N_tag"<<std::setw(12)<<"eps_true[%]"<<std::setw(8)<<"sig\n";
-        os<<"------------------------------------------------------------------------------------\n";
-        for(const auto&r:results)
-            os<<std::setw(6)<<r.label<<std::setw(10)<<r.n_events
-              <<std::setw(10)<<std::fixed<<std::setprecision(0)<<r.t_peak_19
-              <<std::setw(12)<<std::setprecision(1)<<r.sigmaQ[2]
-              <<std::setw(12)<<r.mpvQ[2]
-              <<std::setw(8)<<std::setprecision(2)<<r.snrQ[2]
+        os<<"--------------------------------------------------------------------------------------------------------------------------------------------\n";
+        for(const auto&r:results){
+            std::string mpv_str = (r.lan_status == 0 && !r.lan_at_limit) ? [&](){
+                char b[32]; std::snprintf(b, sizeof(b), "%.1f", r.mpvQ[2]); return std::string(b); }() : "n/a";
+            std::string st_str = (r.lan_status >= 0) ? std::to_string(r.lan_status) : "no fit";
+            std::string chi2_str = (r.lan_status == 0) ? [&](){
+                char b[32]; std::snprintf(b, sizeof(b), "%.2f", r.lan_chi2ndf); return std::string(b); }() : "n/a";
+            std::string lim_str = (r.lan_status != 0) ? "n/a" : (r.lan_at_limit ? "AT_LIMIT" : "interior");
+            std::string snr_str = (r.lan_status == 0 && !r.lan_at_limit && r.sigmaQ[2] > 0) ? [&](){
+                char b[32]; std::snprintf(b, sizeof(b), "%.2f", r.snrQ[2]); return std::string(b); }() : "n/a";
+
+            os<<std::setw(6)<<r.label<<std::setw(9)<<r.n_events
+              <<std::setw(8)<<std::fixed<<std::setprecision(0)<<r.t_peak_18
+              <<std::setw(8)<<r.t_peak_19
+              <<std::setw(8)<<r.n_sig_19x
+              <<std::setw(10)<<std::setprecision(1)<<r.med_Q_19x
+              <<std::setw(9)<<r.q10_Q_19x
+              <<std::setw(9)<<r.q90_Q_19x
+              <<std::setw(10)<<mpv_str
+              <<std::setw(8)<<st_str
+              <<std::setw(10)<<chi2_str
+              <<std::setw(10)<<lim_str
+              <<std::setw(10)<<std::setprecision(1)<<r.sigmaQ[2]
+              <<std::setw(8)<<snr_str
               <<std::setw(8)<<r.n_tag_x
               <<std::setw(12)<<std::setprecision(4)<<r.eps_true_x*100
               <<std::setw(8)<<std::setprecision(2)<<r.sig_x<<"\n";
+        }
         os<<"\nSignificancia global combinada (~Q_norm>10sigma): "<<std::setprecision(2)<<sig_global<<"σ\n";
         os<<"ε_true_global = "<<std::setprecision(4)<<eps_true_g*100<<"% ± "<<sigma_eps_g*100<<"%\n\n";
-        os<<"  significance = "<<sig_global<<" sigma\n";
         os<<"  cota superior ε_true < "<<std::setprecision(2)
           <<(std::abs(eps_true_g)+2*sigma_eps_g)*100<<"% (95% CL)\n";
     };

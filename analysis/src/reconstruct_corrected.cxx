@@ -38,22 +38,16 @@
 #include <random>
 #include <string>
 #include <vector>
+#include "hodo_consts.h"
 
 namespace fs = std::filesystem;
 
 //==============================================================================
 // Parámetros congelados (NO cambiar sin evidencia nueva)
 //==============================================================================
-// Ventana del muón verificada: ambos hodoscopios a t≈4170 ns
-constexpr double kMuonTlo =  4000.0;  // ns
-constexpr double kMuonThi =  4400.0;  // ns
-constexpr double kPrePulse =  2500.0;  // ns (región de baseline)
-constexpr double kDt_ns = 16.0;  // VX1740, 62.5 MS/s; equals the data_dig.time step
-constexpr int    kNpre=3, kNpost=8, kNwin=12; // integración Q
-
-// Umbrales verificados
-constexpr double kPh18 = 50.0;  // mV, pulse height from pedestal; = 102 ADC counts
-constexpr double kPh19 = 35.0;  // mV, pulse height from pedestal; = 72 ADC counts
+constexpr double kPrePulse = 2500.0;  // ns (región de baseline)
+constexpr double kPh18 = kPh18_mV;    // mV, pulse height from pedestal
+constexpr double kPh19 = kPh19_mV;    // mV, pulse height from pedestal
 
 // Geometría real de la medición
 constexpr double kPitch = 2.0;   // mm
@@ -77,8 +71,9 @@ struct MuonHit {
 };
 
 static MuonHit extract_muon_hit(const std::vector<float>& wf,
-                                  const std::vector<float>& t,
-                                  int k) {
+                                const std::vector<float>& t,
+                                int k,
+                                int kNpost) {
     MuonHit h; h.k = k;
     const int n = (int)wf.size();
     if (n < 4 || (int)t.size() != n) return h;
@@ -217,7 +212,7 @@ int main(int argc,char**argv){
             else if(inv19x[c]>=0) k=inv19x[c];
             else if(inv19y[c]>=0) k=inv19y[c];
             if(k<0)continue;
-            MuonHit h=extract_muon_hit(*cw[c],tv,k);
+            MuonHit h=extract_muon_hit(*cw[c],tv,k, is19 ? kNpost19 : kNpost18);
             if(!h.valid)continue;
             // Store in appropriate plane
             if(c>=0&&c<=15)  ev.hits18x.push_back(h);
@@ -465,19 +460,8 @@ int main(int argc,char**argv){
         const double expected = kFBoth * nEnt;
         os<<"N_3D observado: "<<cf_3D<<"  vs esperado: "<<std::fixed<<std::setprecision(0)<<expected<<" (del MC geométrico)\n";
         os<<"Ratio obs/exp: "<<std::setprecision(4)<<(expected>0?(double)cf_3D/expected:0)<<"\n\n";
-        // Citable text
-        os<<"TEXTO CITABLE:\n";
-        os<<'"';
-        os<<"Using the corrected muon time window [4000,4400] ns for hod2018 ";
-        os<<"(eliminating the t≈3510 ns background), ";
-        os<<"we reconstruct N_3D="<<cf_3D<<" three-dimensional cosmic-muon tracks ";
-        os<<"in run v8 (143k events, "<<std::setprecision(2)<<dur_h<<" h), ";
-        os<<"with spatial correlation r_X="<<std::setprecision(3)<<rx;
-        os<<" (slope="<<slx<<").";
-        os<<'"';
-        os<<"\n\n";
         // Mapping assessment
-        os<<"Evaluación del mapeo (pendiente≈1 → mapeo correcto):\n";
+        os<<"Slope x2019 vs x2018 (1 expected for a correct mapping):\n";
         if(cf_3D>=10){
             os<<"  Pendiente X="<<std::setprecision(3)<<slx<<"\n";
             os<<"  Pendiente Y="<<sly<<"\n";

@@ -230,6 +230,9 @@ t ≈ 3510 ns selected that pickup, not muons.
    referring to Ch waveform quantities replaced from "ADC" to "mV" (amplitudes/pulse heights) and "mV·ns"
    (integrated charges) across comments, histogram titles, axis titles, and summary text. Results in outputs/
    dated before 2026-10-17 have labels in "ADC" that mean mV.
+8. charge_analysis summaries before commit "Analysis: fixed muon window, per-station Q window, robust Q estimator, column order" print columns 18X-v8 and 19X-v7 swapped.
+9. multirun_analysis outputs before commit "Analysis: fixed muon window, per-station Q window, robust Q estimator, column order" use a muon window derived from noise for v5-v10 (t_peak = 3008 ns) and Landau MPVs pinned at the 4500 mV·ns limit; not valid.
+10. Q integration windows: hod2018 [-3,+8], hod2019 [-3,+22] samples (kNpost18 = 8, kNpost19 = 22, 95% of the mean pulse integral, v8).
 
 ## Open questions
 

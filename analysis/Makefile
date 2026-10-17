@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -O2 -Wall -std=c++17 $(shell root-config --cflags)
+CXXFLAGS := -O2 -Wall -std=c++17 -Isrc $(shell root-config --cflags)
 LDFLAGS := $(shell root-config --ldflags)
 LIBS := $(shell root-config --glibs) -lSpectrum
 
