@@ -36,10 +36,11 @@ If either command shows activity, do not write in the repository.
 4. Do not rename configuration keys or change their units.
 5. Do not delete files. Superseded material goes to attic/ or outputs/_superseded/, with
    one line in that directory's README stating why it was superseded and the evidence.
-6. Check RAM with `free -m` before running analysis programs; stop if available is below
-   4000 MB. Wrap heavy programs with:
-
-       ( ulimit -v 4194304; timeout 600 <command> )
+6. Do not push and do not rewrite git history.
+7. Before running analysis programs check `free -m` and stop if available is below
+   4000 MB. Run long ROOT or Python jobs as `( ulimit -v 4194304; timeout 600 <command> )`
+   and do not read whole data files into memory. On 2026-10-16 the kernel killed a
+   python3 process at 15.4 GB resident memory on this 15 GB machine [V: dmesg].
 
 ## Directory map
 
@@ -49,7 +50,8 @@ If either command shows activity, do not write in the repository.
     test_acquire_sw.cxx      acquisition binary for software/self trigger
     test_open.cxx            link verification binary
     Makefile                 builds DAQ binaries only; clean does not touch data
-    config_*.conf            DAQ configurations for production runs
+    config*.conf             config.conf (2025 DT5730 default), configs used as code
+                             defaults, and production configs (config_vx1740_ext_nim_1000000.conf for v1-v10)
     config_commissioning/    test configurations
     analysis/src/            C++ analysis sources (compiled to analysis/bin/)
     analysis/scripts/        analysis pipeline scripts (run from repository root)
@@ -127,6 +129,8 @@ Each trigger produces one entry of the TTree data_dig [V: CaenDigitizerSiLab.cxx
 | time | vector<float> | sample time in ns, step 16.0 ns [V: CaenDigitizerSiLab.h:163, CaenDigitizerSiLab.cxx:642, B2 root check] |
 | event | int | sequential event index |
 | timestamp | int64 | µs since host boot (std::chrono::steady_clock), read once per readout |
+
+Records configured with acqsamples 625 contain 624 samples per channel, 0 to 9968 ns [V: ROOT check on v6, entry 0].
 
 timestamp is neither Unix time nor the trigger time. The digitizer TriggerTimeTag is
 printed for the first three events only and is not stored
@@ -211,6 +215,13 @@ t ≈ 3510 ns selected that pickup, not muons.
    instead of the 16.0 ns step recorded in data_dig.time: analysis/src/charge_analysis.cxx:50,
    analysis/src/multirun_analysis.cxx:42, analysis/src/reconstruct_corrected.cxx:49,
    analysis/src/reconstruct_cosmic_tracks.cxx:48, and analysis/src/tagprobe_analysis.cxx:45 [V: grep B3].
+   As a consequence, integrated charge Q is computed with Δt = 15.38 ns and is therefore
+   3.8 % low (factor 16.0/15.3846 = 1.04); pulse times and muon window gates read the
+   time branch directly and are not affected.
+7. Analysis codes (reconstruct_corrected.cxx:53-54, gen_beamer_figs.C:43-44) define thresholds
+   of 50 and 35 labeled as ADC counts, but compare them directly against waveform values stored
+   in mV without converting units; for a 2 Vpp 12-bit digitizer (0.4884 mV/count), the effective
+   thresholds applied were 50 mV (≈102 ADC counts) and 35 mV (≈72 ADC counts).
 
 ## Open questions
 
