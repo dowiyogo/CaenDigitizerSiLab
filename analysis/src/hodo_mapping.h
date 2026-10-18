@@ -90,3 +90,4 @@ inline int hod2019_x_index(int ch) { return (ch >= 48 && ch <= 63) ? get_inv19x(
 inline int hod2019_y_index(int ch) { return (ch >= 32 && ch <= 47) ? get_inv19y()[ch] : -1; }
 
 #endif // HODO_MAPPING_H
+

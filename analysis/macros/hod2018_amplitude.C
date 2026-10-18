@@ -425,3 +425,4 @@ void hod2018_amplitude(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.ro
     }
     std::cout << "================================================================================\n";
 }
+
