@@ -43,6 +43,7 @@
 #include <vector>
 
 #include "hodo_consts.h"
+#include "hodo_mapping.h"
 
 namespace fs = std::filesystem;
 
@@ -56,20 +57,13 @@ static const double kTlo[4] = {3500, 3500, 3000, 3000};  // ventana señal [ns]
 static const double kThi[4] = {7000, 7000, 5000, 5000};
 
 // Planos: 0=hod2018X, 1=hod2018Y, 2=hod2019X, 3=hod2019Y
-constexpr int P18X=0,P18Y=1,P19X=2,P19Y=3;
+constexpr int P18X=kPlane18X, P18Y=kPlane18Y, P19X=kPlane19X, P19Y=kPlane19Y;
 static const char* kPname[4]={"hod2018X","hod2018Y","hod2019X","hod2019Y"};
 
 // Mapeo canales → plano e índice k
-static int ch_plane(int c){
-    if(c>=0&&c<=15)return P18X; if(c>=16&&c<=31)return P18Y;
-    if(c>=32&&c<=47)return P19Y; if(c>=48&&c<=63)return P19X; return -1;}
-static int ch_k(int c){
-    if(c>=0&&c<=15)return c; if(c>=16&&c<=31)return c-16;
-    static const std::array<int,16> h19y={37,45,38,46,39,47,36,44,35,43,34,42,33,41,32,40};
-    static const std::array<int,16> h19x={53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};
-    for(int k=0;k<16;k++)if(h19y[k]==c)return k;
-    for(int k=0;k<16;k++)if(h19x[k]==c)return k;
-    return -1;}
+static int ch_plane(int c){ return ch_to_plane(c); }
+static int ch_k(int c){ return ch_to_strip(c); }
+
 
 // Umbral alto para Step 0 (selección de señales reales para timing)
 constexpr double kThrHigh18 = 15.0;   // mV — hod2018

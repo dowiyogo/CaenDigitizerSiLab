@@ -39,6 +39,7 @@
 #include <vector>
 #define TAGPROBE_MUON_OVERRIDE
 #include "hodo_consts.h"
+#include "hodo_mapping.h"
 
 namespace fs = std::filesystem;
 
@@ -61,9 +62,6 @@ constexpr double kMuonTlo = 3900.0, kMuonThi = 4500.0;  // ns
 // Umbral_Q para el barrido de eficiencia (de hodo_consts.h)
 constexpr double kUmbralQ = kQcut19;  // from hodo_consts.h
 
-// Mapeo hod2019
-static const std::array<int,16> kH19X={53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};
-static const std::array<int,16> kH19Y={37,45,38,46,39,47,36,44,35,43,34,42,33,41,32,40};
 
 //==============================================================================
 // Extracción de pulso + carga integrada para UNA TIRA
@@ -145,10 +143,6 @@ static std::vector<EvData> load_all(const std::string& fname) {
     std::cout<<"  Loading "<<nEnt<<" events...\n";
     std::vector<EvData> evs; evs.reserve(nEnt);
 
-    // Build inverse maps for hod2019
-    std::array<int,kNCh> inv19x{},inv19y{}; inv19x.fill(-1);inv19y.fill(-1);
-    for(int k=0;k<16;k++){inv19x[kH19X[k]]=k;inv19y[kH19Y[k]]=k;}
-
     bool checked_step = false;
     for(Long64_t iev=0;iev<nEnt;iev++){
         t->GetEntry(iev);
@@ -171,8 +165,8 @@ static std::vector<EvData> load_all(const std::string& fname) {
         for(int c=0;c<kNCh;c++){
             if(!cw[c]||cw[c]->empty())continue;
             if(c>31)continue;  // only hod2018 here
-            const int pl=(c<16)?0:1;
-            const int k=(c<16)?c:c-16;
+            const int pl = ch_to_plane(c);
+            const int k = ch_to_strip(c);
             // Quick pulse height extraction for hod2018
             double s=0,s2=0;int nb=0;
             for(int i=0;i<(int)tv.size();i++) if(tv[i]<kPre_ns){s+=(*cw[c])[i];s2+=(*cw[c])[i]*(*cw[c])[i];nb++;}
@@ -181,7 +175,7 @@ static std::vector<EvData> load_all(const std::string& fname) {
             double vmin=1e30;
             for(int i=0;i<(int)tv.size();i++) if(tv[i]>=kTlo[pl]&&tv[i]<=kThi[pl]&&(*cw[c])[i]<vmin) vmin=(*cw[c])[i];
             const double ph=ped-vmin;
-            if(ph>=5.0){if(pl==0)h18x.push_back({k,ph});else h18y.push_back({k,ph});}
+            if(ph>=5.0){if(pl==kPlane18X)h18x.push_back({k,ph});else h18y.push_back({k,ph});}
         }
         // hod2018 clusters
         {auto cls=clust18(h18x,10.0);ev.ncls18x=(int)cls.size();
@@ -200,7 +194,7 @@ static std::vector<EvData> load_all(const std::string& fname) {
         // hod2019X and Y: charge per strip
         for(int c=32;c<64;c++){
             if(!cw[c]||cw[c]->empty())continue;
-            const int k19x=inv19x[c], k19y=inv19y[c];
+            const int k19x=get_inv19x()[c], k19y=get_inv19y()[c];
             const int pl=(c<48)?3:2;  // 3=19Y (32-47), 2=19X (48-63)
             if(k19x>=0||k19y>=0){
                 StripResult sr=extract_strip(*cw[c],tv,kTlo[pl],kThi[pl]);

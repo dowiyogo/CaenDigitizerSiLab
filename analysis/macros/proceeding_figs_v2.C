@@ -30,12 +30,9 @@
 namespace fs = std::filesystem;
 
 #include "../src/hodo_consts.h"
+#include "../src/hodo_mapping.h"
 
 constexpr double kPrePulse = 2500.0;
-
-// Authoritative mapping for hod2019
-static const std::array<int,16> kH19X = {53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};
-static const std::array<int,16> kH19Y = {37,45,38,46,39,47,36,44,35,43,34,42,33,41,32,40};
 
 void proceeding_figs_v2(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.root",
                         const char* custom_outdir = "") {
@@ -131,10 +128,6 @@ void proceeding_figs_v2(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.r
         h_q_ctl[ch] = new TH1D(Form("h_q_ctl_ch%d", ch), Form("Ch %d;Q [mV#upointns];Hits / 200 mV#upointns", ch), kNBins3d, kQlo3d, kQhi3d);
     }
 
-    // Inverse map for hod2019 X strips
-    std::array<int, 64> inv19x; inv19x.fill(-1);
-    for (int k = 0; k < 16; ++k) inv19x[kH19X[k]] = k;
-
     bool checked_step = false;
 
     // Event loop
@@ -220,11 +213,11 @@ void proceeding_figs_v2(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.r
 
             // 3b: Hits per X strip
             if (c >= 0 && c <= 15) {
-                int k = c;
-                if (hit_w2_sig) n18x_s[k]++;
-                if (hit_w2_ctl) n18x_c[k]++;
+                int k = ch_to_strip(c);
+                if (k >= 0 && hit_w2_sig) n18x_s[k]++;
+                if (k >= 0 && hit_w2_ctl) n18x_c[k]++;
             } else if (c >= 32 && c <= 63) {
-                int k = inv19x[c];
+                int k = ch_to_strip(c);
                 if (k >= 0 && hit_w2_sig) n19x_s[k]++;
             }
 
@@ -234,12 +227,12 @@ void proceeding_figs_v2(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.r
                 if (c >= 0 && c <= 15) {
                     if (ph > ev_b.best_x_ph) {
                         ev_b.best_x_ph = ph;
-                        ev_b.best_x = c;
+                        ev_b.best_x = ch_to_strip(c);
                     }
                 } else if (c >= 16 && c <= 31) {
                     if (ph > ev_b.best_y_ph) {
                         ev_b.best_y_ph = ph;
-                        ev_b.best_y = c - 16;
+                        ev_b.best_y = ch_to_strip(c);
                     }
                 }
             }
@@ -488,8 +481,9 @@ void proceeding_figs_v2(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.r
        << std::setw(14) << "N_S - N_C"
        << std::setw(14) << "err" << "\n";
     for (int k = 0; k < 16; ++k) {
+        int ch = kH18X[k];
         df << std::setw(8) << k
-           << std::setw(8) << k
+           << std::setw(8) << ch
            << std::setw(12) << n18x_s[k]
            << std::setw(12) << n18x_c[k]
            << std::setw(14) << (n18x_s[k] - n18x_c[k])

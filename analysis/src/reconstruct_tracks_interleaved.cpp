@@ -20,55 +20,15 @@
 #include <string>
 #include <vector>
 
+#include "hodo_mapping.h"
+
 namespace fs = std::filesystem;
 
 constexpr double kRadToDeg = 180.0 / M_PI;
 
-static const std::array<int, 16> kHod2019XChannelsByIndex = {
-    53, 61, 54, 62,
-    55, 63, 52, 60,
-    51, 59, 50, 58,
-    49, 57, 48, 56
-};
+static const auto& kHod2019XChannelsByIndex = kH19X;
+static const auto& kHod2019YChannelsByIndex = kH19Y;
 
-static const std::array<int, 16> kHod2019YChannelsByIndex = {
-    37, 45, 38, 46,
-    39, 47, 36, 44,
-    35, 43, 34, 42,
-    33, 41, 32, 40
-};
-
-int hod2019_x_index(int ch)
-{
-    static const std::map<int, int> m = {
-        {53, 0}, {61, 1}, {54, 2}, {62, 3},
-        {55, 4}, {63, 5}, {52, 6}, {60, 7},
-        {51, 8}, {59, 9}, {50, 10}, {58, 11},
-        {49, 12}, {57, 13}, {48, 14}, {56, 15}
-    };
-    auto it = m.find(ch);
-    return (it == m.end()) ? -1 : it->second;
-}
-
-int hod2019_y_index(int ch)
-{
-    static const std::map<int, int> m = {
-        {37, 0}, {45, 1}, {38, 2}, {46, 3},
-        {39, 4}, {47, 5}, {36, 6}, {44, 7},
-        {35, 8}, {43, 9}, {34, 10}, {42, 11},
-        {33, 12}, {41, 13}, {32, 14}, {40, 15}
-    };
-    auto it = m.find(ch);
-    return (it == m.end()) ? -1 : it->second;
-}
-
-static int hod2018_x_index(int ch) {
-    return (ch >= 0 && ch <= 15) ? ch : -1;
-}
-
-static int hod2018_y_index(int ch) {
-    return (ch >= 16 && ch <= 31) ? ch - 16 : -1;
-}
 
 static double coord_mm_from_index(int idx, double pitch) {
     return (static_cast<double>(idx) + 0.5 - 8.0) * pitch;

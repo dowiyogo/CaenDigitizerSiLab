@@ -39,6 +39,7 @@
 #include <string>
 #include <vector>
 #include "hodo_consts.h"
+#include "hodo_mapping.h"
 
 namespace fs = std::filesystem;
 
@@ -53,10 +54,6 @@ constexpr double kPh19 = kPh19_mV;    // mV, pulse height from pedestal
 constexpr double kPitch = 2.0;   // mm
 constexpr double kD_mm  = 98.4;  // mm (separación entre planos)
 constexpr int    kNCh   = 64;
-
-// Mapeo autoritativo (literal, sin reglas algebraicas)
-static const std::array<int,16> kH19X={53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};
-static const std::array<int,16> kH19Y={37,45,38,46,39,47,36,44,35,43,34,42,33,41,32,40};
 
 //==============================================================================
 // Hit en la ventana del muón: extrae el pulso de máxima amplitud en [4000,4400] ns
@@ -205,10 +202,6 @@ int main(int argc,char**argv){
         tree->SetBranchAddress("timestamp",&ts_val);
     }
 
-    // Inverse maps for hod2019
-    std::array<int,kNCh> inv19x{},inv19y{};inv19x.fill(-1);inv19y.fill(-1);
-    for(int k=0;k<16;k++){inv19x[kH19X[k]]=k;inv19y[kH19Y[k]]=k;}
-
     const Long64_t nEnt=tree->GetEntries();
     std::cout<<"Loading "<<nEnt<<" events into RAM...\n";
     std::vector<EvData> evs; evs.reserve(nEnt);
@@ -235,25 +228,22 @@ int main(int argc,char**argv){
         for(int c=0;c<kNCh;c++){
             if(!cw[c]||cw[c]->empty())continue;
             const bool is19=(c>=32);
-            int k=-1;
-            if(c>=0&&c<=15)  k=c;
-            else if(c>=16&&c<=31) k=c-16;
-            else if(inv19x[c]>=0) k=inv19x[c];
-            else if(inv19y[c]>=0) k=inv19y[c];
+            const int k = ch_to_strip(c);
+            const int pl = ch_to_plane(c);
             if(k>=0){
                 MuonHit h=extract_muon_hit(*cw[c],tv,k, is19 ? kNpost19 : kNpost18, is19 ? kQLocalPed19 : kQLocalPed18);
                 if(h.valid){
-                    if(c>=0&&c<=15)  ev.hits18x.push_back(h);
-                    else if(c>=16&&c<=31) ev.hits18y.push_back(h);
-                    else if(inv19x[c]>=0) ev.hits19x.push_back(h);
-                    else if(inv19y[c]>=0) ev.hits19y.push_back(h);
+                    if(pl == kPlane18X)      ev.hits18x.push_back(h);
+                    else if(pl == kPlane18Y) ev.hits18y.push_back(h);
+                    else if(pl == kPlane19X) ev.hits19x.push_back(h);
+                    else if(pl == kPlane19Y) ev.hits19y.push_back(h);
                 }
                 MuonHit h2=extract_hit_window(*cw[c],tv,k, is19 ? kNpost19 : kNpost18, is19 ? kQLocalPed19 : kQLocalPed18, kSigTlo, kSigThi);
                 if(h2.valid){
-                    if(c>=0&&c<=15)  ev.hits18x_w2.push_back(h2);
-                    else if(c>=16&&c<=31) ev.hits18y_w2.push_back(h2);
-                    else if(inv19x[c]>=0) ev.hits19x_w2.push_back(h2);
-                    else if(inv19y[c]>=0) ev.hits19y_w2.push_back(h2);
+                    if(pl == kPlane18X)      ev.hits18x_w2.push_back(h2);
+                    else if(pl == kPlane18Y) ev.hits18y_w2.push_back(h2);
+                    else if(pl == kPlane19X) ev.hits19x_w2.push_back(h2);
+                    else if(pl == kPlane19Y) ev.hits19y_w2.push_back(h2);
                 }
             }
 
@@ -270,8 +260,8 @@ int main(int argc,char**argv){
                 for(int i=0;i<n;i++) if(tv[i]>=kMuonTlo+kCtlShift && tv[i]<=kMuonThi+kCtlShift && wf[i]<vmin1){vmin1=wf[i];imin1=i;}
                 if(imin1>=0 && (ped-vmin1) >= thr){
                     has_ctrl_w1 = true;
-                    if(c>=0 && c<=15) has_18x_ctrl_w1 = true;
-                    else if(c>=16 && c<=31) has_18y_ctrl_w1 = true;
+                    if(pl == kPlane18X) has_18x_ctrl_w1 = true;
+                    else if(pl == kPlane18Y) has_18y_ctrl_w1 = true;
                 }
 
                 // W2 control: [kSigTlo+kCtlShift, kSigThi+kCtlShift]
@@ -279,10 +269,11 @@ int main(int argc,char**argv){
                 for(int i=0;i<n;i++) if(tv[i]>=kSigTlo+kCtlShift && tv[i]<=kSigThi+kCtlShift && wf[i]<vmin2){vmin2=wf[i];imin2=i;}
                 if(imin2>=0 && (ped-vmin2) >= thr){
                     has_ctrl_w2 = true;
-                    if(c>=0 && c<=15) has_18x_ctrl_w2 = true;
-                    else if(c>=16 && c<=31) has_18y_ctrl_w2 = true;
+                    if(pl == kPlane18X) has_18x_ctrl_w2 = true;
+                    else if(pl == kPlane18Y) has_18y_ctrl_w2 = true;
                 }
             }
+
         }
         ev.has_hit_ctrl = has_ctrl_w1;
         ev.has_18x_ctrl = has_18x_ctrl_w1;

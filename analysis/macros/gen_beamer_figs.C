@@ -35,6 +35,8 @@
 #include <string>
 #include <vector>
 
+#include "../src/hodo_mapping.h"
+
 namespace fs = std::filesystem;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -46,9 +48,6 @@ const double PITCH   = 2.0;   // mm
 const double D_MM    = 98.4;  // mm
 const double HOD_H   = 16.5;  // mm half-width of active area
 
-// hod2019 authoritative channel maps (literal arrays, no algebra)
-const int H19X[16] = {53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};
-const int H19Y[16] = {37,45,38,46,39,47,36,44,35,43,34,42,33,41,32,40};
 
 // ─── Style ────────────────────────────────────────────────────────────────────
 void setup_style() {
@@ -121,12 +120,6 @@ void gen_beamer_figs() {
     fs::create_directories(OUTDIR);
     std::cout << "Output: " << OUTDIR << "\n";
 
-    // Build inverse maps
-    int inv19x[64], inv19y[64];
-    std::fill(inv19x, inv19x+64, -1);
-    std::fill(inv19y, inv19y+64, -1);
-    for (int k = 0; k < 16; k++) { inv19x[H19X[k]] = k; inv19y[H19Y[k]] = k; }
-
     // ── Histograms for A, B ───────────────────────────────────────────────────
     auto h_map18 = new TH2D("h_map18","hod2018 cosmic hits (X-Y)",
         17,-17,17, 17,-17,17);
@@ -183,29 +176,33 @@ void gen_beamer_figs() {
         double best18x = 0, x18 = -999; int k18x = -1;
         for (int c = 0; c <= 15; c++) {
             if (!ch[c] || ch[c]->empty()) continue;
-            Hit h = extract_hit(*ch[c], T, c);
-            if (h.ph > best18x) { best18x = h.ph; x18 = h.pos; k18x = c; }
+            int k = ch_to_strip(c);
+            Hit h = extract_hit(*ch[c], T, k);
+            if (h.ph > best18x) { best18x = h.ph; x18 = h.pos; k18x = k; }
         }
         // hod2018Y
         double best18y = 0, y18 = -999;
         for (int c = 16; c <= 31; c++) {
             if (!ch[c] || ch[c]->empty()) continue;
-            Hit h = extract_hit(*ch[c], T, c-16);
+            int k = ch_to_strip(c);
+            Hit h = extract_hit(*ch[c], T, k);
             if (h.ph > best18y) { best18y = h.ph; y18 = h.pos; }
         }
         // hod2019X
         double best19x = 0, x19 = -999; int k19x = -1;
         for (int c = 48; c <= 63; c++) {
-            if (!ch[c] || ch[c]->empty() || inv19x[c] < 0) continue;
-            Hit h = extract_hit(*ch[c], T, inv19x[c]);
-            if (h.ph > best19x) { best19x = h.ph; x19 = h.pos; k19x = inv19x[c]; }
+            int k = ch_to_strip(c);
+            if (!ch[c] || ch[c]->empty() || k < 0) continue;
+            Hit h = extract_hit(*ch[c], T, k);
+            if (h.ph > best19x) { best19x = h.ph; x19 = h.pos; k19x = k; }
         }
         // hod2019Y
         double best19y = 0, y19 = -999; int k19y = -1;
         for (int c = 32; c <= 47; c++) {
-            if (!ch[c] || ch[c]->empty() || inv19y[c] < 0) continue;
-            Hit h = extract_hit(*ch[c], T, inv19y[c]);
-            if (h.ph > best19y) { best19y = h.ph; y19 = h.pos; k19y = inv19y[c]; }
+            int k = ch_to_strip(c);
+            if (!ch[c] || ch[c]->empty() || k < 0) continue;
+            Hit h = extract_hit(*ch[c], T, k);
+            if (h.ph > best19y) { best19y = h.ph; y19 = h.pos; k19y = k; }
         }
 
         // A1: hod2018 XY map

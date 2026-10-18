@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "hodo_consts.h"
+#include "hodo_mapping.h"
 
 namespace fs = std::filesystem;
 
@@ -46,11 +47,8 @@ constexpr double kPre_ns = 2500.0;
 constexpr int    kNCh = 64;
 constexpr double kPitch = 2.0;
 
-// Mapeo hod2019 (autoritativo, literal)
-static const std::array<int,16> kH19X={53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};
-static const std::array<int,16> kH19Y={37,45,38,46,39,47,36,44,35,43,34,42,33,41,32,40};
-
 // Hot channels identificados en análisis previo (v8)
+
 static const std::vector<int> kHotX={0,10};   // k indices (Ch53, Ch50)
 static const std::vector<int> kHotY={3,10,15}; // k indices (Ch46, Ch34, Ch40)
 
@@ -261,7 +259,7 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
             const int npost = is19 ? kNpost19 : kNpost18;
             const double tlo=is19?rr.t_lo_19:rr.t_lo_18;
             const double thi=is19?rr.t_hi_19:rr.t_hi_18;
-            const int pl=(c>=48)?2:(c>=32)?3:(c>=16)?1:0;
+            const int pl = ch_to_plane(c);
 
             // Baseline
             double s=0,s2=0;int nb=0;

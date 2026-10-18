@@ -41,6 +41,7 @@
 #include <string>
 #include <vector>
 #include "hodo_consts.h"
+#include "hodo_mapping.h"
 
 namespace fs = std::filesystem;
 
@@ -56,17 +57,10 @@ constexpr double kD_mm    = 98.4;  // separación real entre planos [mm]
 static const double kTlo[4] = {3500,3500,3000,3000};  // 0=18X,1=18Y,2=19X,3=19Y
 static const double kThi[4] = {7000,7000,5000,5000};
 
-static const std::array<int,16> kH19X = {53,61,54,62,55,63,52,60,51,59,50,58,49,57,48,56};
-static const std::array<int,16> kH19Y = {37,45,38,46,39,47,36,44,35,43,34,42,33,41,32,40};
-
-static int ch_plane(int c){
-    if(c>=0&&c<=15)return 0; if(c>=16&&c<=31)return 1;
-    if(c>=32&&c<=47)return 3; if(c>=48&&c<=63)return 2; return -1;}
-static int ch_k(int c){
-    if(c>=0&&c<=15)return c; if(c>=16&&c<=31)return c-16;
-    for(int k=0;k<16;k++)if(kH19Y[k]==c)return k;
-    for(int k=0;k<16;k++)if(kH19X[k]==c)return k; return -1;}
+static int ch_plane(int c){ return ch_to_plane(c); }
+static int ch_k(int c){ return ch_to_strip(c); }
 static double strip_coord(int k){return (k+0.5-8.0)*kPitch;}
+
 
 //==============================================================================
 // Extracción de carga Q + ratio r
