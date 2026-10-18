@@ -1,8 +1,9 @@
 # DAQ v2 con control lento de HV: documento de diseño
 
-Estado: borrador para revisión (tarea DAQ2-0, 2026-10-18). No hay código implementado.
+Estado: borrador revisado (tareas DAQ2-0 y DAQ2-1, 2026-10-18). No hay código implementado.
 Las afirmaciones llevan [V: fuente] si se verificaron en este host, [I: razón] si son
-inferidas, y "no medido" si nadie las midió.
+inferidas, [H: sección] si vienen de `docs/handoff_analysis_2026-10-18.md` (versión de
+referencia: la del proyecto), y "no medido" si nadie las midió.
 
 ## 1. Punto de partida
 
@@ -23,96 +24,189 @@ inferidas, y "no medido" si nadie las midió.
   `SetExtTriggerInputMode(ACQ_ONLY)`, `SetIOLevel(NIM)`, SW trigger deshabilitado. `init()`
   escribe antes 0x811C = 1 (TTL), pero `SetIOLevel(NIM)` lo sobrescribe después.
 - Lectura (CaenDigitizerSiLab.cxx:573-656): un solo hilo; bucle que llama `ReadData`
-  (MBLT) sin espera ni sleep, imprime el contador en cada vuelta, decodifica y llena el
-  TTree. No hay hilos, ni cola, ni manejo de errores de `ReadData`. El `TriggerTimeTag`
-  solo se imprime para los 3 primeros eventos y no se guarda. El `EventCounter` del
-  hardware no se guarda.
+  (MBLT) sin espera, imprime el contador en cada vuelta, decodifica y llena el TTree. Sin
+  hilos, sin cola, sin manejo de errores de `ReadData`. El `TriggerTimeTag` solo se imprime
+  para los 3 primeros eventos. El `EventCounter` del hardware no se guarda.
 - Salida: TTree `data_dig` con `Ch0..Ch63` (`vector<float>`, mV), `time` (`vector<float>`,
-  ns), `event` (int), `timestamp` (int64, µs de `steady_clock`, una vez por lectura)
-  [V: CaenDigitizerSiLab.cxx:181-205]. Se escribe en el directorio actual con el nombre del
-  segundo argumento. El TTree se escribe con `Write` al final; si el proceso muere se
-  pierde lo posterior al último AutoSave (caso v10).
+  ns), `event` (int), `timestamp` (`Long_t`, µs de `steady_clock`, una vez por lectura)
+  [V: CaenDigitizerSiLab.cxx:181-205; tipo leído con ROOT]. Se escribe en el directorio
+  actual. El TTree se escribe con `Write` al final; si el proceso muere se pierde lo
+  posterior al último AutoSave (caso v10).
 - v8: 143814 entradas, 3692974698 bytes en disco, factor de compresión 6.35, AutoSave
   cada 1176 entradas [V: ROOT, lectura READ].
-- Bibliotecas: `test_acquire_ext_nim` enlaza `libCAENDigitizer.so` (que trae CAENComm y
-  CAENVME), libCore, libRIO, libTree; no carga `libCaenDigitizerSiLab.so` en ejecución
-  [V: readelf -d, ldd]. La copia de `/usr/local/lib/libCaenDigitizerSiLab.so*` (mayo 2025)
-  son tres archivos regulares iguales, no symlinks [V: ls -la].
 - Placa: VX1740, ROC FPGA 04.29 build 8716, AMC FPGA 00.13 build 8A15
   [V: logs/commissioning_2026-05/*.log].
 
-### 1.2 Ventana reducida: ¿es posible en el VX1740?
+### 1.2 Trigger por software en el código actual
 
-- Granularidad de la longitud de registro: pedidos de 1024 y 625 muestras dieron 1023 y
-  624 [V: logs/commissioning_2026-05, entrada 0 de v6]. Ambos son el múltiplo de 3 inferior;
-  la regla "múltiplo de 3" es [I] y debe confirmarse en la fase 4 con `GetRecordLength`.
-  Valores candidatos entre 128 y 160: 129, 132, 135, 138, 141, 144, 147, 150, 153, 156, 159.
-- Post-trigger: con 0x8114 = 364 el pulso de muón cae en 4128-4272 ns = muestras
-  258-267, y 624 - 364 = 260 muestras de pre-trigger = 4160 ns. El registro se comporta
-  como "muestras post-trigger" con paso de 1 muestra [I: coincidencia numérica; el manual
-  V1740 no está en el repositorio]. El "-10" del código es una corrección empírica.
-- Conclusión: una ventana de ~144 muestras es configurable (record length 144, 0x8114
-  ≈ 106 para el diseño A de abajo). Debe verificarse en la fase 4 midiendo la posición del
-  pico de muón (aceptación: ±1 muestra respecto a lo esperado).
-- Conflicto a resolver: el pickup de hod2018 en 3510-3525 ns está ~38 muestras (603-618 ns)
-  antes del inicio del pulso de muón. "~40 muestras de pedestal + ≥144 ns de control antes
-  de la señal" (= 49 muestras) mete el pickup dentro del pedestal. Dos diseños:
-  - A (propuesto por defecto): N = 144, inicio del registro en 3552 ns del registro
-    actual. Pre-señal 36 muestras = pedestal 27 [0,27) + control 9 [27,36); señal 9
-    [36,45); cola 44 [45,89) = 704 ns; pedestal posterior 55 [89,144). Pedestal total 82
-    muestras, sin pickup.
-  - B: N = 144 con 49 muestras de pre-señal (inicio 3344 ns); el pickup cae en las
-    muestras ~10-11 y se excluye del pedestal en el análisis.
-  La disposición de la ventana se declara en la configuración (rangos de muestras) y se
-  valida al arrancar; el operador elige (ver Preguntas abiertas).
-- Volumen con N = 144 en ADC crudo de 16 bit: 64 × 144 × 2 = 18432 B por evento; a
-  0.6 Hz, 0.955 GB/día sin comprimir [I: cálculo]. `/data` tiene 419 GB libres [V: df].
+- La biblioteca sabe enviar triggers de software: `readEvents`/`readEventsTree` llaman
+  `CAEN_DGTZ_SendSWtrigger` en cada vuelta del bucle si `automatic == true`
+  (CaenDigitizerSiLab.cxx:323-324, 454-455, 581-582), e `init()` deja
+  `SetSWTriggerMode(ACQ_ONLY)` (línea 149).
+- `test_acquire_sw.cxx` (versión del 2026-05-15) **no** usa trigger por software: llama
+  `readEventsTree(nevents, false, 0, timeout, triggerSource)` (test_acquire_sw.cxx:47), es
+  decir `automatic = false`. Con `triggerSource 8` (config_vx1740_autotrigger_or.conf:25)
+  configura el OR de self-trigger de grupos y deshabilita el SW trigger
+  (CaenDigitizerSiLab.cxx:1020); con `triggerSource 9` (config_vx1740_swtrigger.conf) usa
+  el trigger externo y también deshabilita el SW trigger (líneas 545-546). Imprime
+  "Starting VX1740 self-trigger OR acquisition..." (línea 46).
+- Sí hubo una versión anterior con trigger por software en este VX1740: el log del
+  2026-05-11 (`logs/commissioning_2026-05/acquire_sw.log`) muestra "Starting
+  software-trigger acquisition...", máscara de fuentes 0x810C = 0xC0000000 (SW y externo
+  habilitados), 10 eventos, "<rate>: 294.10 Hz" con 1023 muestras. Esa fuente no está en
+  `attic/` y las dos versiones de `test_acquire_sw.cxx` en git (`885795e` y `6acf5ea`, ambas
+  del 2026-10-16) son la del 15 de mayo, sin SW trigger. Conclusión: el SW trigger funciona en esta placa con
+  CAENDigitizer 2.17.3, pero hay que escribirlo de nuevo.
 
-### 1.3 Lo que se reutiliza del análisis
+### 1.3 Ventana reducida: viabilidad y elección (estudio con v8)
 
-- `analysis/src/hodo_mapping.h`: `kCfg_2026_05` (v1-v10; hod2018 por correlaciones de
-  vecinos, hod2019 por la hoja "Mayo 2026") y `kCfg_2026_10` (hoja "Octubre 2026",
-  secuencial). Las caras de hod2019 por canal de digitizador están solo en un comentario
-  (líneas 51-53): Delantera 48-55, Trasera 56-63, Frontal 40-47, Opuesta 32-39. Problema:
-  `ch_to_plane()` y `ch_to_strip()` fijan 19X = 48-63 y 19Y = 32-47, válido solo para
-  `kCfg_2026_05`; con `kCfg_2026_10` (19X = 32-47) dan resultados erróneos.
-- Grupos de HV conocidos por los datos, no por un registro de cableado
-  [V: analysis/macros/hv_diag3_pretrip.C:92-94, runs/good_intervals_2026.csv]:
-  grupo 1 = {0, 22, 31, 43, 47, 54, 58, 63}, grupo 2 = {6, 20, 46, 50, 56, 59, 60, 62},
-  grupo 6 = {1, 16, 17, 34, 53, 55, 57} (7 de 8). Grupos 3, 4, 5, 7, 8: no determinados.
-- `analysis/src/hodo_consts.h`: `kDt_ns = 16.0`, ventana de señal 4128-4272 ns, ventana de
-  muón 4000-4400 ns, umbrales de diagnóstico 50 mV (hod2018) y 35 mV (hod2019). En la ventana
-  reducida estas constantes en ns absolutos dejan de valer: el DAQ guarda en la cabecera
-  la posición de la ventana en "ns del registro antiguo" para poder traducirlas.
-- `outputs/pe_calibration_v8.txt`: columnas `channel plane p0 G s0 s1 chi2 ndf status`,
-  63 filas (falta ch3, muerto). hod2018: 31 filas, status 0 en todas, G entre 2.98524 y
-  5.50853 mV/p.e.; hod2019: 13 filas con status 0 (varias con valores en los límites,
-  p. ej. p0 = 0.5) y 19 con status 1, 2 o 4. Sirve como calibración inicial versionada solo
-  para hod2018, como exigen los requisitos.
-- `analysis/src/hodo_paths.h`: `resolveRawFile()` busca en `<raw>/<campaña>/` y devuelve ""
-  si el nombre existe en dos campañas. Los nombres nuevos son únicos entre campañas, así
-  que funciona sin cambios con `HODO_RAW_DIR=/data/daq/raw`.
+Granularidad y post-trigger:
 
-### 1.4 Toolchain verificado
+- Pedidos de 1024 y 625 muestras dieron 1023 y 624 [V: logs, entrada 0 de v6]. Ambos son
+  el múltiplo de 3 inferior; la regla "la longitud se redondea hacia abajo a un múltiplo de
+  3" es una inferencia [I] que se confirma en la fase 4 con `GetRecordLength`. N se elige
+  siempre múltiplo de 3.
+- Con 0x8114 = 364 el pulso de muón cae en las muestras 258-267 (4128-4272 ns) y
+  624 − 364 = 260 muestras de pre-trigger = 4160 ns. El registro se comporta como
+  "muestras post-trigger" con paso de 1 muestra [I].
 
-GCC 13.3.0, CMake 3.28.3, ROOT 6.32.10 compilado con C++17 (`root-config --cxxstandard` =
-17), `libRHTTP.so` presente (THttpServer), nlohmann-json3-dev 3.11.3, curl 8.5.0. No hay
-GoogleTest, Catch2 ni doctest instalados. Un TU C++20 que incluye `TFile.h` y
-`THttpServer.h` y usa `std::jthread` compila y enlaza, con el aviso de `RConfigure.h:30`
-("The C++ standard in this build does not match ROOT configuration (201703L)").
+Estudio (DAQ2-1). Macro `outputs/daq2_window_study_20261018/window_study.C`, solo lectura
+sobre v8: 20 bloques de 700 entradas consecutivas repartidos en el run, 9057 eventos
+usados y 4943 excluidos (intervalos de `good_intervals_2026.csv` y de HV-DIAG-5:
+2026-05-28 10:00-20:40, 2026-05-29 08:30-11:50, 2026-05-30 11:00 a 05-31 00:59 y la última
+hora). Índices en el registro de 624 muestras:
+
+| región | diseño A (inicio 3552 ns, N = 144) | diseño B (inicio 3344 ns, N = 144) |
+|---|---|---|
+| pedestal pre | [222,249) = 27 muestras | [209,249) = 40 muestras |
+| control | [249,258) = 9 | [249,258) = 9 |
+| señal | [258,267) = 9 | [258,267) = 9 |
+| cola | [267,311) = 44 (704 ns) | [267,311) = 44 |
+| pedestal post | [311,366) = 55 | [311,353) = 42 |
+
+Referencia por evento y canal: línea base en [20,200), fuera de ambos diseños.
+Estimadores: mediana (cuantizada en pasos de 0.4884 mV = 2000/4095) y media recortada
+(promedio de las muestras a ±2 mV de la mediana). Precisión = desviación estándar de
+(estimador − referencia), con |x − mediana| < 10 mV, restando en cuadratura el ruido de la
+referencia medido con la diferencia de sus dos mitades. Resultados (mediana sobre canales;
+hod2018 sin ch3, que está muerto; entre paréntesis mínimo-máximo):
+
+| magnitud | A | B |
+|---|---|---|
+| (a) σ pedestal pre, media recortada, hod2018 [mV] | 2.272 (1.481-3.217) | 1.927 (1.147-2.945) |
+| (a) σ pedestal pre, media recortada, hod2019 [mV] | 0.2916 (0.0656-0.4685) | 0.2495 (0.0559-0.3881) |
+| (a) eventos con \|Δ\| > 10 mV, hod2018 | 0.01137 | 0.00397 |
+| (a) sesgo del pedestal pre+post en canales con muón (> 10 p.e. en tiempo), hod2018 [mV, mediana] | +3.907 | +2.93 |
+| (b) registros con pulso > 3 p.e. en el pedestal pre, hod2018 | 0.1463 (0.07331-0.3214) | 0.2027 (0.1009-0.4094) |
+| (b) registros con pulso > 3 mV en el pedestal pre, hod2019 | 0.01071 (0-0.08215) | 0.0159 (0-0.1164) |
+| (c) tiempo sin señal por registro (pre + control + post) | 91 muestras = 1456 ns | 91 muestras = 1456 ns |
+| (c) tasa de pulsos > 3 p.e. en esa zona, hod2018 [kHz] | 330.6 (150.3-749.3) | 331.4 (151.5-736.1) |
+| (c) tasa de pulsos > 0.5 p.e., hod2018 [kHz] | 2340 (1547-3595) | 2310 (1529-3545) |
+| (c) tasa de pulsos > 3 mV, hod2019 [kHz] | 23.81 (0-214.8) | 24.27 (0-213.7) |
+
+Para comparar: el registro completo de v8 tiene 531 muestras sin señal (8496 ns) y da
+332 kHz (> 3 p.e., hod2018) y 22.46 kHz (> 3 mV, hod2019). La ganancia usada para los
+umbrales en p.e. es la de `pe_calibration_v8.txt`, válida para v8 (no para octubre).
+
+Pickup en 3510-3525 ns: **no se observa en v8**. La posición de los pulsos > 3 p.e. de
+hod2018 por muestra es plana entre 3280 y 4112 ns (|z| ≤ 2.4 respecto del nivel base de
+1507.7 pulsos por muestra en [30,200)), mientras el muón aparece en las muestras 260-264
+(z hasta +14.0). La forma de onda media de hod2018 en las muestras 210-229 tampoco
+muestra una estructura: varía entre 1.312 y 1.408 mV bajo la referencia (es el efecto
+medio de los pulsos oscuros). El "t_peak = 3525 ns" de
+`outputs/timesync_test_20260531_174521/summary_timesync.txt` corresponde al inicio de la
+ventana de búsqueda [3500, 7000] ns de ese análisis [I: artefacto de borde]. Queda anotado
+para el chat de análisis (`docs/notes_for_analysis.md`).
+
+Decisión: **diseño B**, N = 144, registro desde 3344 ns del registro antiguo.
+
+- B da mejor precisión de pedestal pre que A (1.927 contra 2.272 mV en hod2018, 0.2495
+  contra 0.2916 mV en hod2019) y menos eventos atípicos (0.00397 contra 0.01137), a costa
+  de más registros con algún pulso dentro del pedestal (0.2027 contra 0.1463), que la media
+  recortada tolera.
+- El pedestal posterior no sirve para la línea base de un canal con muón: el sobreimpulso
+  de hod2018 lo desplaza +2.93 mV (B) o +3.907 mV (A). El pedestal del evento se calcula
+  solo con la región pre; la región post se usa para conteo de pulsos oscuros y, en canales
+  sin pulso en tiempo, como verificación de la línea base.
+- El tiempo sin señal es el mismo en los dos diseños (1456 ns) y las tasas medidas en él
+  coinciden con las del registro completo, así que el conteo de pulsos no favorece a ninguno.
+- No se excluye la zona 3510-3525 ns porque no hay pickup en v8. El DAQ registra la
+  posición de pulsos por muestra en el monitor; si el pickup aparece en octubre, se excluye
+  en el análisis sin cambiar la ventana.
+- Registro de post-trigger esperado: trigger en la muestra 260 del registro antiguo = 51
+  del nuevo; post = 144 − 51 = 93 → 0x8114 ≈ 93 [I]. Aceptación en la fase 4: pico de muón
+  en las muestras 49-58 del registro nuevo ±1.
+- Volumen: 64 × 144 × 2 B = 18432 B por evento; a 0.6 Hz, 0.955 GB/día sin comprimir [I].
+
+Estadística por hora (0.6 Hz → 2160 registros/h): hod2018 ~3.4 pulsos > 0.5 p.e. por
+registro y canal (~7400/h) en la zona sin señal, suficiente para un ajuste de ganancia
+horario [I: HV-DIAG-3 ajustó con ~2.7 veces más tiempo por registro]; hod2019 ~0.035
+pulsos > 3 mV por registro y canal (~76/h): las medidas de hod2019 necesitan agregación o
+el modo de calibración.
+
+### 1.4 Lo que se reutiliza del análisis
+
+- `analysis/src/hodo_mapping.h`: `kCfg_2026_10` es el mapeo de la campaña nueva [H: 5].
+  Defecto conocido: `ch_to_plane()` y `ch_to_strip()` fijan 19X = 48-63 y 19Y = 32-47
+  (válido solo para `kCfg_2026_05`) y dan resultados erróneos con `kCfg_2026_10`
+  (19X = 32-47). Además AGENTS.md dice "hod2018 X bar k = channel k", lo que contradice
+  `kCfg_2026_05`. No se corrige aquí: ambos van en `docs/notes_for_analysis.md`.
+- `analysis/src/hodo_consts.h`: ventanas en ns absolutos del registro de 624 muestras. La
+  cabecera del run guarda `ref_old_record_start_ns` para traducirlas.
+- `outputs/pe_calibration_v8.txt`: **no se usa para octubre** (otros voltajes) [H: 8.8]. Sirve
+  solo para el estudio de la sección 1.3 y como formato de referencia.
+- `analysis/src/hodo_paths.h`: `resolveRawFile()` funciona sin cambios con nombres únicos.
+
+### 1.5 Toolchain y bibliotecas verificados
+
+- GCC 13.3.0, CMake 3.28.3, ROOT 6.32.10 compilado con C++17 (`root-config --cxxstandard`
+  = 17), `libRHTTP.so` presente, nlohmann-json3-dev 3.11.3, curl 8.5.0. GoogleTest no está
+  instalado todavía (René lo instala antes de la fase 0).
+- Un TU C++20 con `TFile.h`, `THttpServer.h` y `std::jthread` compila y enlaza, con el aviso
+  de `RConfigure.h:30` ("The C++ standard in this build does not match ROOT configuration
+  (201703L)").
+- Bibliotecas CAEN duplicadas [V: sha256sum, readelf, ldconfig -p, ldd]:
+
+  | biblioteca | /usr/lib | /usr/local/lib |
+  |---|---|---|
+  | CAENDigitizer | `libCAENDigitizer.so.v2.17.3` (+ symlink `.so`), 220272 B, 2025-05-06 | `libCAENDigitizer.so` archivo regular, 220272 B, 2024-11-11 |
+  | CAENComm | `libCAENComm.so.v1.7.0` (+ symlink), 23216 B, cadena "1.7.0" | `libCAENComm.so` regular, 23216 B, "1.7.0" |
+  | CAENVME | `libCAENVME.so.v4.0.2` (+ symlink), 85160 B | `libCAENVME.so` regular, 85160 B |
+
+  Cada par es idéntico byte a byte (mismo SHA256). Ninguna tiene SONAME. `ldconfig -p`
+  lista primero `/usr/lib` (`/etc/ld.so.conf.d` incluye `/usr/lib` en varios archivos que
+  se leen antes que `libc.conf`, que trae `/usr/local/lib`), y `test_acquire_ext_nim`
+  carga las tres desde `/usr/lib`.
+  Decisión: el DAQ nuevo enlaza contra los archivos versionados de `/usr/lib` con target
+  IMPORTED de CMake y ruta completa (`/usr/lib/libCAENDigitizer.so.v2.17.3`, etc.). Como no
+  tienen SONAME, `DT_NEEDED` queda con la ruta absoluta y no depende del orden de búsqueda;
+  se verifica con `readelf -d` en la fase 4. CAENDigitizer resuelve CAENComm y CAENVME por
+  nombre, pero las copias son idénticas. Al arrancar se registra la versión de la biblioteca
+  (`CAEN_DGTZ_SWRelease`). HV Wrapper: solo `/usr/lib64/libcaenhvwrapper.so.6.6`.
+- `libCaenDigitizerSiLab`: ningún binario del repositorio la tiene en `DT_NEEDED`
+  (test_acquire_ext_nim, test_acquire_sw, test_caencomm_open, analysis/bin, attic/bin), el
+  Makefile la pasa con `-L. -lCaenDigitizerSiLab` (la copia del repositorio, no la de
+  `/usr/local/lib`) pero el enlazador la descarta porque los objetos ya traen los símbolos,
+  ninguna macro la carga con `gSystem->Load`, y no hay `.rootrc`/`rootlogon.C` ni
+  referencia en `~/.bashrc`. La copia de `/usr/local/lib` difiere de la del repositorio y
+  no la usa nada del repositorio. El DAQ nuevo no la usa.
 
 ## 2. Arquitectura
 
-Dos ejecutables (`hvmon`, `daqrun`) y una herramienta de línea de comandos (`hvctl`),
-sobre una biblioteca común `libdaqcore` (CMake, directorio `daq/`).
+Dos ejecutables (`hvmon`, `daqrun`) y herramientas de línea de comandos (`hvctl`,
+`daqnote`, `daqcampaign`), sobre una biblioteca común `libdaqcore` (CMake, directorio
+`daq/`).
 
     daq/
       CMakeLists.txt
       core/        tiempo (Clock), cola acotada, StopSource/JThread, config JSON, mapeo, flags
+      core/include/daq/trigger_interval_stats.h   estadística de Δt (header-only, también para analysis/)
       hv/          IHVBackend, CaenHVBackend (Wrapper), FakeHVBackend, máquina de auto-retry
       dig/         IDigitizer, CaenDigitizer (CAENDigitizer), FakeDigitizer (replay/sintético)
-      temp/        ITemperatureSource, Ds18b20Sysfs, SerialSource, FakeTemperature
-      io/          escritor ROOT, CSV/JSONL de slow control, SHA256, campañas
+      temp/        TempBackend, Ds18b20Sysfs, SerialLineSource, FakeTemperature
+      pulse/       búsqueda de pulsos, histogramas de amplitud, ajuste de ganancia
+      io/          escritor ROOT, CSV/JSONL de slow control y su lector a TTree/RDataFrame,
+                   SHA256, índice de run, campañas
       apps/        hvmon, daqrun, hvctl, daqnote, daqcampaign
       tests/
       config/      ejemplos de configuración y mapeos versionados
@@ -121,54 +215,60 @@ sobre una biblioteca común `libdaqcore` (CMake, directorio `daq/`).
 
 | Proceso / hilo | Posee | Consume | Produce |
 |---|---|---|---|
-| `hvmon` hilo HV | la sesión del HV Wrapper (único en el host, con `flock`) | Wrapper (1 Hz rápido, 1/min lento) | `HvSnapshot` con número de secuencia; eventos de cambio |
-| `hvmon` hilo lógica | máquina de auto-retry, detector de cambios, estimador de corriente | snapshots | comandos `Pw=1` (cola hacia el hilo HV), eventos, alertas |
-| `hvmon` hilo escritor | archivos de `/data/daq/slowcontrol/` | snapshots, eventos, temperaturas | CSV/JSONL diarios con fsync |
-| `hvmon` hilo temperatura | dispositivo de temperatura | sensor (10-60 s) | lecturas de temperatura |
+| `hvmon` hilo HV | la sesión del HV Wrapper (único en el host, con `flock`) | Wrapper (1 Hz rápido, 1/min lento), cola de comandos | `HvSnapshot` con número de secuencia; eventos de cambio; resultado de comandos |
+| `hvmon` hilo lógica | máquina de auto-retry, detector de cambios, estimador de corriente, secuenciador de la prueba de grupos | snapshots | comandos `Pw` (cola hacia el hilo HV), eventos, alertas |
+| `hvmon` hilo comandos | socket Unix `/run/user/1000/hvmon.sock` (0600) | peticiones de `hvctl` | peticiones validadas hacia el hilo lógica; respuestas |
+| `hvmon` hilo escritor | archivos de `/data/daq/slowcontrol/` | snapshots, eventos, temperaturas | CSV/JSONL diarios, `fsync` cada `fsync_period_s` |
+| `hvmon` hilo temperatura | dispositivo de temperatura | sensor (10-60 s) | lecturas |
 | `hvmon` hilo notificador | procesos `curl` hijos | alertas | correos (un proceso por correo, con timeout) |
-| `hvmon` hilo principal | THttpServer :8081, histogramas HV, `/dev/shm/hvmon_state.json` | snapshots | página web de solo lectura, estado publicado, señales |
-| `daqrun` hilo lectura | handle CAENDigitizer (único llamador) | digitizador | bloques de eventos → cola de escritura y copia → cola de monitor |
-| `daqrun` hilo escritor | `TFile`/`TTree` del run | cola de eventos, HV, notas, resúmenes | segmentos ROOT, SHA256SUMS |
-| `daqrun` hilo monitor | datos planos (sin ROOT) | copia de eventos (cola con descarte) | resúmenes por minuto, entradas de ajustes de ganancia, flags de datos (bits 6, 7) |
+| `hvmon` hilo principal | THttpServer :8081, histogramas HV, `/dev/shm/hvmon_state.json` | snapshots | página de solo lectura, estado publicado, señales |
+| `daqrun` hilo lectura | handle CAENDigitizer (único llamador), temporizador de SW trigger en modo calibración | digitizador | bloques de eventos → cola de escritura y copia → cola del monitor |
+| `daqrun` hilo escritor | `TFile`/`TTree` del run, índice del run | cola de eventos, HV, notas, resúmenes | segmentos ROOT, `SHA256SUMS`, `run<NNN>.index.json` |
+| `daqrun` hilo monitor | datos planos (sin ROOT) | copia de eventos (cola con descarte) | resúmenes por minuto, histogramas de amplitud, entradas de ajuste de ganancia, flags de datos (bits 6, 7) |
 | `daqrun` hilo cliente HV | último estado HV recibido | `/dev/shm/hvmon_state.json` cada 1 s | snapshots HV con edad; marca "stale" |
-| `daqrun` hilo principal | THttpServer :8080 y todos sus histogramas/gráficos | resúmenes del monitor | página web de solo lectura; `ProcessRequests()` a 10-20 Hz; señales |
-| `hvctl` | nada mientras `hvmon` corre | estado de `hvmon` (lectura) o Wrapper directo si `hvmon` no corre | volcado legible / JSON |
+| `daqrun` hilo principal | THttpServer :8080 y todos sus histogramas/gráficos | resúmenes del monitor | página de solo lectura; `ProcessRequests()` a 10-20 Hz; señales |
+| `hvctl` | nada mientras `hvmon` corre | `hvmon` por socket (lectura y comandos) o Wrapper directo de solo lectura si `hvmon` no corre | volcado legible / JSON, tiempos de lectura |
 
 `hvmon` es un proceso aparte porque los trips ocurren entre runs y de noche; reiniciar o
-caerse `daqrun` no debe parar el registro de HV, el auto-retry ni las alertas.
+caerse `daqrun` no debe parar el registro de HV, el auto-retry ni las alertas. Toda
+escritura al SY5527 pasa por `hvmon` (auto-retry, prueba de grupos, comandos de `hvctl`).
 
 ### 2.2 Primitivas de concurrencia
 
-- C++17 en todo el código (ver Diferencias, punto 1): `std::mutex` + `std::scoped_lock`,
-  `std::condition_variable`, `std::atomic`. `daq::StopSource`/`StopToken`/`JThread` propios
-  (~60 líneas, misma interfaz que C++20 para migrar con un `using`).
-- `BoundedQueue<T>`: capacidad fija, `push` bloqueante (cola de escritura: nunca se
-  descartan eventos; si se llena, la lectura espera y el digitizador acumula en su memoria
-  interna) o `try_push` con descarte del más antiguo y contador (cola del monitor),
-  `close()` que despierta a los consumidores y hace que `pop` devuelva vacío al vaciarse.
+- C++17 en todo `daq/` (decisión 1 de la sección 13): `std::mutex` + `std::scoped_lock`,
+  `std::condition_variable`, `std::atomic`. `daq::StopSource`/`StopToken`/`JThread` propios,
+  pequeños (~60 líneas), con la misma interfaz que C++20 y con tests propios (parada
+  cooperativa, join en el destructor, `request_stop` idempotente, callback de parada).
+- `BoundedQueue<T>`: capacidad fija; `push` bloqueante (cola de escritura: nunca se
+  descartan eventos; si se llena, la lectura espera y el digitizador acumula en su memoria)
+  o `try_push` con descarte del más antiguo y contador (cola del monitor); `close()` despierta
+  a los consumidores y `pop` devuelve vacío al vaciarse.
 - `Latest<T>`: valor más reciente protegido por mutex con número de secuencia.
-- Regla: cada objeto ROOT tiene un solo hilo dueño. `ROOT::EnableThreadSafety()` al
-  arrancar y `TH1::AddDirectory(kFALSE)`. THttpServer con `SetTimer(0, kTRUE)` y
-  `SetReadOnly(kTRUE)`: solo atiende peticiones cuando el hilo principal llama
-  `ProcessRequests()`, de modo que nunca lee un histograma mientras otro hilo lo modifica.
-- Sin TBB, sin colas lock-free, sin ZeroMQ: ~0.6 Hz de eventos de 18 kB y 1 Hz de HV.
-- Sin diccionarios ROOT propios: los TTree usan tipos básicos, arreglos fijos y
-  `std::string`/`std::vector` de tipos básicos. No hace falta `rootcling`.
+- Cada objeto ROOT tiene un solo hilo dueño. `ROOT::EnableThreadSafety()` al arrancar y
+  `TH1::AddDirectory(kFALSE)`. THttpServer con `SetTimer(0, kTRUE)` y `SetReadOnly(kTRUE)`:
+  solo atiende peticiones cuando el hilo principal llama `ProcessRequests()`.
+- Sin TBB, sin colas lock-free, sin ZeroMQ. Sin diccionarios ROOT propios (ramas de tipos
+  básicos, arreglos fijos, `std::string`, `std::vector` de tipos básicos).
 
 ### 2.3 Tiempo
 
 - `IClock` con `utc_ns()` (`CLOCK_REALTIME`), `mono_ns()` (`CLOCK_MONOTONIC`) y
   `sleep_until()`; `FakeClock` avanza a mano para tests acelerados.
-- Toda marca en archivos es UTC ns (`int64`). Hora local nunca (Chile alterna UTC-4/UTC-3;
-  v1-v10 fueron a UTC-4). Las marcas del SY5527 se ignoran (reloj ~81 min adelantado).
-- Cada lectura HV guarda `t_req_utc_ns` (antes de la llamada) y `t_resp_utc_ns` (después):
-  el valor leído corresponde a algún instante de ese intervalo.
-- Digitizador: el `TriggerTimeTag` se reinicia al arrancar la adquisición. Se guarda el par
-  (UTC antes de `SWStartAcquisition`, UTC después) como origen. Según el manual del V1740
-  el TTT es de 31 bit con paso de 8 ns, vuelta cada ~17.2 s [I: no verificado en este host;
-  `ttt_tick_ns` va en la configuración y se mide en la fase 4 ajustando ΔTTT contra ΔUTC].
-  La vuelta se desenrolla con la hora del PC de cada lectura, que es inequívoca mientras
-  el error del PC sea menor que medio período.
+- Toda marca en archivos es UTC ns (`int64`). Nunca hora local: el host está en
+  America/Santiago, −03 en octubre y −04 en mayo-junio (v1-v10 y `good_intervals_2026.csv`
+  están en −04). Las marcas del SY5527 se ignoran (reloj ~81 min adelantado).
+- Cada lectura HV guarda `t_req_utc_ns` (antes de la llamada) y `t_resp_utc_ns` (después).
+- TTT: no hay manual del V1740 en el host (búsqueda en `/usr/share`, `/usr/local/share`,
+  `~/`, `/opt`: solo `/usr/share/CAEN/HVWrapper/CAENHVWrapper.pdf` y XML de DPP x740). El
+  ancho y el paso se miden en la fase 4: ajuste lineal de TTT desenrollado contra UTC del PC
+  sobre un run; la pendiente da el paso y los saltos de los residuos el período de vuelta.
+  Indicio, no medida: en el log de SW trigger del 2026-05-11 los TTT de los tres primeros
+  eventos son 128233, 537049 y 831531, con una tasa media impresa de 294.10 Hz; un paso de
+  8 ns da intervalos de 3.27 y 2.36 ms, compatible con ~3.4 ms de media, y 16 ns daría el
+  doble. `ttt_tick_ns` va en la configuración (inicial 8.0) y el desenrollado usa la hora del
+  PC de cada lectura.
+- Origen del run: par (UTC antes de `SWStartAcquisition`, UTC después); el TTT se reinicia
+  al arrancar la adquisición [I: comportamiento habitual del x740, se verifica en la fase 4].
 
 ## 3. Flujo de datos y apagado
 
@@ -176,122 +276,155 @@ caerse `daqrun` no debe parar el registro de HV, el auto-retry ni las alertas.
 
     SY5527 ──Wrapper──> hvmon[HV] ──snapshot──> hvmon[lógica] ──> hvmon[escritor] ──> /data/daq/slowcontrol/
                              ^                    │  └──> notificador ──> curl SMTP
-                             └──── Pw=1 ──────────┘
+                             └──── Pw ────────────┘<── hvmon[comandos] <── hvctl (socket Unix)
                                                   └──> hvmon[principal] ──> /dev/shm/hvmon_state.json, :8081
 
     VX1740 ──A4818──> daqrun[lectura] ──bloques──> cola escritura ──> daqrun[escritor] ──> /data/daq/raw/<campaña>/
                                      └──copia──> cola monitor ──> daqrun[monitor] ──resúmenes──> escritor y principal (:8080)
     /dev/shm/hvmon_state.json ──> daqrun[cliente HV] ──> escritor (árbol hv, flags) y principal
-    daqnote ──O_APPEND──> /data/daq/slowcontrol/notes_YYYYMMDD.jsonl ──> hvmon y daqrun (leen nuevas líneas)
+    daqnote ──O_APPEND──> /data/daq/slowcontrol/notes_YYYYMMDD.jsonl ──> hvmon y daqrun
 
-- Estado publicado por `hvmon`: JSON reemplazado atómicamente (escribir a temporal en el
-  mismo directorio + `rename`) cada segundo, con `seq`, `t_resp_utc_ns`, `alive`, valores
-  por canal, estado de auto-retry, y un anillo con los últimos 256 eventos de cambio, cada
-  uno con id creciente. `daqrun` deduplica por id: si se pierde una lectura no pierde
-  cambios. Para los comandos de `hvctl` (fase 2+) se usa un socket Unix
-  `/run/user/1000/hvmon.sock` con modo 0600.
-- Línea de retardo en el escritor de `daqrun`: los eventos esperan
-  `flag_delay_s` (por defecto 5 s, ~3 eventos) antes de escribirse, para que los flags que
-  dependen de lecturas HV posteriores al evento (bit 5) se apliquen sin reescribir el
-  archivo. Los flags se pueden recalcular offline con los archivos de slow control.
-- Lectura del digitizador: `ReadData` en bucle con espera de 5 ms cuando no hay datos
-  (el actual no espera nunca), `SetMaxNumEventsBLT` > 1, y lectura del registro de estado
-  de adquisición para detectar memoria llena. El contador de eventos del hardware se guarda
-  para detectar eventos perdidos.
-- Segmentos: un run se divide en archivos de como máximo `segment_max_s` (3600 s) o
-  `segment_max_bytes`. Cada segmento se cierra, se le quita permiso de escritura y se añade
-  su SHA256 a `SHA256SUMS` de la campaña (con `flock`). La adquisición no se detiene al
-  cambiar de segmento. AutoSave cada `autosave_s` (300 s). Un fallo pierde como máximo
-  5 min de un segmento, no el run entero.
+- Estado publicado por `hvmon`: JSON reemplazado atómicamente (temporal en el mismo
+  directorio + `rename`) cada segundo, con `seq`, `t_resp_utc_ns`, `alive`, valores por
+  canal, estado de auto-retry y de la prueba de grupos, y un anillo con los últimos 256
+  eventos de cambio con id creciente. `daqrun` deduplica por id.
+- Línea de retardo en el escritor de `daqrun`: `flag_delay_s` (5 s) antes de escribir un
+  evento, para fijar el bit 5 sin reescribir. Los flags se pueden recalcular offline con los
+  archivos de slow control.
+- Lectura del digitizador: `ReadData` en bucle con espera de 5 ms cuando no hay datos,
+  `SetMaxNumEventsBLT` > 1, y lectura del registro de estado de adquisición para detectar
+  memoria llena. El contador de eventos del hardware se guarda. Modo IRQ
+  (`CAEN_DGTZ_IRQWait`) solo si el sondeo muestra un problema medido.
+- Segmentos: máximo `segment_max_s` (3600 s) o `segment_max_bytes` por archivo. Al cerrar
+  cada segmento: `fsync`, `chmod a-w`, SHA256 añadido a `SHA256SUMS` (con `flock`) y entrada
+  añadida al índice del run (4.2). AutoSave cada `autosave_s` (300 s).
 
-### 3.2 Secuencia de apagado de `daqrun`
+### 3.2 Apagado de `daqrun`
 
-1. SIGINT/SIGTERM: el manejador solo pone un `std::atomic<bool>` (async-signal-safe).
-2. El hilo principal lo ve y pide parada al hilo de lectura.
-3. Lectura: `SWStopAcquisition`, vacía lo que quede con `ReadData` hasta 0 bytes, empuja
-   los últimos bloques, `CloseDigitizer`, cierra la cola de escritura y la del monitor.
-4. Escritor: vacía la cola, vacía la línea de retardo, escribe HV/notas/resúmenes
-   pendientes y la cabecera final (fin UTC, eventos, tiempo vivo), `Write` + `Close`,
-   `fsync`, `chmod a-w`, SHA256 a `SHA256SUMS`.
+1. SIGINT/SIGTERM: el manejador solo pone un `std::atomic<bool>`.
+2. El hilo principal pide parada al hilo de lectura.
+3. Lectura: `SWStopAcquisition`, vacía con `ReadData` hasta 0 bytes, empuja los últimos
+   bloques, `CloseDigitizer`, cierra la cola de escritura y la del monitor.
+4. Escritor: vacía la cola y la línea de retardo, escribe HV/notas/resúmenes pendientes y la
+   cabecera final, `Write` + `Close`, `fsync`, `chmod a-w`, SHA256, índice con
+   `"complete": true`.
 5. Monitor y cliente HV terminan al cerrarse sus colas o al pedirles parada.
-6. Principal: borra THttpServer, une todos los hilos, código de salida 0 si el cierre fue
-   limpio.
-7. Una segunda señal no salta el cierre del archivo; solo acorta los tiempos de espera.
-   Si el escritor no termina en 120 s se registra el error y se sale con código ≠ 0.
+6. Principal: borra THttpServer, une los hilos, código 0 si el cierre fue limpio.
+7. Una segunda señal no salta el cierre del archivo. Si el escritor no termina en 120 s se
+   registra el error y se sale con código ≠ 0; el índice queda con `"complete": false`.
 
-`hvmon` ante SIGTERM: termina la llamada Wrapper en curso, no inicia comandos nuevos,
-escribe y sincroniza los archivos, guarda el estado de la máquina de auto-retry en
-`/data/daq/slowcontrol/hvmon_state_persist.json`, publica `alive: false` y sale.
+`hvmon` ante SIGTERM: termina la llamada Wrapper en curso, no inicia comandos nuevos (una
+prueba de grupos en curso se aborta dejando todos los canales como estaban al inicio de la
+prueba, ver 9.3), sincroniza los archivos, persiste el estado de auto-retry, publica
+`alive: false` y sale.
 
 ## 4. Formato de archivos
 
 ### 4.1 Archivo ROOT de `daqrun`
 
-Nombre: `<campaña>_<YYYYMMDDThhmmssZ>_run<NNN>_seg<MMM>.root` en
-`/data/daq/raw/<campaña>/`. `NNN` y `MMM` empiezan en 001.
+Nombre: `<campaña>_<YYYYMMDDThhmmssZ>_run<NNN>_seg<MMM>.root` en `/data/daq/raw/<campaña>/`.
 
 TTree `events` (una entrada por trigger):
 
 | rama | tipo | unidad / contenido |
 |---|---|---|
 | `evt_seq` | `ULong64_t` | índice secuencial dentro del run |
-| `evt_counter_hw` | `UInt_t` | contador de eventos de la placa (24 bit) |
+| `evt_counter_hw` | `UInt_t` | contador de eventos de la placa |
 | `ttt_raw` | `UInt_t` | TriggerTimeTag tal como llega |
 | `ttt_ns` | `ULong64_t` | TTT desenrollado, ns desde el arranque de adquisición |
 | `t_utc_ns` | `Long64_t` | UTC estimado del trigger = origen + `ttt_ns` |
 | `t_read_utc_ns` | `Long64_t` | UTC del PC al leer el bloque |
 | `t_read_mono_ns` | `Long64_t` | `CLOCK_MONOTONIC` al leer el bloque |
 | `dt_prev_ns` | `Long64_t` | `ttt_ns` menos el del evento anterior |
+| `trigger_kind` | `UChar_t` | 0 externo, 1 software (modo calibración) |
 | `adc` | `UShort_t[64][N]` | muestras ADC crudas (N fijo por run, en la cabecera) |
 | `ch_flags` | `UShort_t[64]` | flags por canal (sección 6) |
 | `evt_flags` | `UInt_t` | flags de evento (sección 6) |
 | `hv_seq` | `ULong64_t` | `seq` del snapshot HV usado para los flags |
 
-La conversión a mV (`adc2mV`, DC offset por grupo) va en la cabecera. Lector de
-compatibilidad en `analysis/` para producir `Ch*`/`time` si un programa viejo lo necesita.
+Conversión a mV en la cabecera (`adc_conversion`: fórmula, `NBit` = 12, `MaxVpp` = 2.0 V, DC
+offset por grupo escrito y leído), para no depender de `adc2mV` del código antiguo.
 
 TTree `hv` (1 Hz): `seq`, `t_req_utc_ns`, `t_resp_utc_ns`, `ok`, y por canal HV (12):
 `v0set_V`, `i0set_A`, `vmon_V`, `imon_A`, `status`, `pw`, `retry_state`; por canal de
 digitizador (64): `i_mppc_est_A` (título "ESTIMADO"), `i_est_mode`.
 
 TTree `hv_changes`: `t_detect_utc_ns`, `t_prev_read_utc_ns`, `hv_ch`, `param`, `old_value`,
-`new_value`, `origin` (`daq_auto`, `trip`, `external`), `change_id`.
+`new_value`, `origin` (`daq_auto`, `daq_command`, `trip`, `external`), `change_id`.
 
 TTree `notes`: `t_utc_ns`, `user`, `host`, `text`.
 
-TTree `monitor` (una entrada por minuto): tasa por canal fuera de tiempo > 5 p.e. y en
-tiempo (Hz), canales vivos por plano, tasa de trigger, tasa por cara física, ocupación de
-colas, eventos descartados por el monitor.
+TTree `monitor` (por minuto): por canal, tasa de pulsos en la zona sin señal y en tiempo
+(Hz) sobre los umbrales activos (sección 7.1), canales vivos por plano, tasa de trigger,
+tasa por cara física y por grupo HV, ocupación de colas, eventos descartados por el monitor,
+estado de calibración.
 
-TTree `gain` (una entrada por canal y hora, solo hod2018): `t_start_utc_ns`,
-`t_end_utc_ns`, `ch`, `p0_mV`, `G_mV_per_pe`, `G_err`, `n_pulses`, `chi2`, `ndf`, `status`.
+TTree `amp_hist` (por canal y hora): histograma de amplitud de pulsos fuera de tiempo con
+paso de 1 LSB (0.4884 mV), base de los ajustes de ganancia y del modo sin calibración.
 
-TTree `temperature`: `t_utc_ns`, `sensor_id`, `T_degC` (la única magnitud fuera de SI, con
-la unidad en el nombre).
+TTree `gain` (por canal y hora, hod2018): `t_start_utc_ns`, `t_end_utc_ns`, `ch`, `p0_mV`,
+`G_mV_per_pe`, `G_err`, `n_pulses`, `chi2`, `ndf`, `status`, `ambiguous`, `seed_G`.
+Para hod2019: `dark_rate_3mV_Hz` y su error (indicador de ganancia).
 
-Cabecera (objetos `TObjString`/`TNamed` en el directorio raíz): `config_json` (configuración
-completa ya resuelta), `mapping_json` y `mapping_version`, `calibration_json` y
-`calibration_version`, `run_info_json` (campaña, run, segmento, host, commit git del DAQ y
-si estaba sucio, versiones de CAENDigitizer/Wrapper/ROOT, modelo, número de serie y
-firmware de la placa, par de origen TTT/UTC, inicio/fin UTC, eventos, tiempo vivo,
-`record_length`, registro de post-trigger escrito y leído, disposición de la ventana).
+TTree `temperature`: `t_utc_ns`, `sensor_id`, `T_degC`.
 
-### 4.2 Slow control (`/data/daq/slowcontrol/`)
+Cabecera (`TObjString`/`TNamed`): `config_json`, `mapping_json` y `mapping_version`,
+`calibration_json` y `calibration_version` (o `"none"`), `run_info_json` (campaña, run,
+segmento, modo `physics`/`calibration`, host, commit git del DAQ y si estaba sucio,
+versiones de CAENDigitizer/Wrapper/ROOT, modelo, serie y firmware de la placa, par de
+origen TTT/UTC, inicio/fin UTC, eventos, tiempo vivo, `record_length`, registro 0x8114
+escrito y leído, disposición de la ventana, `ref_old_record_start_ns`).
 
-Archivos por día UTC, texto plano con `fsync` cada 60 s y al cerrar. La primera línea de
-cada CSV es `# schema=<n> units=...`.
+### 4.2 Índice del run
+
+`<campaña>_<YYYYMMDDThhmmssZ>_run<NNN>.index.json`, junto a los segmentos, reemplazado
+atómicamente tras cerrar cada segmento:
+
+```json
+{
+  "campaign": "hodo_2026_10", "run": 1, "mode": "physics",
+  "start_utc_ns": 0, "end_utc_ns": 0, "complete": false,
+  "config_sha256": "...", "mapping_version": "2026_10-r1", "calibration_version": "none",
+  "segments": [
+    {"seg": 1, "file": "..._run001_seg001.root", "sha256": "...",
+     "first_utc_ns": 0, "last_utc_ns": 0, "n_events": 0,
+     "first_evt_seq": 0, "last_evt_seq": 0, "closed_cleanly": true}
+  ]
+}
+```
+
+El análisis encadena los segmentos en el orden de `segments`. `first_evt_seq` y
+`last_evt_seq` permiten comprobar que no faltan eventos entre segmentos. Al cerrar el run el
+índice queda sin permiso de escritura y su SHA256 entra en `SHA256SUMS`.
+
+### 4.3 Slow control (`/data/daq/slowcontrol/`)
+
+Archivos por día UTC. `fsync` cada `fsync_period_s` (10 s por defecto) y al cerrar, no por
+línea, porque `/data` es un HDD compartido con los datos crudos. Cada CSV tiene una sola
+línea de cabecera con los nombres de columna (unidad en el nombre: `VMon_V`, `IMon_A`), y
+un archivo hermano `<nombre>.schema.json` con la versión del esquema, unidades y
+descripción. Así el CSV se lee directo con `ROOT::RDF::FromCSV` sin líneas de comentario.
 
 | archivo | contenido |
 |---|---|
 | `hv_fast_YYYYMMDD.csv` | 1 Hz: `seq,t_req_utc_ns,t_resp_utc_ns,ok` + por canal 0-11 `V0Set_V,I0Set_A,VMon_V,IMon_A,Status,Pw` |
 | `hv_slow_YYYYMMDD.csv` | 1/min: todos los parámetros de canal (lista de `GetChParamInfo`) y de la placa |
 | `hv_changes_YYYYMMDD.jsonl` | un cambio por línea: id, tiempos, canal, parámetro, viejo, nuevo, origen |
-| `hvmon_events_YYYYMMDD.jsonl` | transiciones de auto-retry, comandos enviados y su resultado, pérdidas de conexión, GECO detectado, correos |
+| `hvmon_events_YYYYMMDD.jsonl` | transiciones de auto-retry, comandos y su resultado, pasos de la prueba de grupos, pérdidas de conexión, GECO detectado, correos |
 | `hv_offsets.jsonl` | offsets de IMon/VMon medidos con Pw = 0 |
 | `temperature_YYYYMMDD.csv` | `t_utc_ns,sensor_id,T_degC` |
 | `notes_YYYYMMDD.jsonl` | notas de `daqnote` |
 
-Tamaño estimado de `hv_fast`: 72 columnas × ~10 caracteres × 86400 s ≈ 60 MB/día [I].
+Lector en la biblioteca común: `daq::slowcontrol::loadDay(path)` → `TTree` (columnas
+tipadas según el `.schema.json`) y `daq::slowcontrol::dataFrame(paths)` → `RDataFrame`
+sobre varios días. Tamaño estimado de `hv_fast`: ~60 MB/día [I].
+
+### 4.4 Manifiestos de campaña
+
+`/data/daq/manifests/<campaña>.json`: creación y cierre (UTC), operador, configuración
+inicial y su SHA256, lista de runs con su índice, SHA256 del `SHA256SUMS` final, y el
+estado del mapeo y de la calibración usados. Lo escribe `daqcampaign`; el directorio ya
+existe y contiene `raw_manifest_20261018.sha256`, que no se toca.
 
 ## 5. Configuración JSON (borrador)
 
@@ -299,9 +432,10 @@ Tamaño estimado de `hv_fast`: 72 columnas × ~10 caracteres × 86400 s ≈ 60 M
 {
   "schema_version": 1,
   "campaign": {
-    "name": "hodo_2026_11",
+    "name": "hodo_2026_10",
     "raw_root": "/data/daq/raw",
     "slowcontrol_dir": "/data/daq/slowcontrol",
+    "manifests_dir": "/data/daq/manifests",
     "operator": "",
     "bias_note": ""
   },
@@ -311,8 +445,9 @@ Tamaño estimado de `hv_fast`: 72 columnas × ~10 caracteres × 86400 s ≈ 60 M
     "link_num": 62578,
     "conet_node": 0,
     "vme_base_address": "0x00000000",
+    "library": "/usr/lib/libCAENDigitizer.so.v2.17.3",
     "record_length_samples": 144,
-    "post_trigger_register": 106,
+    "post_trigger_register": 93,
     "group_enable_mask": "0xFF",
     "group_dc_offset": [32767, 32767, 32767, 32767, 32767, 32767, 32767, 32767],
     "trigger": {"source": "ext_trg_in", "io_level": "NIM"},
@@ -320,20 +455,33 @@ Tamaño estimado de `hv_fast`: 72 columnas × ~10 caracteres × 86400 s ≈ 60 M
     "poll_sleep_s": 0.005,
     "ttt_tick_ns": 8.0,
     "window_layout": {
-      "ref_old_record_start_ns": 3552,
-      "pedestal": [[0, 27], [89, 144]],
-      "control": [27, 36],
-      "signal": [36, 45],
-      "tail": [45, 89]
+      "ref_old_record_start_ns": 3344,
+      "pedestal": [0, 40],
+      "control": [40, 49],
+      "signal": [49, 58],
+      "tail": [58, 102],
+      "post": [102, 144],
+      "excluded": []
     }
   },
   "run": {
+    "mode": "physics",
     "max_events": 0,
     "max_duration_s": 0,
     "segment_max_s": 3600,
     "segment_max_bytes": 2000000000,
     "autosave_s": 300,
     "flag_delay_s": 5.0
+  },
+  "calibration_mode": {
+    "sw_trigger_rate_Hz": 100,
+    "record_length_samples": 624,
+    "post_trigger_register": 364,
+    "external_trigger": false,
+    "store_waveform_fraction": 0.01,
+    "pulse_thresholds_mV": [1.5, 3.0, 5.0],
+    "store_pulse_lists": false,
+    "count_window_s": 90
   },
   "hv": {
     "system": "SY5527",
@@ -347,7 +495,13 @@ Tamaño estimado de `hv_fast`: 72 columnas × ~10 caracteres × 86400 s ≈ 60 M
     "slow_period_s": 60.0,
     "call_timeout_s": 5.0,
     "stale_after_s": 3.0,
-    "geco_policy": "warn"
+    "geco_process_pattern": "caengeco",
+    "geco_policy": "warn",
+    "status_bits": {
+      "on": 0, "ramp_up": 1, "ramp_down": 2, "overcurrent": 3, "overvoltage": 4,
+      "undervoltage": 5, "external_trip": 6, "max_v": 7, "external_disable": 8,
+      "internal_trip": 9, "calibration_error": 10, "unplugged": 11
+    }
   },
   "auto_retry": {
     "enabled": false,
@@ -359,345 +513,563 @@ Tamaño estimado de `hv_fast`: 72 columnas × ~10 caracteres × 86400 s ≈ 60 M
     "stability_max_s": 1800,
     "reset_after_stable_s": 7200,
     "min_spacing_between_channels_s": 60,
-    "inhibit_if_geco_running": true
+    "inhibit_when_geco_running": false
   },
   "flags": {
     "ovc_k_over_baseline": 2.0,
     "imon_baseline_window_s": 3600,
     "vmon_tolerance_V": 0.5,
     "trip_backdate_s": 5.0,
-    "blackout_window_events": 30,
+    "blackout_window_s": 60,
+    "blackout_aggregation": "hv_group",
     "lightleak_window_s": 120,
     "lightleak_k_over_baseline": 2.0,
-    "lightleak_baseline_window_s": 3600,
+    "lightleak_aggregation": "face",
+    "rate_baseline_window_s": 3600,
+    "significance_p": 1.0e-4,
+    "min_expected_counts": 10,
     "gap_probability": 1.0e-6,
-    "burst_probability": 1.0e-6,
-    "pulse_threshold_pe": 5.0
+    "burst_probability": 1.0e-6
   },
-  "mapping": {"file": "config/mapping/hodo_mapping_2026_05.json"},
-  "calibration": {"file": "config/calibration/pe_calibration_v8.json"},
+  "pulse_finder": {
+    "min_separation_samples": 4,
+    "provisional_thresholds_mV": {"hod2018": 20.0, "hod2019": 3.0},
+    "thresholds_pe": {"hod2018": [0.5, 3.0, 5.0, 10.0]},
+    "thresholds_mV": {"hod2019": [3.0, 5.0]}
+  },
+  "gain_fit": {
+    "period_s": 3600,
+    "max_peaks": 5,
+    "spacing_tolerance": 0.2,
+    "ambiguity_chi2_ratio": 1.2,
+    "max_relative_change": 0.3
+  },
+  "mapping": {"file": "config/mapping/hodo_mapping_2026_10.json"},
+  "calibration": {"file": null},
   "current_estimate": {
     "mode": "identical",
-    "passive_resistance_ohm": null,
+    "common_resistance_ohm": null,
     "series_resistance_ohm": null,
     "reference_currents_file": null
   },
-  "temperature": {"source": "none", "period_s": 30, "device": ""},
+  "temperature": {"backend": "none", "period_s": 30, "device": ""},
   "notifications": {
     "enabled": false,
-    "smtp_credentials_file": "/home/xplus/.config/daq/smtp.json",
-    "to": [],
+    "config_file": "/home/xplus/.config/daq/notify.json",
     "on_gave_up": true,
     "on_trip": false,
     "curl_timeout_s": 30
   },
   "monitoring": {
-    "daqrun_http": "http:127.0.0.1:8080?loopback",
-    "hvmon_http": "http:127.0.0.1:8081?loopback",
+    "daqrun_http": {"bind": "127.0.0.1", "port": 8080},
+    "hvmon_http": {"bind": "127.0.0.1", "port": 8081},
     "process_requests_hz": 15,
     "monitor_queue_capacity": 64
-  }
+  },
+  "slowcontrol": {"fsync_period_s": 10}
 }
 ```
 
-Los archivos de credenciales están fuera del repositorio con modo 600; el programa se
-niega a arrancar si el modo es más abierto. Al arrancar se valida todo (rangos de la
-ventana dentro de N, N múltiplo de 3, canales de `auto_retry.channels` ⊂ `expected_on`,
-etc.) y la configuración resuelta se copia junto a los datos y dentro de cada segmento.
+- `notify.json` (modo 600, fuera del repositorio): servidor SMTP, puerto, usuario,
+  contraseña, remitente, destinatarios. `hv_credentials.json` igual. El programa se niega a
+  arrancar si el modo es más abierto que 600.
+- `monitoring.*.bind`: `"127.0.0.1"` (por defecto) o `"tailscale"` (se resuelve a la
+  dirección de `tailscale0` al arrancar; hoy 100.114.138.29 [V: ip -br addr]). Cualquier otro
+  valor, `0.0.0.0` o la dirección de `enp0s31f6` (red de la universidad) se rechazan al
+  validar.
+- Validación al arrancar: rangos de la ventana dentro de N y sin solaparse, N múltiplo de 3,
+  `auto_retry.channels` ⊂ `expected_on`, bits de `status_bits` distintos, etc. La
+  configuración resuelta se copia junto a los datos y dentro de cada segmento.
 
-### 5.1 Mapeo versionado
+### 5.1 Mapeo versionado (contenido inicial: `hodo_mapping_2026_10.json`)
 
-Archivo JSON propio (`daq/config/mapping/<version>.json`), fuente única para el DAQ:
+Fuente única para el DAQ. Cada canal de digitizador tiene `station`, `plane`, `strip`,
+`hv_group`, `hv_ch` y `face`, y para cada campo `confirmed` (`measurement`,
+`cabling_record`, `derived`, `assumed`, `unknown`) y `source`. Un test de `ctest` compara
+canal → plano y tira con `kCfg_2026_10` de `hodo_mapping.h`.
 
-```json
-{
-  "mapping_version": "2026_05-r1",
-  "channels": [
-    {"dig_ch": 0, "station": "hod2018", "plane": "X", "strip": 1,
-     "hv_group": 1, "hv_ch": 0, "face": null,
-     "confirmed": {"strip": "measurement", "hv_group": "measurement", "face": "unknown"},
-     "source": "hodo_mapping.h kCfg_2026_05; hv_diag3_pretrip.C:92"}
-  ]
-}
-```
+Grupos HV: grupo g = canal SY5527 CH0(g−1), confirmado por René [H: 3]. Tabla de la planilla
+en etiquetas (se guarda en el JSON como `hv_groups_by_label`, fuente para la prueba de grupos):
 
-Cada campo lleva su procedencia (`cabling_record`, `measurement`, `assumed`, `unknown`).
-Fuente única compartida con el análisis: un test de `ctest` compara el JSON con
-`kCfg_2026_05`/`kCfg_2026_10` de `hodo_mapping.h` (canal → plano y tira) y falla si
-difieren. No se genera `hodo_mapping.h` desde el JSON: ese archivo es del chat de análisis
-y tiene historia propia (ver Diferencias, punto 9). La relación grupo HV → canal HV
-(grupo g → CH0(g-1)) es [I] y debe confirmarse.
+| Grupo (canal SY5527) | hod2018 X (Canal) | hod2018 Y (Canal) | hod2019 (cara canal) |
+|---|---|---|---|
+| 1 (CH00) | 13 | 11, 15 | Delantera 7; Frontal 4, 6; Trasera 3, 6 |
+| 2 (CH01) | 7 | 7 | Delantera 3; Frontal 7; Trasera 1, 4, 5, 7 |
+| 3 (CH02) | 3, 12, 14 | 5, 10 | Delantera 5; Frontal 8; Trasera 8 |
+| 4 (CH03) | 1 | 2, 4, 8, 12, 13 | Frontal 2; Opuesta 7 |
+| 5 (CH04) | 4, 5, 6, 8, 9 | 6 | Delantera 4; Opuesta 6 |
+| 6 (CH05) | 0, 2 | 1 | Delantera 6, 8; Opuesta 3, 8; Trasera 2 |
+| 7 (CH06) | 10, 11 | — | Delantera 1, 2; Frontal 1, 5; Opuesta 1, 5 |
+| 8 (CH07) | 15 | 0, 3, 9, 14 | Frontal 3; Opuesta 2, 4 |
+
+hod2019 con el cableado de octubre (`kCfg_2026_10`: X = ch 32-47, Y = ch 48-63, coordenada
+creciente). Regla [H: 5]: X tira k par = Delantera canal 8 − k/2, impar = Trasera canal
+8 − (k−1)/2; Y tira k par = Opuesta canal 8 − k/2, impar = Frontal canal 8 − (k−1)/2. Caras:
+Delantera = ch 32, 34, …, 46; Trasera = 33, 35, …, 47; Opuesta = 48, 50, …, 62;
+Frontal = 49, 51, …, 63. Grupos derivados (`confirmed = derived`):
+
+| Grupo | canales hod2019 (octubre) |
+|---|---|
+| 1 (CH00) | 34, 37, 43, 53, 57 |
+| 2 (CH01) | 35, 39, 41, 42, 47, 51 |
+| 3 (CH02) | 33, 38, 49 |
+| 4 (CH03) | 50, 61 |
+| 5 (CH04) | 40, 52 |
+| 6 (CH05) | 32, 36, 45, 48, 58 |
+| 7 (CH06) | 44, 46, 54, 55, 62, 63 |
+| 8 (CH07) | 56, 59, 60 |
+
+Excepción: ch48 (Opuesta 8, grupo 6) queda `confirmed = measurement` (HV-DIAG-5 [H: 5]).
+Comprobación de la regla con la tabla de etiquetas: grupo 1 = Delantera 7 → ch34,
+Trasera 3 → ch43, Trasera 6 → ch37, Frontal 4 → ch57, Frontal 6 → ch53, que coincide con la
+fila 1 [I: cálculo en este documento].
+
+hod2018 con el cableado de octubre: `strip` según la hoja (X tira k = ch k, Y tira k = ch
+16 + k), `confirmed = cabling_record` pero marcado sin confirmar, porque en mayo esa misma
+hoja no se cumplió [H: 5]. `hv_group`: solo las relaciones medidas en mayo, válidas si los
+cables de hod2018 no se tocaron, todas con `confirmed = assumed`:
+
+| canal | grupo | etiqueta medida en mayo |
+|---|---|---|
+| 0 | 1 | X Canal 13 |
+| 6 | 2 | X Canal 7 |
+| 20 | 2 | Y Canal 7 |
+| 22, 31 | 1 | Y Canales {11, 15} |
+| 1, 3 | 6 | X Canales {0, 2} |
+| 16, 17 | 6 | uno es Y Canal 1 |
+
+Los otros 22 canales de hod2018 empiezan con `hv_group = null` (`unknown`): bit 4 por
+mapeo desconocido (sección 6) hasta la prueba de grupos de la fase 6.
+
+Discrepancia conocida: en mayo el grupo 6 contenía ch1, ch16 y ch17 de hod2018 (más ch3,
+muerto, deducido), con dos MPPC del plano Y, mientras la planilla le asigna un solo MPPC Y
+(Canal 1). Con las 5 entradas de hod2019 de la planilla, el grupo 6 tendría 9 MPPC, uno más
+que los 8 por grupo. El JSON lo guarda en `known_discrepancies` y la prueba de grupos lo
+resuelve.
 
 ## 6. Flags
 
 ### 6.1 Palabra por canal (`ch_flags[64]`, 16 bit)
 
-Para el canal c del digitizador, g = su grupo HV, h = su canal HV, f = su cara física, y s
-el snapshot HV más reciente con `t_resp_utc_ns ≤ t_evento` (si hay uno posterior ya
-recibido gracias a la línea de retardo, se usa también para el bit 5).
+Para el canal c, g = su grupo HV, h = su canal HV, f = su cara física, s = snapshot HV más
+reciente con `t_resp_utc_ns ≤ t_evento` (y el siguiente, si ya llegó, para el bit 5).
 
 | bit | nombre | cálculo |
 |---|---|---|
-| 0 | `HV_OFF` | h en `expected_on` y (`Pw` = 0 o bit ON de `Status` = 0 o bits de trip activos) |
-| 1 | `HV_OVC` | bit OVC de `Status` o `IMon - offset > k × línea base`; línea base = mediana de IMon en NORMAL en la última hora |
-| 2 | `HV_RAMP` | bits RUP o RDWN de `Status` |
-| 3 | `HV_VDEV` | `Pw` = 1, sin rampa y \|VMon − V0Set\| > `vmon_tolerance_V` |
-| 4 | `HV_UNKNOWN` | sin snapshot, snapshot con edad > `stale_after_s`, lectura fallida, `hvmon` no responde, o grupo HV del canal desconocido |
-| 5 | `HV_AMBIGUOUS` | el evento cae en un intervalo en que el estado de h cambió sin saber cuándo exactamente (ver 6.3) |
-| 6 | `DATA_BLACKOUT` | todos los canales del grupo g sin pulsos > umbral en las últimas `blackout_window_events` mientras los demás grupos tienen actividad normal |
-| 7 | `LIGHT_LEAK` | tasa fuera de tiempo de la cara f en `lightleak_window_s` > `k` × su línea base de la última hora (excluyendo periodos con flags) |
-| 8 | `RETRY_STAB` | h está en la ventana de estabilización de un auto-retry |
-| 9 | `MAP_UNCONFIRMED` | grupo HV o cara del canal sin `confirmed = measurement/cabling_record` (añadido, ver Diferencias) |
-| 10-15 | reservados | 0 |
+| 0 | `HV_OFF` | h en `expected_on` y (`Pw` = 0 o bit `on` de `Status` = 0 o bits de trip) |
+| 1 | `HV_OVC` | bit `overcurrent` o `IMon − offset > k × línea base` (mediana de IMon en NORMAL en la última hora) |
+| 2 | `HV_RAMP` | bits `ramp_up` o `ramp_down` |
+| 3 | `HV_VDEV` | `Pw` = 1, sin rampa, \|VMon − V0Set\| > `vmon_tolerance_V` |
+| 4 | `HV_UNKNOWN` | sin snapshot, edad > `stale_after_s`, lectura fallida, `hvmon` no responde, o `hv_group` del canal desconocido |
+| 5 | `HV_AMBIGUOUS` | el evento cae en el intervalo de ambigüedad de un cambio de h (6.3) |
+| 6 | `DATA_BLACKOUT` | prueba de Poisson de déficit (6.4) en la agregación configurada |
+| 7 | `LIGHT_LEAK` | prueba de Poisson de exceso (6.4) en la agregación configurada |
+| 8 | `RETRY_STAB` | h en la ventana de estabilización de un auto-retry |
+| 9 | `MAP_UNCONFIRMED` | `hv_group` o `face` del canal sin `confirmed = measurement` |
+| 10 | `PE_PROVISIONAL` | el canal no tiene calibración de p.e. válida (sección 7.4) |
+| 11 | `STAT_INSUFFICIENT` | la prueba de los bits 6/7 no se pudo hacer (cuentas esperadas < mínimo) |
+| 12-15 | reservados | 0 |
 
-Los bits de `Status` (ON = bit 0, RUP = 1, RDWN = 2, OVC = 3, OVV = 4, UNV = 5, EXTTRIP = 6,
-MAXV = 7, EXT_DIS = 8, INTTRIP = 9, ...) son [I: convención habitual de CAEN para SY5527].
-Se definen en un solo archivo y se verifican contra el manual del A7030 y con la carga
-resistiva en la fase 2 antes de usarlos para decisiones.
+Posiciones de `Status`: en la configuración (`hv.status_bits`). Valores iniciales tomados
+del manual del HV Wrapper (Rev. 13, 2016, tipo `PARAM_TYPE_CHSTATUS`): bit 0 on, 1 ramp up,
+2 ramp down, 3 overcurrent, 4 overvoltage, 5 undervoltage, 6 external trip, 7 max V,
+8 external disable, 9 internal trip, 10 calibration error, 11 unplugged
+[V: /usr/share/CAEN/HVWrapper/CAENHVWrapper.pdf]. Ese manual describe la convención
+genérica del Wrapper; el significado para el A7030DP se confirma con el manual de la placa
+(René lo busca) y con la carga resistiva en la fase 2.
 
 ### 6.2 Palabra de evento (`evt_flags`, 32 bit)
 
 | bit | nombre | cálculo |
 |---|---|---|
-| 0 | `GAP` | `dt_prev` > T con exp(−r·T) = `gap_probability`; r = tasa media de la última hora (a 0.6 Hz, T ≈ 23 s) |
-| 1 | `BURST` | número de triggers en una ventana deslizante con probabilidad de Poisson < `burst_probability` |
-| 2 | `HW_COUNTER_JUMP` | `evt_counter_hw` salta más de 1 (eventos perdidos) |
-| 3 | `BOARD_FULL` | el registro de estado indicó memoria llena desde la lectura anterior |
+| 0 | `GAP` | `dt_prev` > T con exp(−r·T) = `gap_probability`; r = tasa de la última hora (a 0.6 Hz, T ≈ 23 s) |
+| 1 | `BURST` | número de triggers en ventana deslizante con probabilidad de Poisson < `burst_probability` |
+| 2 | `HW_COUNTER_JUMP` | `evt_counter_hw` salta más de 1 |
+| 3 | `BOARD_FULL` | memoria llena desde la lectura anterior |
 | 4 | `TTT_PC_MISMATCH` | \|`t_utc_ns` − `t_read_utc_ns`\| incompatible con la latencia de lectura |
-| 5 | `HV_ANY_FLAG` | OR de los bits 0-5 de cualquier canal (para cortes rápidos) |
-| 6 | `MONITOR_PROVISIONAL` | los bits 6/7 de este evento se calcularon con estadística incompleta (inicio del run) |
+| 5 | `HV_ANY_FLAG` | OR de los bits 0-5 de cualquier canal |
+| 6 | `MONITOR_PROVISIONAL` | bits 6/7 calculados con estadística incompleta (inicio de run) |
+| 7 | `NO_CALIBRATION` | el run está en estado sin calibración (sección 7.4) |
+| 8 | `HV_GROUP_TEST` | evento tomado durante un paso de la prueba de grupos |
+
+Los bits 0 y 1 usan `daq/core/include/daq/trigger_interval_stats.h` (sección 7.5).
 
 ### 6.3 Ambigüedad temporal (bit 5)
 
-Una lectura HV mide un valor en algún instante de [`t_req`, `t_resp`]. Si la lectura k−1
-mostró el estado viejo y la lectura k el nuevo, el cambio ocurrió en
-(`t_req(k−1)`, `t_resp(k)`]. Todo evento en ese intervalo lleva el bit 5, y los bits 0-3 se
-fijan con el estado más pesimista de los dos. Para un trip, el intervalo se extiende hacia
-atrás `trip_backdate_s` (= parámetro Trip, 5 s), porque la placa limita la corriente hasta
-5 s antes de apagar. A 1 Hz el intervalo típico es ~1-2 s, más la latencia de llamada (no
-medida). La línea de retardo de `flag_delay_s` permite poner el bit sin reescribir; si la
-lectura k llega más tarde que el retardo, el evento se escribe con bit 4 y el recálculo
-offline lo corrige.
+Una lectura HV mide en algún instante de [`t_req`, `t_resp`]. Si la lectura k−1 mostró el
+estado viejo y la k el nuevo, el cambio ocurrió en (`t_req(k−1)`, `t_resp(k)`]. Los eventos
+en ese intervalo llevan el bit 5 y los bits 0-3 con el estado más pesimista. Para un trip el
+intervalo se extiende hacia atrás `trip_backdate_s` (= Trip, 5 s). Si la lectura k llega
+después de `flag_delay_s`, el evento se escribe con bit 4 y el recálculo offline lo corrige.
 
-Los bits 6 y 7 dependen de ventanas de varios eventos: online se ponen desde que se
-detecta la condición y el monitor registra el inicio estimado del episodio en `monitor`;
-el recálculo offline los extiende hacia atrás.
+### 6.4 Pruebas de Poisson para los bits 6 y 7
 
-## 7. Auto-retry
+- Unidad de agregación configurable: `channel`, `hv_group` o `face`. Por defecto `hv_group`
+  para apagones (bit 6) y `face` para fuga de luz (bit 7), porque un trip afecta a un grupo y
+  la luz a una cara [H: 4].
+- Tasa base r por canal: tasa de pulsos sobre el umbral activo en la zona sin señal, en
+  NORMAL y sin flags, durante `rate_baseline_window_s`. Esperado en la ventana W:
+  μ = Σ_c r_c · t_sin_señal · n_eventos(W).
+- Bit 6: se marca si μ ≥ `min_expected_counts` y P(N ≤ n_obs | μ) < `significance_p`. Bit 7:
+  si μ ≥ mínimo, n_obs/μ > `lightleak_k_over_baseline` y P(N ≥ n_obs | μ) < `significance_p`.
+  Si μ < mínimo: bit 11 y no se decide.
+- Escala con la ventana de 1456 ns sin señal y 0.6 Hz: una cara de hod2019 (8 canales,
+  ~24 kHz cada uno con los datos de v8) da μ ≈ 0.28 cuentas por evento, ≈ 20 en 2 min; un
+  canal solo de hod2019, μ ≈ 2.5 en 2 min (insuficiente). Un grupo HV tiene entre 2 y 6
+  canales de hod2018 según la planilla a ~331 kHz (> 3 p.e.): μ ≈ 0.48 por evento y canal [I: cálculo con
+  las tasas de 1.3]. Por eso la agregación por canal no sirve para hod2019.
+- Estos números dependen de la ganancia de octubre; el monitor publica μ por unidad para
+  ajustar umbrales y ventanas con datos reales.
 
-Por canal HV, deshabilitado por defecto (`auto_retry.enabled = false` y lista de canales
-vacía). Mientras está deshabilitado `hvmon` solo registra.
+## 7. Monitoreo
 
-### 7.1 Estados
+### 7.1 Búsqueda de pulsos
 
-`DISABLED`, `NORMAL`, `MANUAL_OFF`, `WAIT(k)`, `RETRY_RAMP(k)`, `RETRY_STAB(k)`,
-`GAVE_UP`, `UNKNOWN` (sin conexión). k = intento (1..len(wait_s)).
+Todos los pulsos de la zona considerada, no uno por registro [H: 8.9]: mínimo local
+(muestra menor o igual que sus dos vecinas) con amplitud `línea_base − v` sobre el umbral,
+y separación mínima `min_separation_samples` (4 = 64 ns); dentro de esa separación se
+queda el más grande. Línea base del evento: media recortada (±2 mV de la mediana) de la
+región `pedestal`. Zonas: sin señal = `pedestal` + `control` + `post`, más `tail` en canales
+sin pulso en tiempo; en tiempo = `signal`. Si se usa ocupación por registro en algún panel,
+se convierte con tasa = −ln(1 − occ)/T. Se publica también la posición de los pulsos por
+muestra (para detectar pickup).
 
-### 7.2 Transiciones
+### 7.2 Paneles (:8080 `daqrun`, :8081 `hvmon`)
+
+Por canal: tasa fuera de tiempo y en tiempo sobre los umbrales activos; canales vivos por
+plano; tasa de trigger; distribución de Δt con ajuste exponencial, huecos y ráfagas; IMon y
+VMon por grupo HV; tasa y μ por cara y por grupo con su p-valor; ocupación de colas;
+panel de flags; estado de calibración; histograma de amplitud por canal; G_c(t) de hod2018
+y tasa oscura > 3 mV de hod2019.
+
+### 7.3 Ajuste de ganancia por hora (hod2018)
+
+- Entrada: histograma de amplitud de pulsos fuera de tiempo de la hora, paso de 1 LSB.
+- Semilla: G y p0 de la hora anterior del mismo canal (o de la calibración de puesta en
+  marcha para la primera hora).
+- Ajuste multigaussiano de hasta `max_peaks` picos con posiciones p0 + n·G. Además se
+  ajusta con semillas G/2 y 2G; si la mejor alternativa tiene χ²/ndf a menos de
+  `ambiguity_chi2_ratio` de la elegida, el ajuste se marca `ambiguous` y no se acepta.
+- Prueba de espaciado: las diferencias entre picos consecutivos ajustados libres deben
+  coincidir entre sí y con G dentro de `spacing_tolerance` (20 %); si no, se rechaza (caso
+  ch9 en v8: 5.58 o 2.79 mV/p.e. según la semilla [H: 8.11]).
+- Si G cambia más de `max_relative_change` respecto de la hora anterior sin que haya un
+  cambio de HV registrado, se marca para revisión pero se guarda.
+- hod2019 no tiene picos resueltos: su indicador es la tasa oscura > 3 mV por canal y hora.
+- Selecciones por amplitud (tira o cluster dominante, umbrales) en p.e.:
+  (ph − p0)/G_c [H: 8.6].
+
+### 7.4 Estado "sin calibración"
+
+Mientras no exista la calibración de puesta en marcha de octubre (`calibration.file =
+null`), el sistema funciona así y lo dice en la cabecera (`calibration_version = "none"`),
+en `evt_flags` (bit 7) y en el panel:
+
+- Todo el monitoreo funciona en mV con los umbrales `provisional_thresholds_mV` (hod2018
+  20 mV ≈ 5 p.e. con las ganancias de mayo, hod2019 3 mV), con la etiqueta "PROVISIONAL".
+- Umbrales en p.e., selecciones en p.e. y el panel de p.e. están deshabilitados. Los bits 6
+  y 7 funcionan con los umbrales en mV (sus tasas base se aprenden igual) y llevan el bit 10.
+- El ajuste de ganancia horario corre igual y publica G_c(t), pero sin semilla de
+  calibración: semilla = máximo del espectro de autocorrelación del histograma; sus
+  resultados no se usan para umbrales hasta que la calibración exista.
+- Al cargar una calibración, el cambio queda en la cabecera del siguiente segmento; no se
+  recalculan segmentos ya cerrados.
+
+### 7.5 Estadística de Δt compartida con el análisis
+
+`daq/core/include/daq/trigger_interval_stats.h`: C++17 header-only, sin ROOT, para que
+`analysis/` lo use con `-I../daq/core/include` sin depender del build de CMake. Entrada:
+tiempos de trigger en ns. Funciones: tasa por máxima verosimilitud (1/media) con error,
+prueba de exponencialidad (Kolmogorov-Smirnov y χ² binado), huecos (Δt con probabilidad
+< p a la tasa local), ráfagas (estadística de barrido en ventana deslizante), y resumen por
+intervalo. Tests en `ctest` con secuencias sintéticas. Para v7-v10 el análisis solo tiene
+`timestamp` (µs, una vez por lectura, sin TTT): la resolución es la del bucle de lectura y
+eventos leídos juntos comparten timestamp; el header acepta una resolución declarada.
+
+## 8. Auto-retry
+
+Por canal HV, deshabilitado por defecto. Mientras está deshabilitado `hvmon` solo registra.
+
+### 8.1 Estados
+
+`DISABLED`, `NORMAL`, `MANUAL`, `WAIT(k)`, `RETRY_RAMP(k)`, `RETRY_STAB(k)`, `GAVE_UP`,
+`UNKNOWN` (sin conexión), `GROUP_TEST` (canal en manos de la prueba de grupos).
+
+### 8.2 Transiciones
 
 | desde | condición | hacia | acción |
 |---|---|---|---|
-| `NORMAL` | Pw 1→0 con bits de trip, o OVC/IMon alta en los `Trip` s previos | `WAIT(k+1)` | evento `trip`; correo si `on_trip`; temporizador `wait_s[k]` |
-| `NORMAL` | Pw 1→0 sin indicio de trip | `MANUAL_OFF` | evento `external`; sin acción |
-| `NORMAL` | estable `reset_after_stable_s` (2 h) | `NORMAL` con k = 0 | — |
-| `WAIT(k)` | vence el temporizador, conexión fresca (≥ 2 lecturas buenas), sin GECO si `inhibit_if_geco_running`, ningún otro canal en rampa en los últimos `min_spacing_between_channels_s` | `RETRY_RAMP(k)` | un solo `SetChParam(Pw=1)`; nunca V0Set, I0Set ni Trip |
-| `WAIT(k)` | Pw = 1 hecho por otro (detectado) | `NORMAL` (k se conserva) | evento `external` |
-| `WAIT(k)` | cambio externo de V0Set, I0Set o Trip | `MANUAL_OFF` | evento `external`; automatización suspendida en el canal |
+| `NORMAL` | Pw 1→0 con bits de trip, u OVC/IMon alta en los `Trip` s previos | `WAIT(k+1)` | evento `trip`; correo si `on_trip`; temporizador `wait_s[k]` |
+| `NORMAL` | Pw 1→0 sin indicio de trip | `MANUAL` | evento `external` |
+| `NORMAL` | estable `reset_after_stable_s` (2 h) | `NORMAL`, k = 0 | — |
+| `WAIT(k)` | vence el temporizador, conexión fresca (≥ 2 lecturas buenas), ningún otro canal en rampa en los últimos `min_spacing_between_channels_s`, y si `inhibit_when_geco_running` = true, GECO no corre | `RETRY_RAMP(k)` | un solo `SetChParam(Pw=1)`; nunca V0Set, I0Set ni Trip |
+| `WAIT(k)` | cambio de `Pw`, `V0Set`, `I0Set` o `Trip` no hecho por `hvmon` | `MANUAL` | se cancela el reintento; evento `external` |
 | `RETRY_RAMP(k)` | Pw leído ≠ 1 tras 5 s | `WAIT(k+1)` o `GAVE_UP` | comando fallido |
-| `RETRY_RAMP(k)` | sin RUP y \|VMon − V0Set\| < tolerancia | `RETRY_STAB(k)` | inicia ventana de estabilidad |
+| `RETRY_RAMP(k)` | sin rampa y \|VMon − V0Set\| < tolerancia | `RETRY_STAB(k)` | inicia ventana |
 | `RETRY_RAMP(k)` | supera V0Set/RUp + `ramp_timeout_extra_s` (~126 s con 65.9 V a 1 V/s) | `WAIT(k+1)` o `GAVE_UP` | — |
-| `RETRY_STAB(k)` | `stability_window_s` seguidos con IMon < `stability_imon_max_A` y sin trip | `NORMAL` | éxito |
-| `RETRY_STAB(k)` | IMon ≥ umbral | `RETRY_STAB(k)` | la ventana vuelve a empezar (el canal sigue encendido; la protección es I0Set/Trip de la placa) |
-| `RETRY_STAB(k)` | `stability_max_s` sin completar la ventana | `GAVE_UP` | correo "inestable, encendido" |
+| `RETRY_STAB(k)` | `stability_window_s` con IMon < `stability_imon_max_A` y sin trip | `NORMAL` | éxito |
+| `RETRY_STAB(k)` | IMon ≥ umbral | `RETRY_STAB(k)` | la ventana vuelve a empezar |
+| `RETRY_STAB(k)` | `stability_max_s` sin completar | `GAVE_UP` | correo "inestable, encendido" |
 | `RETRY_*(k)` | trip | `WAIT(k+1)`, o `GAVE_UP` si k = len(wait_s) | — |
-| `RETRY_*` | acción manual (Pw=0 externo, cambio de V0Set/I0Set/Trip) | `MANUAL_OFF` | la acción manual manda |
-| `GAVE_UP` | — | — | un correo por canal y episodio |
-| `GAVE_UP` | Pw = 1 externo | `NORMAL` (k se conserva hasta 2 h estables) | evento `external` |
-| `MANUAL_OFF` | Pw = 1 externo | `NORMAL` | — |
-| cualquiera | pérdida de conexión | `UNKNOWN` (se recuerda el estado anterior y sus temporizadores) | bit 4 en `daqrun` |
-| `UNKNOWN` | reconexión y ≥ 2 lecturas completas | estado anterior, reconciliado | si Pw/V0Set/I0Set cambiaron durante el corte, el cambio es `external` y se aplican las reglas de acción manual; no se envía ningún comando antes de la reconciliación |
+| `RETRY_*` | cambio de `Pw`/`V0Set`/`I0Set`/`Trip` no hecho por `hvmon` | `MANUAL` | la acción manual manda |
+| `GAVE_UP` | al entrar | — | un correo por canal y episodio |
+| `GAVE_UP`, `MANUAL` | Pw = 1 externo | `NORMAL` (k se conserva hasta 2 h estables) | evento `external` |
+| cualquiera | pérdida de conexión | `UNKNOWN` (recuerda estado y temporizadores) | bit 4 en `daqrun` |
+| `UNKNOWN` | reconexión y ≥ 2 lecturas completas | estado anterior, reconciliado | cambios durante el corte = `external`, con las reglas de acción manual; ningún comando antes de reconciliar |
+| cualquiera salvo `RETRY_*` | inicio de la prueba de grupos | `GROUP_TEST` | auto-retry suspendido en todos los canales |
+| `GROUP_TEST` | fin o aborto de la prueba | `NORMAL` o `MANUAL` según Pw final | — |
 
-### 7.3 Otras reglas
+### 8.3 Otras reglas
 
-- Origen de cada cambio: `daq_auto` si coincide con un comando enviado por `hvmon` en los
-  10 s previos; `trip` según 7.2; `external` en cualquier otro caso (GECO u otro).
-- Arranque de `hvmon`: un canal encontrado apagado queda en `MANUAL_OFF`, salvo que el
-  estado persistido diga `WAIT` con un trip registrado hace menos de `max(wait_s)`; nunca se
-  actúa en el primer minuto tras arrancar.
-- Correo: proceso `curl --max-time` aparte; el fallo de un correo se registra y no bloquea
-  nada. Credenciales en archivo con modo 600 fuera del repositorio.
-- Rehabilitar tras un trip podría requerir más que `Pw = 1` en el SY5527 (por ejemplo
-  borrar la alarma); no se sabe. Se verifica en la fase 2 con la carga resistiva.
+- Origen: `daq_auto` si coincide con un comando del auto-retry en los 10 s previos;
+  `daq_command` si coincide con un comando de `hvctl` o de la prueba de grupos; `trip` según
+  8.2; `external` en cualquier otro caso.
+- GECO abierto no inhibe el auto-retry por defecto (René suele dejarlo abierto sin
+  operarlo): `hvmon` registra un aviso al detectarlo (cada minuto) y se apoya en la
+  detección de cambios externos. Patrón inicial `caengeco` (`pgrep -f -i`): el snap
+  `caengeco2020` 1.13.1 (devmode) ejecuta `bin/CAENGECO2020`
+  [V: /snap/caengeco2020/current/meta/snap.yaml], así que la ruta del proceso contiene
+  `caengeco2020` y el ejecutable `CAENGECO2020` [I]; se confirma cuando René abra GECO en la
+  fase 1.
+- Arranque de `hvmon`: un canal encontrado apagado queda en `MANUAL` salvo que el estado
+  persistido diga `WAIT` con un trip registrado hace menos de `max(wait_s)`; nunca se actúa
+  en el primer minuto.
+- Correo: `curl --max-time` en proceso aparte; un fallo se registra y no bloquea nada.
+- Si rehabilitar tras un trip requiere más que `Pw = 1` no se sabe; se verifica en la fase 2.
 
-## 8. Corriente estimada por MPPC
+## 9. Coexistencia, seguridad y comandos HV
 
-Siempre marcada "ESTIMADA" en ramas, CSV y web.
-
-- `identical`: I_est = (IMon − offset − V/R_pasiva) / N_g, con N_g = número de MPPC del
-  grupo según el mapeo (8; el grupo 6 tiene 7 conocidos).
-- `reference_weighted`: I_c = (IMon − offset − V/R_pasiva) × I_ref,c / Σ I_ref del grupo,
-  con I_ref de "Voltajes Hodoscopio.xlsx" (198-278 nA). Esa planilla no está en este host
-  (búsqueda en / sin resultado).
-- Corrección opcional V_MPPC,est = VMon − I × R_s cuando se conozcan R_s y R_pasiva
-  (desconocidas). Mientras sean `null`, el término pasivo es 0 y la cabecera lo dice.
-- Offsets: `hvmon` registra IMon/VMon de todo canal con Pw = 0 y VMon < 2 V durante más de
-  60 s; `hvctl offsets` hace la medida explícita de inicio/fin de campaña y se niega si
-  algún canal tiene Pw = 1 (no apaga nada).
-
-## 9. Coexistencia y seguridad
+### 9.1 Locks y GECO
 
 - `hvmon` toma `flock` exclusivo de `/run/user/1000/hv_wrapper.lock`; `hvctl` en modo
-  directo también, y si no lo obtiene lee a través de `hvmon`. `daqrun` toma
+  directo también, y si no lo obtiene habla con `hvmon`. `daqrun` toma
   `/run/user/1000/digitizer.lock`.
-- Al arrancar `hvmon`: buscar GECO2020 en ejecución (patrón configurable; `pgrep -f caengeco`
-  no se pudo verificar porque GECO no estaba corriendo). `geco_policy` = `warn` o `refuse`.
-  Con GECO detectado se inhibe el auto-retry si `inhibit_if_geco_running`. Se re-chequea
-  cada minuto y se registra.
-- HTTP de solo lectura (`SetReadOnly(kTRUE)`), enlazado a 127.0.0.1 por defecto; acceso
-  remoto por túnel SSH o Tailscale. Ningún comando HV por HTTP.
-- `daqrun` crea un directorio de campaña nuevo con un marcador `CAMPAIGN_OPEN`; nunca
-  escribe en un directorio sin marcador (todas las campañas existentes) ni en uno sin
-  permiso de escritura. `daqcampaign close` borra el marcador moviéndolo a un registro dentro
-  del manifiesto y aplica `chmod a-w` al directorio. `daqcampaign` nunca toca campañas
-  existentes.
-- Las llamadas al Wrapper pueden bloquearse (TCP). Corren en un hilo propio con watchdog;
-  si una llamada supera `call_timeout_s`, el estado pasa a `UNKNOWN`. Si no vuelve en
-  5 min, `hvmon` sale con error para que systemd lo reinicie.
+- `geco_policy` = `warn` (por defecto) o `refuse` (no arrancar `hvmon`).
 
-## 10. Temperatura
+### 9.2 Ruta de comandos `hvctl` → `hvmon` (fase 1)
 
-`ITemperatureSource::read() → vector<{sensor_id, T_degC, t_utc_ns}>`. Implementaciones:
-`Ds18b20Sysfs` (adaptador USB 1-Wire con el driver w1 del kernel: `/sys/bus/w1/devices/28-*`;
-hoy `/sys/bus/w1` no existe), `SerialLineSource` (microcontrolador por USB serie con una
-línea de texto por lectura; el usuario `xplus` no está en el grupo `dialout`) y
-`FakeTemperature`. La lee `hvmon` (proceso continuo), no `daqrun`; `daqrun` copia las
-lecturas del periodo del run en su árbol `temperature`.
+- Socket Unix `/run/user/1000/hvmon.sock`, modo 0600, protocolo JSON por líneas. Lecturas:
+  `status`, `history`, `timing`. Escrituras: `pw` (un canal, 0/1) y `group-test`; ningún
+  comando para V0Set, I0Set, Trip, RUp, RDWn o parámetros de placa.
+- Toda escritura exige `--authorization "<texto>"` (referencia a la autorización escrita
+  del operador), que queda en `hvmon_events` junto con el usuario, la hora UTC y el estado
+  antes y después. `hvmon` rechaza escrituras si su configuración no tiene
+  `hv.allow_commands = true` (por defecto false).
+- HTTP sigue siendo de solo lectura: ningún comando HV por HTTP.
 
-## 11. Pruebas
+### 9.3 Prueba de grupos (fase 6)
 
-### 11.1 Fakes
+Secuencia ejecutada por `hvmon` (no por `daqrun`), con `daqrun` en modo calibración en
+paralelo:
 
-- `FakeHVBackend`: canales con V0Set/I0Set/RUp/Trip, rampa a RUp, IMon con offset y ruido,
-  y un guion temporal: trip en t, sobrecorriente creciente, cambio manual (simula GECO),
-  pérdida de conexión de duración d, llamadas lentas, `Pw = 1` que no prende,
-  re-trip durante la estabilización.
+1. Estado inicial: todos los grupos en Pw = 1, estables 10 min. Conteo de referencia
+   `count_window_s` (90 s).
+2. Para g = 1..8: `Pw = 0` en CH0(g−1); esperar VMon < 1 V (RDWn = 50 V/s, ~1.3 s desde
+   65.9 V) más 10 s; contar `count_window_s`; `Pw = 1`; esperar fin de rampa (RUp = 1 V/s,
+   ~66 s) y \|VMon − V0Set\| < tolerancia, más 60 s de estabilización; contar
+   `count_window_s` (referencia posterior). Cada paso deja en `hvmon_events` sus tiempos y
+   lo publica para que `daqrun` marque los eventos (bit 8 de evento) con el paso.
+3. Aborto (señal, pérdida de conexión, trip en otro grupo, acción externa): se devuelve
+   `Pw = 1` al grupo en prueba solo si estaba en 1 al inicio, y se termina.
+4. Resultado: para cada canal de digitizador, el grupo en el que su tasa cae
+   significativamente (Poisson, como 6.4) frente a las dos referencias. Llena `hv_group` con
+   `confirmed = measurement`.
+
+Duración estimada: ~4.5 min por grupo, ~40 min en total [I]. Escribe `Pw`: requiere la
+autorización explícita de la sección 9.2.
+
+## 10. Modo de calibración (trigger por software)
+
+Requisito [H: 8.8]: runs cortos con `CAEN_DGTZ_SendSWtrigger` a tasa configurable, sin
+autotrigger por canal, para la prueba de grupos y la calibración de p.e. de puesta en
+marcha.
+
+- `daqrun --mode calibration`: trigger externo deshabilitado (`external_trigger = false`), el
+  hilo de lectura envía SW triggers con un temporizador a `sw_trigger_rate_Hz` (100 Hz por
+  defecto) y lee entre envíos. `trigger_kind = 1` en cada evento.
+- Registro largo en este modo (624 muestras por defecto) porque todo el registro es zona sin
+  señal: a 100 Hz, un canal de hod2019 a ~20 kHz sobre 3 mV da ~1800 cuentas en 90 s
+  [H: 8.8], y hod2018 a ~2.3 MHz sobre 0.5 p.e. da ~2.3 × 10³ pulsos/s por canal [I].
+- Volumen con registros completos: 64 × 624 × 2 B × 100 Hz ≈ 8.0 MB/s [I]. Decisión de
+  almacenamiento:
+  1. Por evento, conteos de pulsos por canal sobre cada umbral de `pulse_thresholds_mV`
+     (`UShort_t[64][n_umbrales]`, 384 B con 3 umbrales) y la línea base: ~38 kB/s.
+  2. Histogramas de amplitud por canal con paso de 1 LSB, acumulados por paso de la prueba
+     de grupos o por minuto: son la entrada de la calibración de p.e.
+  3. Formas de onda completas de una fracción `store_waveform_fraction` (1 %) de los
+     eventos, elegidos por contador (no al azar) para auditoría y reanálisis: ~80 kB/s.
+  4. Listas de pulsos (tiempo, amplitud, carga) opcionales (`store_pulse_lists`), apagadas
+     por defecto: con hod2018 serían ~7 × 10⁴ pulsos/s [I].
+  Total por defecto ≈ 0.12 MB/s; un run de 1 h ≈ 0.43 GB [I].
+- Calibración de p.e. de puesta en marcha: ajuste de los histogramas de 2. con el método de
+  7.3, resultado versionado (`pe_calibration_2026_10_<n>.json`: p0, G, error, estado,
+  ambigüedad, método, run de origen, voltajes de cada grupo en ese momento). Ese archivo es
+  el que sale del estado "sin calibración".
+
+## 11. Corriente estimada por MPPC
+
+Siempre marcada "ESTIMADA".
+
+- `identical`: I_est = (IMon − offset − I_pasiva) / N_g, con N_g = número de MPPC del grupo
+  según el mapeo.
+- `reference_weighted`: I_c = (IMon − offset − I_pasiva) × I_ref,c / Σ I_ref del grupo, con
+  I_ref de "Voltajes Hodoscopio.xlsx" (198-278 nA por SiPM [H: 3]); la planilla no está en
+  este host y se exporta a JSON cuando René la entregue.
+- `common_resistance_ohm` y `series_resistance_ohm` opcionales (`null` = desconocidos, hoy).
+  Con resistencia común R_c: V_MPPC,est = VMon − IMon × R_c para todo el grupo; con
+  resistencia por MPPC R_s: V_c,est = VMon − IMon × R_c − I_c × R_s. El episodio del
+  2026-05-29 muestra que importa distinguirlas [H: 4]; VMon e IMon a 1 Hz lo permiten.
+- Offsets: `hvmon` registra IMon/VMon de todo canal con Pw = 0 y VMon < 2 V durante más de
+  60 s; `hvctl offsets` hace la medida explícita de inicio/fin de campaña y se niega si
+  algún canal tiene Pw = 1.
+- Corriente típica de un grupo: ~2 µA, con I0Set = 15 µA (margen ~7 veces) [H: 3].
+
+## 12. Temperatura
+
+`TempBackend::read() → vector<{sensor_id, T_degC, t_utc_ns}>`. Implementaciones:
+`Ds18b20Sysfs` (adaptador USB 1-Wire con el driver w1: `/sys/bus/w1/devices/28-*`; hoy
+`/sys/bus/w1` no existe), `SerialLineSource` (microcontrolador por USB serie; René agrega
+`xplus` a `dialout` cuando llegue el hardware) y `FakeTemperature`. La lee `hvmon`. Sensores
+previstos: junto a cada estación y junto a las placas de trigger [H: 7.7].
+
+## 13. Pruebas
+
+### 13.1 Fakes
+
+- `FakeHVBackend`: canales con V0Set/I0Set/RUp/RDWn/Trip, rampas, IMon con offset y ruido,
+  guion temporal (trip, sobrecorriente creciente, cambio manual tipo GECO, pérdida de
+  conexión, llamadas lentas, `Pw = 1` que no prende, re-trip en estabilización), y un modelo
+  de qué canales de digitizador alimenta cada grupo para la prueba de grupos.
 - `FakeDigitizer`: (a) reproducción de eventos de v8/v10 abiertos en READ desde
-  `/data/daq/raw` recortados a la ventana reducida, con tiempos regenerados como Poisson o
-  copiados de `timestamp`; (b) sintético con pedestal, ruido, pulsos de 1 p.e. y muones,
-  canales muertos, apagones de grupo y huecos de trigger programables.
-- `FakeTemperature` y `FakeClock` (tiempo acelerado: la máquina de auto-retry recorre 2 h
-  en milisegundos).
+  `/data/daq/raw` recortados a la ventana reducida, con tiempos Poisson o copiados de
+  `timestamp`; (b) sintético con pedestal, ruido, pulsos de 1 p.e. (incluido un canal con
+  espectro ambiguo tipo ch9), muones, canales muertos, apagones por grupo según el mapeo,
+  fuga de luz por cara, huecos y ráfagas de trigger; (c) modo SW trigger.
+- `FakeTemperature` y `FakeClock` (tiempo acelerado).
 
-### 11.2 Framework
+### 13.2 Framework
 
-No hay framework instalado. Recomendado: GoogleTest del paquete `libgtest-dev` de Ubuntu
-24.04 (requiere `sudo apt install`, decisión del operador). Alternativa sin sudo: doctest
-(un solo header MIT) copiado en `daq/third_party/`. Ambos se ejecutan con `ctest`.
+GoogleTest de `libgtest-dev` (apt), integrado con `ctest` mediante `gtest_discover_tests`.
+René lo instala antes de la fase 0; si no está instalado al empezar la fase 0, la tarea se
+detiene y lo informa (no se copia un framework al repositorio).
 
-### 11.3 Criterios de aceptación por fase
+### 13.3 Criterios de aceptación por fase
 
 | fase | aceptación |
 |---|---|
-| 0 HV lib + `FakeHVBackend` + `hvctl` | tests unitarios pasan; `hvctl --fake` y `hvctl` real (solo lectura, tarea autorizada) dan la misma tabla que `hv_readall`; latencia por llamada medida y registrada; ninguna llamada `Set*` en el binario de fase 0 (verificado con `nm`) |
-| 1 `hvmon` registro | 24 h con fake acelerado sin pérdida de líneas; cambios del guion detectados con el origen correcto en el 100 % de los casos; reconexión tras corte; 8 h reales de solo lectura con GECO abierto, cada cambio hecho en GECO aparece como `external` |
-| 2 auto-retry y notificador | todas las transiciones de 7.2 cubiertas por tests con tiempo acelerado; acciones manuales siempre mandan; un correo por episodio; luego una vez en hardware real con carga resistiva e I0Set bajo, con autorización explícita: trip provocado → WAIT → RETRY → NORMAL, y GAVE_UP con el correo |
-| 3 `daqrun` con digitizador fake | 24 h aceleradas sin perder eventos (contador = entradas); apagado limpio por señal en cualquier momento; segmentos con SHA256 correctos; flags del guion correctos; memoria estable (RSS sin deriva > 10 %) |
-| 4 digitizador real | autorizado por el operador; `GetRecordLength` = N pedido; pico de muón en la muestra esperada ±1; paso del TTT medido; 1 h de datos comparables con v8 (tasa, ocupación por canal) |
-| 5 monitoreo y flags | todos los paneles de la sección 3 de requisitos en :8080 y :8081; flags coherentes con `hv_changes` y con los apagones de datos en una reproducción de v8 |
-| 6 resistencia 24 h | 24 h reales con HV y digitizador: 0 eventos perdidos sin flag, `hvmon` continuo a través de un reinicio de `daqrun`, CPU < 25 % de un núcleo, memoria estable |
+| 0 HV lib + `FakeHVBackend` + `hvctl` | tests pasan; `hvctl --fake` y `hvctl` real (solo lectura, tarea autorizada) dan la misma tabla que `hv_readall`; latencia de una lectura completa de 12 canales medida y registrada; el binario de fase 0 no contiene llamadas `Set*` (verificado con `nm`) |
+| 1 `hvmon` + ruta de comandos | 24 h con fake acelerado sin pérdida de líneas; cambios del guion con el origen correcto en el 100 % de los casos; reconexión; lector a TTree/RDataFrame validado; 8 h reales de solo lectura con GECO abierto, cada cambio hecho en GECO aparece como `external`; patrón de GECO confirmado; suscripción evaluada; comandos `pw` probados solo contra el fake (con hardware real recién en fase 2 o 6, con autorización) |
+| 2 auto-retry y notificador | todas las transiciones de 8.2 cubiertas con tiempo acelerado; acción manual siempre manda; un correo por episodio; luego una vez en hardware real con carga resistiva e I0Set bajo, con autorización explícita: trip provocado → WAIT → RETRY → NORMAL, GAVE_UP con correo, y verificación de los bits de `Status` |
+| 3 `daqrun` con digitizador fake | 24 h aceleradas sin perder eventos; apagado limpio por señal en cualquier momento; segmentos e índice con SHA256 correctos; flags del guion correctos (incluidas pruebas de Poisson con agregación); estado sin calibración visible; modo calibración con SW trigger fake; RSS sin deriva > 10 % |
+| 4 digitizador real | autorizado por el operador; `GetRecordLength` = 144; pico de muón en la muestra esperada ±1; paso del TTT medido; SW trigger a 100 Hz sin pérdidas; `DT_NEEDED` con la ruta de `/usr/lib`; 1 h de datos comparables con v8 |
+| 5 monitoreo y flags | todos los paneles de 7.2; flags coherentes con `hv_changes` y con los apagones en una reproducción de v8/v10 |
+| 6 puesta en marcha de octubre | con autorización explícita de escritura HV: prueba de grupos completa; prueba de coincidencias entre vecinos en la primera hora; mapeo con `hv_group` y `strip` confirmados por medición en los 64 canales (o lista de los que no se pudieron determinar); calibración de p.e. versionada |
+| 7 resistencia 24 h | 24 h reales: 0 eventos perdidos sin flag, `hvmon` continuo a través de un reinicio de `daqrun`, CPU < 25 % de un núcleo, memoria estable |
 
-## 12. Plan por fases
+## 14. Plan por fases
 
 0. Biblioteca HV (`IHVBackend`, `CaenHVBackend` solo lectura, `FakeHVBackend`), `IClock`,
-   configuración, `hvctl` de solo lectura (port de `hv_readall`), framework de tests.
-1. `hvmon`: sondeo 1 Hz / 1 min, archivos de slow control, detector de cambios y origen,
-   estado en `/dev/shm`, página :8081, offsets, temperatura con fake.
-2. Auto-retry y notificador: primero con fakes y tiempo acelerado; después una vez en
-   hardware real con carga resistiva e I0Set bajo, con autorización explícita para `Pw = 1`.
-3. `daqrun` con `FakeDigitizer`: hilos, colas, escritor con segmentos y SHA256, cliente HV,
-   flags, notas, campañas.
-4. Digitizador real (autorización del operador): configuración de ventana reducida, TTT,
-   contador de hardware, memoria llena.
-5. Paneles de monitoreo y flags de punta a punta (incluye ganancia horaria de hod2018).
-6. Prueba de 24 h.
+   `JThread` propio, configuración, `hvctl` de solo lectura (port de `hv_readall`) con
+   medida de latencia, GoogleTest.
+1. `hvmon`: sondeo 1 Hz / 1 min, slow control con su lector, detector de cambios y origen,
+   estado en `/dev/shm`, página :8081, offsets, temperatura con fake, ruta de comandos
+   `hvctl` → `hvmon` (probada contra el fake), servicio de usuario con
+   `loginctl enable-linger xplus` (René, con sudo), evaluación de suscripción.
+2. Auto-retry y notificador: con fakes y tiempo acelerado; después una vez en hardware real
+   con carga resistiva e I0Set bajo, con autorización explícita para `Pw`.
+3. `daqrun` con `FakeDigitizer`: hilos, colas, escritor, segmentos, índice, SHA256, cliente
+   HV, flags, notas, campañas y manifiestos, modo calibración, estadística de Δt.
+4. Digitizador real (autorización del operador): ventana B, TTT, contador de hardware,
+   memoria llena, SW trigger.
+5. Paneles de monitoreo y flags de punta a punta, ajustes de ganancia.
+6. Puesta en marcha de octubre: prueba de grupos (escribe `Pw`, autorización explícita),
+   prueba de vecinos, confirmación del mapeo, calibración de p.e.
+7. Prueba de 24 h.
 
-## 13. Diferencias con la propuesta
+## 15. Diferencias con la propuesta y decisiones de la revisión
 
-1. **C++17 en vez de C++20.** ROOT 6.32.10 está compilado con C++17. Un TU C++20 con ROOT
-   compila y enlaza, pero `RConfigure.h:30` avisa de la discrepancia y no se probó la
-   interacción con cling. Se usa C++17 en todo `daq/` con un `JThread`/`StopToken` propio de
-   interfaz idéntica, para migrar cuando ROOT se recompile con C++20.
-2. **Framework de tests.** GoogleTest y Catch2 no están instalados. Se propone
-   `libgtest-dev` (requiere sudo) o doctest copiado en el repositorio.
-3. **Slow control en texto, no en ROOT.** Un daemon que escribe un TFile durante días
-   pierde datos si muere (como v10). CSV/JSONL con `fsync` periódico son a prueba de cortes y
-   legibles con `grep`. Las mismas lecturas se copian al árbol `hv` de cada run.
-4. **Runs segmentados en archivos de 1 h y AutoSave cada 5 min.** Limita la pérdida ante un
-   fallo y permite cerrar con SHA256 durante una campaña larga. El nombre lleva `_seg<MMM>`.
-5. **ADC crudo `UShort_t[64][N]` en vez de `vector<float>` en mV.** Sin pérdida, la mitad de
-   bytes, tamaño fijo por run; la conversión va en la cabecera. Requiere un lector de
-   compatibilidad para los programas de análisis existentes.
-6. **Estado de `hvmon` con secuencia y anillo de cambios.** Solo el último valor perdería
-   cambios si `daqrun` se salta una lectura. Además `flock` garantiza un único dueño del
-   Wrapper entre nuestras herramientas.
-7. **Línea de retardo de flags en el escritor** (5 s) para poner el bit 5 retroactivamente,
-   y flags recalculables offline. El cálculo puramente online no puede conocer el intervalo
-   de ambigüedad.
-8. **Temperatura en `hvmon`**, porque es continua y relevante entre runs.
-9. **Mapeo: JSON propio + test de consistencia contra `hodo_mapping.h`**, no generación de
-   uno desde el otro. `hodo_mapping.h` es del chat de análisis, tiene dos configuraciones y
-   funciones (`ch_to_plane`) que solo valen para una; además grupos HV y caras no están en
-   él. El JSON añade procedencia por campo.
-10. **Bit 9 `MAP_UNCONFIRMED` y flags de evento extra** (salto del contador de hardware,
-    memoria llena, discrepancia TTT/PC), porque hoy 5 de 8 grupos HV son desconocidos y el
-    DAQ actual no detecta eventos perdidos.
-11. **Lectura por sondeo con espera de 5 ms y varios eventos por BLT**, no interrupciones,
-    en la primera versión. Las IRQ por CONET quedan como opción si la medida lo justifica.
-12. **THttpServer con `SetTimer(0)` y enlazado a 127.0.0.1** para que solo el hilo principal
-    procese peticiones y la página no quede abierta en la red de la universidad.
-13. **Notas por archivo append-only** (`daqnote` escribe con `O_APPEND`), sin IPC; funcionan
-    con o sin `daqrun` corriendo.
-14. **Salvaguardas extra del auto-retry:** inhibido con GECO abierto (configurable), un solo
-    canal en rampa a la vez con separación mínima, ninguna acción al arrancar sobre canales
-    encontrados apagados, estado persistido entre reinicios.
-15. **Herramienta `daqcampaign`** para abrir y cerrar campañas con marcador, porque "nunca
-    escribir en una campaña existente" y "añadir el SHA256 al cerrar cada run" exigen
-    distinguir la campaña abierta propia de las ya cerradas.
+1. **C++17 con `JThread` propio.** ROOT 6.32.10 está compilado con C++17 y avisa con C++20
+   (`RConfigure.h:30`). Decisión: aceptado; el reemplazo es pequeño, con equivalente de
+   `stop_token` y cubierto por tests.
+2. **Framework de tests.** No había ninguno instalado. Decisión: GoogleTest de apt con
+   `gtest_discover_tests`; René lo instala antes de la fase 0; si falta, se detiene la tarea.
+   No se copia un framework.
+3. **Slow control en texto, no en ROOT.** Un daemon que escribe un TFile durante días pierde
+   datos si muere. Decisión: aceptado, con archivos diarios y `fsync` con período
+   configurable (10 s) porque `/data` es un HDD compartido; lector en la biblioteca común a
+   TTree/RDataFrame. Se añade el `.schema.json` hermano para que el CSV sea legible por
+   `RDF::FromCSV`.
+4. **Segmentos de 1 h, AutoSave cada 5 min, SHA256 por segmento.** Limita la pérdida ante
+   un fallo. Decisión: aceptado, con índice JSON por run (4.2).
+5. **ADC crudo `UShort_t[64][N]`.** Sin pérdida y la mitad de bytes. Decisión: aceptado; la
+   conversión ADC → mV y los DC offsets van en la cabecera del run.
+6. **Secuencia, anillo de cambios y `flock`.** Decisión: aceptado.
+7. **Línea de retardo de 5 s para el bit 5 y flags recalculables offline.** Decisión:
+   aceptado.
+8. **Temperatura en `hvmon`.** Decisión: aceptado.
+9. **Mapeo JSON propio + test de consistencia con `hodo_mapping.h`.** Decisión: aceptado.
+   `ch_to_plane()`/`ch_to_strip()` fijan los rangos de 2026-05 y fallan con `kCfg_2026_10`, y
+   AGENTS.md contradice `hodo_mapping.h` para hod2018: ambos en `docs/notes_for_analysis.md`,
+   sin tocar el código de análisis.
+10. **Bit 9 `MAP_UNCONFIRMED` y flags de evento extra.** Decisión: aceptado. En esta revisión
+    se añaden los bits de canal 10 (`PE_PROVISIONAL`) y 11 (`STAT_INSUFFICIENT`) y los de
+    evento 7 (`NO_CALIBRATION`) y 8 (`HV_GROUP_TEST`).
+11. **Sondeo con 5 ms de espera y varios eventos por BLT.** Decisión: aceptado; IRQ
+    (`CAEN_DGTZ_IRQWait`) solo si el sondeo muestra un problema.
+12. **THttpServer con `SetTimer(0)` en 127.0.0.1.** Decisión: aceptado como valor por defecto.
+    Acceso remoto: túnel SSH por Tailscale,
+    `ssh -L 8080:127.0.0.1:8080 -L 8081:127.0.0.1:8081 xplus@100.114.138.29` y abrir
+    `http://localhost:8080`. Opción `bind = "tailscale"`. Nunca enlace sin autenticación a la
+    interfaz de la universidad ni a `0.0.0.0` (rechazado en la validación).
+13. **`daqnote` con `O_APPEND`.** Decisión: aceptado.
+14. **Salvaguardas del auto-retry.** Decisión: aceptado salvo GECO: abierto no inhibe por
+    defecto; aviso en el registro y detección de cambios externos (cualquier cambio de
+    `Pw`/`V0Set` no hecho por `hvmon` cancela el reintento y pasa a `MANUAL`); opción
+    `inhibit_when_geco_running` (por defecto false).
+15. **`daqcampaign` con marcador `CAMPAIGN_OPEN`.** Decisión: aceptado; manifiestos en
+    `/data/daq/manifests/` (4.4).
+16. **Nuevo en DAQ2-1: diseño B de ventana.** Se descarta evitar 3510-3525 ns porque el
+    pickup no aparece en v8 (sección 1.3).
+17. **Nuevo en DAQ2-1: escrituras HV centralizadas en `hvmon`** (auto-retry, prueba de
+    grupos, `hvctl`), con `hv.allow_commands` y autorización registrada por comando.
+18. **Nuevo en DAQ2-1: estadística de Δt header-only**, para que el análisis (Makefile) la
+    use sin depender de CMake.
 
-## 14. Preguntas abiertas
+## 16. Preguntas resueltas por el handoff y la revisión
 
-1. ¿Qué mapeo vale para la campaña nueva: `kCfg_2026_05` (medido en v8) o `kCfg_2026_10`
-   (hoja "Octubre 2026")? ¿Se recableó entre junio y octubre? AGENTS.md dice que hod2018 es
-   secuencial, en contra de `hodo_mapping.h`.
-2. Composición de los grupos HV 3, 4, 5, 7, 8 y del octavo canal del grupo 6; ¿existe un
-   registro de la PCB de distribución? ¿El grupo g corresponde siempre a CH0(g-1)?
-3. Caras físicas de hod2018 (para el aviso de fuga de luz): no hay registro.
-4. Valores de las resistencias de la PCB (término pasivo y R_s): desconocidos.
-5. "Voltajes Hodoscopio.xlsx" no está en este host.
-6. Ventana reducida: ¿diseño A (sin pickup, pedestal en dos tramos) o B (pickup dentro del
-   pedestal)? ¿N = 144 está bien?
-7. Con la ventana reducida la región sin señal cae de ~250 a ~80 muestras por evento:
-   ¿alcanza la estadística de pulsos de 1 p.e. para un ajuste horario de G_c? No medido.
-   Opción: triggers de software intercalados (p. ej. 2 Hz), si se puede distinguir su origen
-   en el evento.
-8. TTT del V1740 con ROC 04.29: ancho, paso (8 o 16 ns) y si hay TTT extendido. Se mide en
-   la fase 4.
-9. Bits de `Status` del A7030 y qué hace falta para rehabilitar un canal tras un trip
-   (`Pw = 1` solo, o borrar alarma). Se verifica en la fase 2.
-10. Latencia de `CAENHV_GetChParam` contra este SY5527 (firmware antiguo): no medida. Define si
-    caben 6 llamadas por segundo. ¿Conviene el modo suscripción (`SubscribeChannelParams`)?
-    El log de GECO (`CAENGECO2020SubscrFail_SY5527.log`) muestra fallos de suscripción de dos
-    parámetros de sistema.
-11. Nombre exacto del proceso de GECO2020 (no estaba corriendo; no se pudo verificar
-    `pgrep -f caengeco`).
-12. Servicio: `loginctl` da `Linger=no`, así que un servicio systemd de usuario se detiene al
-    cerrar sesión. ¿`enable-linger` o servicio de sistema? Ambos requieren al operador.
-13. ¿Quién debe ver las páginas web y desde dónde (localhost, Tailscale, red de la
-    universidad)? ¿Autenticación?
-14. Proveedor SMTP, remitente, destinatarios.
-15. Hardware de temperatura (adaptador 1-Wire USB o microcontrolador); permisos `dialout`.
-16. Instalación del framework de tests con sudo.
-17. ¿Uso de `/data/daq/manifests/` por el DAQ nuevo (hoy contiene
-    `raw_manifest_20261018.sha256`)?
-18. Hay un proceso `agy` (Gemini/Antigravity) con este repositorio añadido como directorio.
-    ¿Escribe aquí? Afecta la regla de una tarea a la vez.
+| pregunta (DAQ2-0) | respuesta |
+|---|---|
+| mapeo de la campaña nueva | `kCfg_2026_10` [H: 5] |
+| grupos HV y relación con CH00-07 | grupo g = CH0(g−1), confirmado; tabla de etiquetas y tabla derivada de hod2019 en 5.1 [H: 3, 5] |
+| caras de hod2019 | Delantera, Trasera, Opuesta, Frontal por regla de 5.1 [H: 5]; hod2018 sin caras para fuga de luz (la luz llegó también a hod2018 en mayo [H: 4], se agrega por grupo o canal) |
+| planilla "Voltajes Hodoscopio.xlsx" | contenido relevante en [H: 3]; la planilla misma no está en el host |
+| ventana A o B | B, con datos (1.3) |
+| estadística de 1 p.e. con ventana reducida | ~7400 pulsos > 0.5 p.e. por canal y hora en hod2018 (1.3); hod2019 con agregación o modo calibración |
+| TTT | no hay manual en el host; medida en la fase 4 (2.3) |
+| bits de `Status` | posiciones en configuración; valores iniciales del manual del Wrapper; verificación en fase 2 |
+| latencia y suscripción | latencia en fase 0, suscripción en fase 1 |
+| nombre de GECO | snap `caengeco2020`, ejecutable `bin/CAENGECO2020`; patrón confirmado en fase 1 |
+| servicio | servicio de usuario con `enable-linger` (fase 1) |
+| acceso web | localhost + túnel SSH por Tailscale; opción Tailscale |
+| SMTP | `notify.json` (600, fuera del repo), decidido antes de la fase 2 |
+| temperatura y `dialout` | `TempBackend` + fake; `dialout` cuando llegue el hardware |
+| resistencias de la PCB | desconocidas; opcionales en configuración |
+| framework de tests | GoogleTest de apt |
+| manifiestos | `/data/daq/manifests/` |
+| proceso `agy` | René lo cierra o quita el repositorio de su espacio de trabajo |
+
+## 17. Preguntas abiertas
+
+1. Si los cables de hod2018 se tocaron entre mayo y octubre (define si valen las relaciones
+   de grupo medidas en mayo) [H: 10].
+2. Orden de las etiquetas "Canal" del eje Y de hod2018 y orientación absoluta de los ejes
+   [H: 10]; los resuelven la prueba de grupos y la de vecinos solo en parte.
+3. Modelo de MPPC y voltaje de ruptura (afecta la interpretación de G_c(t) y una eventual
+   compensación de bias por temperatura) [H: 10].
+4. Manual del A7030DP / SY5527: bits de `Status` específicos y procedimiento para rehabilitar
+   tras un trip (René lo busca).
+5. Canales de hod2019 con tasa oscura ~0 (en v8 el mínimo fue 0 kHz sobre 3 mV): la prueba de
+   grupos no puede asignarles grupo por tasa oscura. ¿Se acepta asignarlos por la planilla o
+   se usa otra señal (p. ej. un LED o la línea base)?
+6. Si el pickup reaparece en octubre con otro cableado; el monitor lo vigila (7.1).
+7. Proveedor SMTP y destinatarios (antes de la fase 2).

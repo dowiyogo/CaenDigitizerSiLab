@@ -20,6 +20,12 @@ Acquisition and analysis for two scintillator hodoscopes read by MPPCs:
   CH08-11 unused. The mainframe clock is about 81 min ahead: never use its timestamps.
 - Work in progress: a new DAQ with HV slow control (`hvmon` daemon + `daqrun` per run).
   Design: `docs/daq_v2_design.md` (Spanish). Implementation goes under `daq/`.
+- Inputs: `docs/handoff_analysis_2026-10-18.md` (analysis of v1-v10 and requirements; the
+  project-side version is the reference). Items for the analysis chat go to
+  `docs/notes_for_analysis.md`; do not fix analysis code from DAQ tasks.
+- October 2026 campaign: channel mapping `kCfg_2026_10`; HV group g = SY5527 CH0(g-1).
+  `outputs/pe_calibration_v8.txt` is from May and must not be used for October: until the
+  commissioning calibration exists the DAQ runs in the "no calibration" state.
 
 ## Paths
 
@@ -31,6 +37,8 @@ Acquisition and analysis for two scintillator hodoscopes read by MPPCs:
     ROOT                  ~/root6 (6.32.10, built with C++17)
     CAEN HV Wrapper 6.6   /usr/lib64/libcaenhvwrapper.so, /usr/include/CAENHVWrapper.h (needs -DUNIX)
     CAEN digitizer libs   /usr/lib: CAENDigitizer 2.17.3, CAENComm 1.7.0, CAENVMELib 4.0.2
+                          (identical unversioned copies in /usr/local/lib; daq/ links the
+                          versioned /usr/lib files by full path)
 
 ## Hard rules
 
@@ -50,9 +58,13 @@ Acquisition and analysis for two scintillator hodoscopes read by MPPCs:
    memory (a python3 process was OOM-killed at 15.4 GB on this 15 GB machine).
 6. CAENGECO2020 (HV GUI, a snap) may be running. Do not close or touch it.
 7. Only one task runs on this host at a time; the analysis chat also sends tasks. Do not
-   start background jobs that outlive the task. Before writing in the repository, check
-   `pgrep -af -i 'caen|wavedump|digitizer|daq|acq|test_acquire'` and
-   `find . -type f -mmin -60 -not -path './.git/*'`; if either shows activity, stop.
+   start background jobs that outlive the task. At the start of every task run `git status`,
+   `pgrep -af -i 'caen|wavedump|digitizer|daq|acq|test_acquire'` (stop if an acquisition
+   runs) and check the modification times of the files you will edit. If a file you are
+   about to edit was changed in the last hour by someone other than you and the task prompt
+   does not mention it, stop and ask. Files the task prompt names explicitly are
+   authorized. This replaces the AGENTS.md rule "do not write if any file changed in the
+   last hour".
 8. Copy every reported number verbatim from command output. If something was not
    measured, say so. Do not run `make` in the repository root (DAQ binaries used for data
    taking live there); use `make -n`.
@@ -69,7 +81,9 @@ Analysis (Makefile, C++17, run everything from the repository root):
     make -C analysis                      # binaries in analysis/bin/
     analysis/scripts/run_*.sh             # pipeline scripts, cd to the root themselves
 
-New DAQ (CMake, planned; nothing exists yet):
+New DAQ (CMake, planned; nothing exists yet). Tests use GoogleTest from apt
+(`libgtest-dev`) through `gtest_discover_tests`. If GoogleTest is not installed when a task
+needs it, stop and say so; do not vendor a test framework.
 
     cmake -S daq -B daq/build -DCMAKE_BUILD_TYPE=RelWithDebInfo
     cmake --build daq/build -j4
@@ -85,13 +99,18 @@ authorizes HV reads.
 ## Coding conventions for daq/
 
 - Identifiers in English, comments in Spanish. Reports and design docs in Spanish.
-- C++17 for code that includes ROOT headers (ROOT was built with C++17; C++20 compiles but
-  ROOT warns, see design doc). Standard library concurrency only.
+- C++17 everywhere in daq/ (ROOT 6.32.10 was built with C++17; C++20 compiles but ROOT
+  warns). Use the small in-house `daq::JThread`/`StopToken`, not `std::jthread`. Standard
+  library concurrency only.
 - SI units internally (V, A, s). Convert at the hardware boundary (the A7030 reports
   current in uA). Put units in branch titles, CSV headers and JSON keys (`_V`, `_A`, `_s`).
 - Times: UTC nanoseconds since the Unix epoch (`int64`), from `CLOCK_REALTIME`; intervals
-  from `CLOCK_MONOTONIC`. Never local time in data files (Chile switches between UTC-4 and
-  UTC-3; runs v1-v10 were at UTC-4).
+  from `CLOCK_MONOTONIC`. Never local time in data files. The host is in America/Santiago:
+  UTC-3 in October, UTC-4 in May-June (runs v1-v10 and the local times in
+  `runs/good_intervals_2026.csv` are UTC-4).
+- HV writes go only through `hvmon` (auto-retry, HV-group test, `hvctl` commands), each with
+  the authorization text logged. HTTP pages are read-only and bind to 127.0.0.1 (or the
+  Tailscale address), never to the university interface.
 - Every ROOT object has exactly one owning thread. Every hardware dependency sits behind an
   interface with a fake implementation; time comes from an injectable clock.
 
@@ -102,3 +121,6 @@ authorizes HV reads.
 - AGENTS.md says hod2018 X bar k = channel k; `analysis/src/hodo_mapping.h` (kCfg_2026_05,
   used for v1-v10) has a different, measured hod2018 order.
 - AGENTS.md rule 7 uses `timeout 600`; the current rule is `timeout 3600`.
+- AGENTS.md says not to write if any file changed in the last hour; rule 7 above replaces it.
+- AGENTS.md places hod2018 pickup at t ≈ 3525 ns; a read-only check on v8 (2026-10-18) did
+  not find it (`docs/notes_for_analysis.md`, item 3).
