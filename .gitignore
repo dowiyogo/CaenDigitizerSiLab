@@ -15,4 +15,9 @@ attic/bin_pre_reorg/
 logs/
 outputs/
 .vscode/
-%00.desktop
+%00.desktop# DAQ v2
+daq/build*/
+attic/hv_tools_bin/
+CAENGECO2020SubscrFail_*.log
+daq/tools/legacy/hv_readall
+daq/tools/legacy/test_sy5527
