@@ -5,11 +5,13 @@
 //   (DropNewest descarta el elemento nuevo, DropOldest el más antiguo) y cuenta el descarte.
 // - pop(): bloquea hasta que haya un elemento; tras close() entrega lo que quede y luego
 //   devuelve std::nullopt.
+// - pop_until(): como pop() con plazo.
 // - close(): despierta a todos los que esperan; push posteriores fallan.
 // Seguridad entre hilos: todos los métodos se pueden llamar desde cualquier hilo. Las esperas
 // usan predicado y las notificaciones se hacen después de soltar el mutex.
 #pragma once
 
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
@@ -65,6 +67,22 @@ class BoundedQueue {
       std::unique_lock<std::mutex> lk(m_);
       notEmpty_.wait(lk, [&] { return closed_ || !items_.empty(); });
       if (items_.empty()) return std::nullopt;  // cerrada y vacía
+      out.emplace(std::move(items_.front()));
+      items_.pop_front();
+    }
+    notFull_.notify_one();
+    return out;
+  }
+
+  // Como pop(), pero vuelve con std::nullopt al llegar al plazo (o si la cola está cerrada y
+  // vacía; distinguir con closed()).
+  template <class Clock, class Duration>
+  std::optional<T> pop_until(const std::chrono::time_point<Clock, Duration>& deadline) {
+    std::optional<T> out;
+    {
+      std::unique_lock<std::mutex> lk(m_);
+      notEmpty_.wait_until(lk, deadline, [&] { return closed_ || !items_.empty(); });
+      if (items_.empty()) return std::nullopt;
       out.emplace(std::move(items_.front()));
       items_.pop_front();
     }
