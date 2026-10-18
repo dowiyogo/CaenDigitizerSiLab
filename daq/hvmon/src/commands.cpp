@@ -1,0 +1,194 @@
+// commands.cpp
+#include "daq/hvmon/commands.h"
+
+#include <pwd.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <chrono>
+
+#include "daq/core/logger.h"
+#include "daq/hv/reading_json.h"
+
+namespace daq::hvmon {
+
+namespace {
+constexpr std::size_t kMaxRequestBytes = 64 * 1024;
+constexpr std::size_t kMaxNoteChars = 4000;
+
+nlohmann::json error(const std::string& msg) { return nlohmann::json{{"ok", false}, {"error", msg}}; }
+
+std::string hostName() {
+  char buf[256] = {0};
+  if (::gethostname(buf, sizeof buf - 1) != 0) return "?";
+  return buf;
+}
+}  // namespace
+
+std::string describePeer(const PeerCredentials& peer) {
+  std::string user = std::to_string(peer.uid);
+  if (passwd* pw = ::getpwuid(peer.uid)) user = pw->pw_name;
+  return user + " (uid " + std::to_string(peer.uid) + ", pid " + std::to_string(peer.pid) + ")";
+}
+
+CommandHandler::CommandHandler(const HvmonConfig& cfg, StateHub& hub, BoundedQueue<PollRequest>& poll,
+                               BoundedQueue<WriterItem>& writer, const Clock& clock)
+    : cfg_(cfg), hub_(hub), poll_(poll), writer_(writer), clock_(clock) {}
+
+bool CommandHandler::isLong(const std::string& line) {
+  try {
+    const auto j = nlohmann::json::parse(line);
+    const std::string cmd = j.value("cmd", "");
+    return cmd == "pw" || cmd == "measure-offsets";
+  } catch (...) {
+    return false;
+  }
+}
+
+nlohmann::json CommandHandler::handle(const std::string& line, const PeerCredentials& peer) {
+  try {
+    const auto req = nlohmann::json::parse(line);
+    if (!req.is_object() || !req.contains("cmd") || !req["cmd"].is_string())
+      return error("petición inválida: se espera un objeto JSON con \"cmd\"");
+    return dispatch(req, peer);
+  } catch (const nlohmann::json::exception& e) {
+    return error(std::string("petición inválida: ") + e.what());
+  } catch (const std::exception& e) {
+    return error(std::string("error interno: ") + e.what());
+  }
+}
+
+nlohmann::json CommandHandler::forward(PollRequest r, double timeoutS) {
+  auto fut = r.reply->get_future();
+  if (!poll_.try_push(std::move(r), DropPolicy::DropNewest)) return error("cola de peticiones llena o cerrada");
+  if (fut.wait_for(std::chrono::duration<double>(timeoutS)) != std::future_status::ready)
+    return error("sin respuesta del hilo de sondeo a tiempo");
+  return fut.get();
+}
+
+nlohmann::json CommandHandler::readJson() const {
+  const auto [p, seq] = hub_.poller.read();
+  (void)seq;
+  if (p.params.empty() || p.values.empty()) return error("todavía no hay lecturas");
+  hv::ChannelReading r;
+  r.slot = cfg_.slot;
+  r.channels = cfg_.channels;
+  r.tReqUtcNs = p.lastGoodReadUtcNs;
+  r.tRespUtcNs = p.lastGoodReadUtcNs;
+  for (const auto& info : p.params) {
+    std::vector<hv::ParamValue> row;
+    for (int ch : cfg_.channels) {
+      auto c = p.values.find(ch);
+      if (c == p.values.end()) return error("falta el canal " + std::to_string(ch) + " en el estado");
+      auto v = c->second.find(info.name);
+      if (v == c->second.end()) return error("falta " + info.name + " en el estado");
+      row.push_back(v->second);
+    }
+    r.params.push_back(info);
+    r.values.push_back(std::move(row));
+  }
+  auto j = hv::readingToJson(r, cfg_.statusBits);
+  j["source"] = "hvmon";
+  j["connected"] = p.connected;
+  j["last_good_read_utc_ns"] = p.lastGoodReadUtcNs;
+  return nlohmann::json{{"ok", true}, {"reading", j}};
+}
+
+nlohmann::json CommandHandler::dispatch(const nlohmann::json& req, const PeerCredentials& peer) {
+  const std::string cmd = req["cmd"].get<std::string>();
+  if (cmd == "ping") return {{"ok", true}, {"pid", static_cast<long>(::getpid())}};
+  if (cmd == "status")
+    return {{"ok", true}, {"state", hub_.compose(cfg_, clock_.now_utc_ns(), ++statusSeq_, false)}};
+  if (cmd == "read") return readJson();
+  if (cmd == "changes") {
+    const int n = req.value("n", 20);
+    if (n <= 0) return error("n debe ser positivo");
+    const auto [p, seq] = hub_.poller.read();
+    (void)seq;
+    nlohmann::json out = nlohmann::json::array();
+    const std::size_t total = p.recentChanges.size();
+    const std::size_t start = total > static_cast<std::size_t>(n) ? total - static_cast<std::size_t>(n) : 0;
+    for (std::size_t i = start; i < total; ++i) out.push_back(p.recentChanges[i].toJson());
+    return {{"ok", true}, {"changes", out}, {"ring_size", cfg_.changeRingSize}};
+  }
+  if (cmd == "note") {
+    if (!req.contains("text") || !req["text"].is_string()) return error("note: falta \"text\"");
+    const std::string text = req["text"].get<std::string>();
+    if (text.empty()) return error("note: texto vacío");
+    if (text.size() > kMaxNoteChars) return error("note: texto demasiado largo");
+    NoteItem n;
+    n.tUtcNs = clock_.now_utc_ns();
+    n.user = describePeer(peer);
+    n.host = hostName();
+    n.text = text;
+    if (!writer_.try_push(WriterItem{n}, DropPolicy::DropNewest)) return error("note: cola del escritor llena");
+    logInfo("nota de ", n.user, ": ", text);
+    return {{"ok", true}, {"t_utc_ns", n.tUtcNs}, {"t_utc", formatUtcIso(n.tUtcNs)}};
+  }
+  if (cmd == "measure-offsets") {
+    PollRequest r;
+    r.kind = PollRequest::Kind::Offsets;
+    if (!req.contains("seconds") || !req["seconds"].is_number()) return error("measure-offsets: falta \"seconds\"");
+    r.seconds = req["seconds"].get<double>();
+    if (req.contains("channels")) r.channels = req["channels"].get<std::vector<int>>();
+    r.requester = describePeer(peer);
+    const double timeoutS = r.seconds + 60.0;
+    return forward(std::move(r), timeoutS);
+  }
+  if (cmd == "pw") {
+    if (!req.contains("ch") || !req["ch"].is_number_integer()) return error("pw: falta \"ch\"");
+    if (!req.contains("on") || !req["on"].is_boolean()) return error("pw: falta \"on\" (true/false)");
+    const std::string reason = req.value("authorize", "");
+    if (reason.empty()) return error("pw: falta \"authorize\" (motivo de la escritura)");
+    PollRequest r;
+    r.kind = PollRequest::Kind::Pw;
+    r.ch = req["ch"].get<int>();
+    r.on = req["on"].get<bool>();
+    r.reason = reason;
+    r.requester = describePeer(peer);
+    // El rechazo con allow_commands = false lo hace (y lo registra) el hilo de sondeo.
+    return forward(std::move(r), 3600.0);
+  }
+  return error("comando desconocido: " + cmd);
+}
+
+CommandServer::CommandServer(UnixListener listener, CommandHandler& handler)
+    : listener_(std::move(listener)), handler_(handler) {}
+
+void CommandServer::run(const StopToken& st) {
+  Logger::setThreadName("cmd");
+  while (!st.stop_requested()) {
+    workers_.remove_if([](const Worker& w) { return w.done->load(); });  // JThread se une al destruirse
+    auto c = listener_.acceptFor(std::chrono::milliseconds(200));
+    if (!c) {
+      logError("socket: ", c.error().message);
+      continue;
+    }
+    FdGuard fd = std::move(c).value();
+    if (fd.get() < 0) continue;
+    // Las peticiones largas se atienden en su propio hilo; hay que leer la línea primero.
+    auto line = readLine(fd.get(), kMaxRequestBytes, std::chrono::seconds(5));
+    if (!line) {
+      logDebug("socket: petición incompleta descartada: ", line.error().message);
+      continue;
+    }
+    const auto peer = peerCredentials(fd.get());
+    if (CommandHandler::isLong(line.value())) {
+      auto done = std::make_shared<std::atomic<bool>>(false);
+      auto shared = std::make_shared<FdGuard>(std::move(fd));
+      std::string req = line.value();
+      workers_.push_back(Worker{done, JThread([this, done, shared, req, peer] {
+                                  Logger::setThreadName("cmd-long");
+                                  const auto resp = handler_.handle(req, peer);
+                                  writeAll(shared->get(), resp.dump() + "\n");
+                                  done->store(true);
+                                })});
+    } else {
+      const auto resp = handler_.handle(line.value(), peer);
+      if (auto w = writeAll(fd.get(), resp.dump() + "\n"); !w) logDebug("socket: el cliente cerró: ", w.error().message);
+    }
+  }
+  workers_.clear();  // une los hilos largos (sus futuros ya recibieron respuesta al apagar el sondeo)
+}
+
+}  // namespace daq::hvmon
