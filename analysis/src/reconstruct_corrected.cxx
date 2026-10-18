@@ -111,6 +111,7 @@ struct EvData {
     MuonHit best18x, best18y, best19x, best19y;
     // Todos los hits válidos (para clustering)
     std::vector<MuonHit> hits18x, hits18y, hits19x, hits19y;
+    bool has_hit_ctrl = false;
 };
 
 //==============================================================================
@@ -211,6 +212,7 @@ int main(int argc,char**argv){
             }
         }
         EvData ev;
+        bool has_ctrl = false;
         for(int c=0;c<kNCh;c++){
             if(!cw[c]||cw[c]->empty())continue;
             const bool is19=(c>=32);
@@ -219,15 +221,30 @@ int main(int argc,char**argv){
             else if(c>=16&&c<=31) k=c-16;
             else if(inv19x[c]>=0) k=inv19x[c];
             else if(inv19y[c]>=0) k=inv19y[c];
-            if(k<0)continue;
-            MuonHit h=extract_muon_hit(*cw[c],tv,k, is19 ? kNpost19 : kNpost18, is19 ? kQLocalPed19 : kQLocalPed18);
-            if(!h.valid)continue;
-            // Store in appropriate plane
-            if(c>=0&&c<=15)  ev.hits18x.push_back(h);
-            else if(c>=16&&c<=31) ev.hits18y.push_back(h);
-            else if(inv19x[c]>=0) ev.hits19x.push_back(h);
-            else if(inv19y[c]>=0) ev.hits19y.push_back(h);
+            if(k>=0){
+                MuonHit h=extract_muon_hit(*cw[c],tv,k, is19 ? kNpost19 : kNpost18, is19 ? kQLocalPed19 : kQLocalPed18);
+                if(h.valid){
+                    if(c>=0&&c<=15)  ev.hits18x.push_back(h);
+                    else if(c>=16&&c<=31) ev.hits18y.push_back(h);
+                    else if(inv19x[c]>=0) ev.hits19x.push_back(h);
+                    else if(inv19y[c]>=0) ev.hits19y.push_back(h);
+                }
+            }
+            if(!has_ctrl){
+                const auto& wf=*cw[c];
+                const int n=(int)wf.size();
+                double s=0; int nb=0;
+                for(int i=0;i<n;i++) if(tv[i]<kPrePulse){s+=wf[i];nb++;}
+                if(nb>=2){
+                    double ped=s/nb;
+                    double vmin=1e30; int imin=-1;
+                    for(int i=0;i<n;i++) if(tv[i]>=6000.0 && tv[i]<=6400.0 && wf[i]<vmin){vmin=wf[i];imin=i;}
+                    const double thr = is19 ? kPh19 : kPh18;
+                    if(imin>=0 && (ped-vmin) >= thr) has_ctrl=true;
+                }
+            }
         }
+        ev.has_hit_ctrl = has_ctrl;
         evs.push_back(std::move(ev));
     }
     std::cout<<"  "<<nEnt<<"/"<<nEnt<<" ✓  ("<<evs.size()<<" events cached)\n\n";
@@ -441,6 +458,71 @@ int main(int argc,char**argv){
          fout.Close();}}
 
     //==========================================================================
+    // Accidental estimates (events 0 to N-2, skipping the last event)
+    //==========================================================================
+    long long acc_any_same = 0, acc_any_mixed = 0;
+    long long acc_18_same = 0, acc_18_mixed = 0;
+    long long acc_19_same = 0, acc_19_mixed = 0;
+    long long acc_xz_same = 0, acc_xz_mixed = 0;
+    long long acc_yz_same = 0, acc_yz_mixed = 0;
+    long long acc_3d_same = 0, acc_3d_mixed = 0;
+
+    const size_t n_acc_ev = (evs.size() > 1) ? (evs.size() - 1) : 0;
+    for (size_t i = 0; i < n_acc_ev; ++i) {
+        size_t next_i = i + 1;
+
+        auto cls18x_i = make_cls(evs[i].hits18x, kPh18);
+        auto cls18y_i = make_cls(evs[i].hits18y, kPh18);
+        auto cls19x_i = make_cls(evs[i].hits19x, kPh19);
+        auto cls19y_i = make_cls(evs[i].hits19y, kPh19);
+
+        auto cls18y_next = make_cls(evs[next_i].hits18y, kPh18);
+        auto cls19x_next = make_cls(evs[next_i].hits19x, kPh19);
+        auto cls19y_next = make_cls(evs[next_i].hits19y, kPh19);
+
+        bool has18_i = (cls18x_i.size() >= 1 || cls18y_i.size() >= 1);
+        bool has19_i = (cls19x_i.size() >= 1 || cls19y_i.size() >= 1);
+
+        // 1. events with a hit
+        if (has18_i || has19_i) acc_any_same++;
+        if (evs[i].has_hit_ctrl) acc_any_mixed++;
+
+        // 2. hod2018 X-Y
+        if (cls18x_i.size() >= 1 && cls18y_i.size() >= 1) acc_18_same++;
+        if (cls18x_i.size() >= 1 && cls18y_next.size() >= 1) acc_18_mixed++;
+
+        // 3. hod2019 X-Y
+        if (cls19x_i.size() >= 1 && cls19y_i.size() >= 1) acc_19_same++;
+        if (cls19x_i.size() >= 1 && cls19y_next.size() >= 1) acc_19_mixed++;
+
+        // 4, 5, 6: station-to-station (best cluster per plane)
+        auto best_c = [](const std::vector<Cluster>& v) -> const Cluster* {
+            if (v.empty()) return nullptr;
+            return &*std::max_element(v.begin(), v.end(), [](const Cluster& a, const Cluster& b) { return a.amp < b.amp; });
+        };
+
+        const Cluster* cx18_i = best_c(cls18x_i);
+        const Cluster* cy18_i = best_c(cls18y_i);
+        const Cluster* cx19_i = best_c(cls19x_i);
+        const Cluster* cy19_i = best_c(cls19y_i);
+
+        const Cluster* cx19_next = best_c(cls19x_next);
+        const Cluster* cy19_next = best_c(cls19y_next);
+
+        // XZ
+        if (cx18_i && cx19_i) acc_xz_same++;
+        if (cx18_i && cx19_next) acc_xz_mixed++;
+
+        // YZ
+        if (cy18_i && cy19_i) acc_yz_same++;
+        if (cy18_i && cy19_next) acc_yz_mixed++;
+
+        // 3D
+        if (cx18_i && cy18_i && cx19_i && cy19_i) acc_3d_same++;
+        if (cx18_i && cy18_i && cx19_next && cy19_next) acc_3d_mixed++;
+    }
+
+    //==========================================================================
     // PASO 4: Summary
     //==========================================================================
     const double dur_h = (nEnt > 0 && ts_last > ts_first) ? (double)(ts_last - ts_first) / 3.6e9 : 0.0;
@@ -475,6 +557,37 @@ int main(int argc,char**argv){
             os<<"  Pendiente Y="<<sly<<"\n";
         } else {
             os<<"  Insuficientes tracks para evaluación de mapeo (N_3D="<<cf_3D<<"<10)\n";}
+
+        os<<"\nEstimación de accidentales (skip last event, N="<<n_acc_ev<<"):\n";
+        os<<std::setw(28)<<std::left<<"count name"
+          <<std::setw(12)<<"same"
+          <<std::setw(28)<<"mixed (or control window)"
+          <<std::setw(14)<<"same - mixed"<<"\n";
+        os<<"------------------------------------------------------------------------------------\n";
+        os<<std::setw(28)<<std::left<<"Eventos con hit"
+          <<std::setw(12)<<acc_any_same
+          <<std::setw(28)<<acc_any_mixed
+          <<std::setw(14)<<(acc_any_same - acc_any_mixed)<<"\n";
+        os<<std::setw(28)<<std::left<<"hod2018 X-Y"
+          <<std::setw(12)<<acc_18_same
+          <<std::setw(28)<<acc_18_mixed
+          <<std::setw(14)<<(acc_18_same - acc_18_mixed)<<"\n";
+        os<<std::setw(28)<<std::left<<"hod2019 X-Y"
+          <<std::setw(12)<<acc_19_same
+          <<std::setw(28)<<acc_19_mixed
+          <<std::setw(14)<<(acc_19_same - acc_19_mixed)<<"\n";
+        os<<std::setw(28)<<std::left<<"XZ"
+          <<std::setw(12)<<acc_xz_same
+          <<std::setw(28)<<acc_xz_mixed
+          <<std::setw(14)<<(acc_xz_same - acc_xz_mixed)<<"\n";
+        os<<std::setw(28)<<std::left<<"YZ"
+          <<std::setw(12)<<acc_yz_same
+          <<std::setw(28)<<acc_yz_mixed
+          <<std::setw(14)<<(acc_yz_same - acc_yz_mixed)<<"\n";
+        os<<std::setw(28)<<std::left<<"3D"
+          <<std::setw(12)<<acc_3d_same
+          <<std::setw(28)<<acc_3d_mixed
+          <<std::setw(14)<<(acc_3d_same - acc_3d_mixed)<<"\n";
     };
     print(std::cout);
     {std::ofstream sf(outdir/"summary_tracking_corrected.txt");print(sf);}
