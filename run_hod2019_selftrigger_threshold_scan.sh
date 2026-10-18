@@ -3,13 +3,11 @@
 set -u
 set -o pipefail
 
-: "${HODO_RAW_DIR:=/home/xplus/digitizer/data/raw}"
-
 BASE_CONFIG="${1:-config_vx1740_autotrigger_hod2019_ch32_63.conf}"
 OUTDIR="outputs/hod2019_threshold_scan"
 EXEC="./test_acquire_sw"
 SCAN_BIN="analysis/bin/scan_active_channels"
-RAWDIR="${SCRATCH_DIR:-/tmp/hod2019_threshold_scan_$(date +%Y%m%d_%H%M%S)}"
+RAWDIR="/home/xplus/digitizer/data/raw/hod2019_threshold_scan_$(date +%Y%m%d_%H%M%S)"
 
 # Keep runs short by default for diagnosis.
 NEVENTS="${NEVENTS:-2000}"
