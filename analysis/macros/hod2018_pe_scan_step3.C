@@ -270,3 +270,4 @@ void hod2018_pe_scan_step3(const char* input_file = "lectura_vx1740_ext_nim_1M_v
     }
     std::cout << "================================================================================\n\n";
 }
+

@@ -65,3 +65,4 @@ void test_peaks_hod2019(const char* fn = "lectura_vx1740_ext_nim_1M_v8.root") {
         std::cout << c << "  " << m1 << "  " << m2 << "  " << (m2 - m1) << "\n";
     }
 }
+
