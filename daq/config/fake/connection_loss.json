@@ -1,0 +1,6 @@
+{
+  "base": "default",
+  "events": [
+    {"t_s": 10, "type": "connection_loss", "duration_s": 20}
+  ]
+}

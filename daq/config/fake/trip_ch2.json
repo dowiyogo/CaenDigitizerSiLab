@@ -1,0 +1,8 @@
+{
+  "base": "default",
+  "seed": 7,
+  "events": [
+    {"t_s": 1,   "type": "set", "ch": 2, "param": "Pw", "value": 1},
+    {"t_s": 100, "type": "current", "ch": 2, "extra_uA": 20.0, "duration_s": 30}
+  ]
+}
