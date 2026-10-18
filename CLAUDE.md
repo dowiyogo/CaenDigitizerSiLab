@@ -33,7 +33,8 @@ Acquisition and analysis for two scintillator hodoscopes read by MPPCs:
     raw data (read-only)  /data/daq/raw/<campaign>/   (also /home/xplus/digitizer/data/raw -> /data/daq/raw)
     slow control (new)    /data/daq/slowcontrol/      (does not exist yet)
     raw manifests         /data/daq/manifests/
-    DAQ v2 user config    ~/.config/daqv2/ (hv_credentials.json mode 600, hvctl.json)
+    DAQ v2 user config    ~/.config/daqv2/ (secrets.env mode 600, hvmon.json, hvctl.json)
+    DAQ v2 runtime        $XDG_RUNTIME_DIR/daqv2/ (hvmon.lock, hvmon.sock), /dev/shm/daqv2/
     analysis outputs      outputs/  (not in git)
     ROOT                  ~/root6 (6.32.10, built with C++17)
     CAEN HV Wrapper 6.6   /usr/lib64/libcaenhvwrapper.so, /usr/include/CAENHVWrapper.h (needs -DUNIX)
@@ -57,6 +58,17 @@ Acquisition and analysis for two scintillator hodoscopes read by MPPCs:
 5. Before anything heavy, check that `free -m` shows more than 4000 MB available, and run
    it as `( ulimit -v 4194304; timeout 3600 <command> )`. Do not read whole data files into
    memory (a python3 process was OOM-killed at 15.4 GB on this 15 GB machine).
+   Exception (accepted in DAQ2-3): ASan/UBSan/TSan builds and test runs reserve terabytes of
+   virtual memory and cannot run under `ulimit -v`; run them as
+   `timeout 3600 systemd-run --user --scope -p MemoryMax=4G -p MemorySwapMax=0 <command>`, and
+   TSan binaries under `setarch x86_64 -R` (the test CMake does this automatically). Every
+   other command keeps `ulimit -v 4194304`.
+10. Credentials: never read shell history or other personal files to obtain passwords, and
+   never create, copy, move or print credential files. Secrets live only in
+   `~/.config/daqv2/secrets.env` (created by René, mode 600); programs read them themselves.
+   You may check its mode and variable names (`stat`, `grep -o '^[A-Z_]*'`), never its values.
+   If secrets are missing, stop and ask René. Secrets never go into argv, logs, state files,
+   HTTP pages, test output or commits.
 6. CAENGECO2020 (HV GUI, a snap) may be running. Do not close or touch it.
 7. Only one task runs on this host at a time; the analysis chat also sends tasks. Do not
    start background jobs that outlive the task. At the start of every task run `git status`,
@@ -107,14 +119,28 @@ The CAEN HV Wrapper is the IMPORTED target `caen::hvwrapper` (adds `-DUNIX`).
 Tests must run against the fakes only (`FakeHVBackend`, fake digitizer, fake temperature
 source). No test may open the digitizer or connect to the SY5527.
 
-HV tools (connect to the mainframe: only when the task authorizes HV reads):
+HV slow control (connects to the mainframe: only when the task authorizes HV reads). `hvmon`
+is the only owner of the Wrapper session (lock `$XDG_RUNTIME_DIR/daqv2/hvmon.lock`); while it
+runs, `hvctl` talks to it through `$XDG_RUNTIME_DIR/daqv2/hvmon.sock` and never opens a session.
 
-    daq/build/apps/hvctl/hvctl map | params --slot 3 | read --slot 3 [--json] | bench --slot 3 --n 100
-    daq/build/apps/hvctl/hvctl --fake default read --slot 3     # no hardware
-    daq/build/tools/legacy/hv_readall 192.168.1.118 3 <user> <password>   # legacy, read-only
+    export LD_LIBRARY_PATH=$HOME/root6/lib:$LD_LIBRARY_PATH          # hvmon links ROOT
+    ( ulimit -v 4194304; daq/build/apps/hvmon/hvmon --config daq/config/hvmon.example.json )
+    daq/build/apps/hvmon/hvmon --fake default --config <cfg with scratch slowcontrol_dir>  # no hardware
+    daq/build/apps/hvctl/hvctl status | read | changes --n 20 | note "<text>"
+    daq/build/apps/hvctl/hvctl measure-offsets --seconds 60          # only channels with Pw = 0
+    daq/build/apps/hvctl/hvctl pw --ch N on|off --authorize "<reason>"  # needs allow_commands=true
+    # without hvmon (direct, read-only):
+    daq/build/apps/hvctl/hvctl map | params --slot 3 | read --slot 3 | bench --slot 3 --n 100
+    daq/build/apps/hvctl/hvctl --fake default read --slot 3
 
-Credentials: `~/.config/daqv2/hv_credentials.json`, mode 600, never in the repository. Phase 0
-code contains no HV write wrapper; check with `nm -D --undefined-only daq/build/apps/hvctl/hvctl`.
+Output: `/data/daq/slowcontrol/YYYY/` (daily CSV/JSONL with `.schema.json`), state
+`/dev/shm/daqv2/hvmon_state.json`, read-only page `http://127.0.0.1:8081/` (remote: SSH tunnel
+over Tailscale). Unit file `daq/systemd/hvmon.service` (not installed; René enables it).
+Writes: the only write in the code base is `HVBackend::setChannelPw()`; `hvmon` refuses it unless
+its config has `allow_commands: true`, which needs explicit authorization in the task prompt.
+Secrets: `DAQ_HV_HOST`, `DAQ_HV_USER`, `DAQ_HV_PASSWORD` (and `DAQ_SMTP_*`, `DAQ_NOTIFY_*`) from
+the environment or `~/.config/daqv2/secrets.env`; template `daq/config/secrets.env.example`.
+`~/.config/daqv2/hv_credentials.json` is a deprecated fallback (warning); René removes it.
 
 ## Coding conventions for daq/
 
@@ -142,5 +168,7 @@ code contains no HV write wrapper; check with `nm -D --undefined-only daq/build/
   used for v1-v10) has a different, measured hod2018 order.
 - AGENTS.md rule 7 uses `timeout 600`; the current rule is `timeout 3600`.
 - AGENTS.md says not to write if any file changed in the last hour; rule 7 above replaces it.
+- Legacy `daq/tools/legacy/hv_readall` takes the password as an argument (visible in `ps`); do
+  not use it when `hvctl` can do the job.
 - AGENTS.md places hod2018 pickup at t ≈ 3525 ns; a read-only check on v8 (2026-10-18) did
   not find it (`docs/notes_for_analysis.md`, item 3).
