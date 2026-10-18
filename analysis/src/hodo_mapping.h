@@ -29,12 +29,52 @@ constexpr int kPlane18X = 0;
 constexpr int kPlane18Y = 1;
 constexpr int kPlane19X = 2;
 constexpr int kPlane19Y = 3;
+// Configuration container
+struct HodoMappingConfig {
+    const char* name;
+    std::array<int, 16> h18x;
+    std::array<int, 16> h18y;
+    std::array<int, 16> h19x;
+    std::array<int, 16> h19y;
+};
 
-// Strip k -> channel mappings
-static constexpr std::array<int, 16> kH18X = {15, 0, 13, 2, 11, 4, 9, 6, 7, 8, 5, 10, 3, 12, 1, 14};
-static constexpr std::array<int, 16> kH18Y = {16, 24, 17, 25, 18, 26, 19, 27, 20, 28, 21, 29, 22, 30, 23, 31};
-static constexpr std::array<int, 16> kH19X = {53, 61, 54, 62, 55, 63, 52, 60, 51, 59, 50, 58, 49, 57, 48, 56};
-static constexpr std::array<int, 16> kH19Y = {37, 45, 38, 46, 39, 47, 36, 44, 35, 43, 34, 42, 33, 41, 32, 40};
+// Configuration kCfg_2026_05:
+// hod2018 from neighbour correlations, hod2019 from sheet "Mayo 2026".
+// Note: the sheet "Mayo 2026" gives hod2018 as ch k, which the neighbour correlations of run v8 contradict.
+static constexpr HodoMappingConfig kCfg_2026_05 = {
+    "kCfg_2026_05",
+    {15, 0, 13, 2, 11, 4, 9, 6, 7, 8, 5, 10, 3, 12, 1, 14},
+    {16, 24, 17, 25, 18, 26, 19, 27, 20, 28, 21, 29, 22, 30, 23, 31},
+    {53, 61, 54, 62, 55, 63, 52, 60, 51, 59, 50, 58, 49, 57, 48, 56},
+    {37, 45, 38, 46, 39, 47, 36, 44, 35, 43, 34, 42, 33, 41, 32, 40}
+};
+
+// Configuration kCfg_2026_10:
+// Cabling of "Disposicion Correcta Hodoscopios", sheet "Octubre 2026":
+//   hod2018 X strip k -> ch k (k=0..15), hod2018 Y strip k -> ch 16+k,
+//   hod2019 X strip k -> ch 32+k, hod2019 Y strip k -> ch 48+k.
+static constexpr HodoMappingConfig kCfg_2026_10 = {
+    "kCfg_2026_10",
+    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+    {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31},
+    {32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47},
+    {48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63}
+};
+
+// Backward-compatibility strip k -> channel mappings (programs keep using kCfg_2026_05)
+static constexpr auto kH18X = kCfg_2026_05.h18x;
+static constexpr auto kH18Y = kCfg_2026_05.h18y;
+static constexpr auto kH19X = kCfg_2026_05.h19x;
+static constexpr auto kH19Y = kCfg_2026_05.h19y;
+
+// Returns configuration for a given run (v1..v10 return kCfg_2026_05)
+inline const HodoMappingConfig& config_for_run(int /*run*/) {
+    return kCfg_2026_05;
+}
+
+inline const HodoMappingConfig& config_for_run(const std::string& /*run*/) {
+    return kCfg_2026_05;
+}
 
 namespace detail {
     inline std::array<int, 64> make_inv_map(const std::array<int, 16>& arr) {

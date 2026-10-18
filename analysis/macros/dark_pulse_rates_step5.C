@@ -156,3 +156,4 @@ void dark_pulse_rates_step5() {
     }
     std::cout << std::string(76, '-') << "\n";
 }
+
