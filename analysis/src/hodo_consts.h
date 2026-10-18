@@ -10,6 +10,10 @@ constexpr double kMuonTlo = 4000.0;
 constexpr double kMuonThi = 4400.0;
 #endif
 
+constexpr double kSigTlo = 4128.0; constexpr double kSigThi = 4272.0;
+// hod_hit_structure 1a (v8, v10): hod2018 excess in [4144,4256] ns, hod2019 hits in [4128,4240] ns
+constexpr double kCtlShift = 2000.0; // control window = signal window + 2000 ns
+
 // Baseline selection for Q integration (Decision Rule D1 from Step C):
 // hod2018: RMS_loc/RMS_glob = 100.68/180.03 = 0.5592 < 0.7 (Rule D1 fired -> use ped_loc)
 constexpr bool kQLocalPed18 = true;
