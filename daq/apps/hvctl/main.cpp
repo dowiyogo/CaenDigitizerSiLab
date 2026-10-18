@@ -1,12 +1,19 @@
-// hvctl: herramienta de línea de comandos de SOLO LECTURA para la fuente HV CAEN (fase 0).
-//   hvctl map
-//   hvctl params --slot 3 [--ch 0]
-//   hvctl read   --slot 3 [--ch 0-11] [--params A,B] [--json] [--decode]
-//   hvctl bench  --slot 3 --n 100 [--ch 0-11] [--params V0Set,I0Set,VMon,IMon,Status,Pw] [--json]
-// Opciones globales: --config <archivo>, --host <ip>, --credentials <archivo>,
-//                    --fake <guion.json | default>
-// Configuración por defecto: ~/.config/daqv2/hvctl.json si existe (ver daq/config/hvctl.example.json).
-// Ningún subcomando escribe en la fuente.
+// hvctl: herramienta de línea de comandos para la fuente HV CAEN.
+// Con hvmon corriendo (tiene el lock $XDG_RUNTIME_DIR/daqv2/hvmon.lock) todo pasa por su socket y
+// hvctl nunca abre una sesión de la Wrapper:
+//   hvctl read [--json] [--decode]          última lectura de hvmon (misma tabla que hv_readall)
+//   hvctl status [--json]                   estado de hvmon
+//   hvctl changes [--n 20] [--json]         últimos cambios
+//   hvctl note "<texto>"                    nota del operador
+//   hvctl measure-offsets --seconds N [--ch 0-11] [--json]   solo canales con Pw = 0
+//   hvctl pw --ch N on|off --authorize "<motivo>"   única escritura; hvmon la rechaza si
+//                                                   allow_commands = false
+// Sin hvmon, modo directo de solo lectura (toma el mismo lock mientras dura):
+//   hvctl map | params --slot 3 [--ch 0] | read --slot 3 [--ch 0-11] [--params A,B] | bench --slot 3 --n 100
+// Opciones globales: --config <archivo>, --host <ip>, --credentials <json heredado>,
+//                    --fake <guion.json | default> (modo directo contra el fake), --socket <ruta>
+// Credenciales del modo directo: DAQ_HV_USER/DAQ_HV_PASSWORD (entorno o secrets.env); el JSON
+// heredado ~/.config/daqv2/hv_credentials.json solo como respaldo obsoleto.
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -19,17 +26,23 @@
 #include <string>
 #include <vector>
 
+#include <sys/resource.h>
 #include <sys/stat.h>
 
 #include <nlohmann/json.hpp>
 
 #include "daq/core/clock.h"
+#include "daq/core/instance_lock.h"
 #include "daq/core/logger.h"
+#include "daq/core/secrets.h"
+#include "daq/core/unix_socket.h"
 #include "daq/core/time.h"
 #include "daq/hv/caen_hv_backend.h"
 #include "daq/hv/credentials.h"
 #include "daq/hv/fake_hv_backend.h"
+#include "daq/hv/reading_json.h"
 #include "daq/hv/status_bits.h"
+#include "daq/hvmon/config.h"
 
 using namespace daq;
 using namespace daq::hv;
@@ -41,21 +54,28 @@ constexpr int kExitError = 1;
 constexpr int kExitUsage = 2;
 
 const char* kUsage =
-    "Uso: hvctl [opciones] <map|params|read|bench> [opciones del subcomando]\n"
+    "Uso: hvctl [opciones] <subcomando> [opciones del subcomando]\n"
+    "Con hvmon corriendo (vía socket):\n"
+    "  read [--json] [--decode]              última lectura de hvmon\n"
+    "  status [--json]                       estado de hvmon\n"
+    "  changes [--n 20] [--json]             últimos cambios\n"
+    "  note \"<texto>\"                       nota del operador\n"
+    "  measure-offsets --seconds N [--ch 0-11] [--json]   offsets con Pw = 0\n"
+    "  pw --ch N on|off --authorize \"<motivo>\"          escritura de Pw (requiere allow_commands)\n"
+    "Sin hvmon (modo directo, solo lectura):\n"
     "  map                                   mapa del crate\n"
     "  params --slot S [--ch C]              parámetros de un canal: tipo, modo, unidades\n"
     "  read   --slot S [--ch 0-11] [--params A,B] [--json] [--decode]\n"
-    "                                        una lectura de todos los parámetros\n"
     "  bench  --slot S --n N [--ch 0-11] [--params V0Set,I0Set,VMon,IMon,Status,Pw] [--json]\n"
-    "                                        latencia de N lecturas (ms)\n"
-    "Opciones: --config F  --host IP  --credentials F  --fake <guion.json|default>\n"
-    "Solo lectura: ningún subcomando escribe en la fuente.\n";
+    "Opciones: --config F  --host IP  --credentials F  --fake <guion.json|default>  --socket RUTA\n";
 
 struct Options {
   std::string command;
+  std::vector<std::string> args;  // posicionales tras el subcomando (note, pw)
   std::string configPath;
-  std::optional<std::string> host, credentials, fake, chSpec, paramSpec;
+  std::optional<std::string> host, credentials, fake, chSpec, paramSpec, authorize, socket;
   std::optional<int> slot, ch, n;
+  std::optional<double> seconds;
   bool json = false;
   bool decode = false;
 };
@@ -162,6 +182,19 @@ std::optional<Options> parseArgs(int argc, char** argv, std::string& err) {
       if (!strOpt(o.paramSpec)) return std::nullopt;
     } else if (a == "--n") {
       if (!intOpt(o.n)) return std::nullopt;
+    } else if (a == "--authorize") {
+      if (!strOpt(o.authorize)) return std::nullopt;
+    } else if (a == "--socket") {
+      if (!strOpt(o.socket)) return std::nullopt;
+    } else if (a == "--seconds") {
+      auto v = need(i);
+      if (!v) return std::nullopt;
+      try {
+        o.seconds = std::stod(*v);
+      } catch (...) {
+        err = "valor no numérico para --seconds: " + *v;
+        return std::nullopt;
+      }
     } else if (a == "--json") {
       o.json = true;
     } else if (a == "--decode") {
@@ -172,8 +205,7 @@ std::optional<Options> parseArgs(int argc, char** argv, std::string& err) {
     } else if (o.command.empty()) {
       o.command = a;
     } else {
-      err = "argumento inesperado: " + a;
-      return std::nullopt;
+      o.args.push_back(a);
     }
   }
   return o;
@@ -331,44 +363,6 @@ void printReadingTable(const ChannelReading& r, const StatusBitMap& bits, bool d
               static_cast<double>(r.durationNs) / 1e6);
 }
 
-nlohmann::json readingJson(const ChannelReading& r, const StatusBitMap& bits) {
-  nlohmann::json params = nlohmann::json::object();
-  for (std::size_t p = 0; p < r.params.size(); ++p) {
-    const auto& info = r.params[p];
-    nlohmann::json e{{"type", toString(info.type)}};
-    if (info.type == ParamType::Numeric) {
-      nlohmann::json si = nlohmann::json::array(), board = nlohmann::json::array();
-      for (const auto& v : r.values[p]) {
-        si.push_back(v.si);
-        board.push_back(v.boardValue);
-      }
-      e["unit_si"] = info.siUnit();
-      e["unit_board"] = info.boardUnit();
-      e["exp"] = info.exponent;
-      e["unit_from_board"] = info.unitFromBoard;
-      e["values_si"] = si;
-      e["values_board"] = board;
-    } else {
-      nlohmann::json vals = nlohmann::json::array();
-      for (const auto& v : r.values[p]) vals.push_back(v.raw);
-      e["values"] = vals;
-      if (info.type == ParamType::ChStatus) {
-        nlohmann::json dec = nlohmann::json::array();
-        for (const auto& v : r.values[p]) dec.push_back(bits.decode(v.raw));
-        e["decoded"] = dec;
-      }
-    }
-    params[info.name] = e;
-  }
-  return nlohmann::json{{"slot", r.slot},
-                        {"channels", r.channels},
-                        {"t_req_utc_ns", r.tReqUtcNs},
-                        {"t_resp_utc_ns", r.tRespUtcNs},
-                        {"t_req_utc", formatUtcIso(r.tReqUtcNs)},
-                        {"duration_ns", r.durationNs},
-                        {"params", params}};
-}
-
 int cmdRead(HVBackend& be, int slot, const Options& o, const Config& cfg) {
   auto chans = resolveChannels(be, slot, o.chSpec);
   if (!chans) {
@@ -392,7 +386,7 @@ int cmdRead(HVBackend& be, int slot, const Options& o, const Config& cfg) {
     return kExitError;
   }
   if (o.json) {
-    auto j = readingJson(r.value(), cfg.statusBits);
+    auto j = readingToJson(r.value(), cfg.statusBits);
     j["backend"] = be.describe();
     std::cout << j.dump(2) << "\n";
   } else {
@@ -468,9 +462,165 @@ int cmdBench(HVBackend& be, int slot, const Options& o) {
   return errors == 0 ? kExitOk : kExitError;
 }
 
+// ---- Cliente de hvmon -------------------------------------------------------------------
+
+Result<nlohmann::json> request(const std::string& sock, const nlohmann::json& req, double timeoutS) {
+  auto r = unixRequest(sock, req.dump(), std::chrono::milliseconds(static_cast<long>(timeoutS * 1000)));
+  if (!r) return Result<nlohmann::json>(r.error());
+  try {
+    auto j = nlohmann::json::parse(r.value());
+    if (!j.value("ok", false)) {
+      std::string msg = j.value("error", "");
+      if (msg.empty() && j.contains("result"))
+        msg = "comando " + std::to_string(j.value("command_id", 0ULL)) + ": " + j.value("result", "") + " (" +
+              j.value("detail", "") + ")";
+      return Result<nlohmann::json>::failure(-1, msg.empty() ? j.dump() : msg);
+    }
+    return j;
+  } catch (const std::exception& e) {
+    return Result<nlohmann::json>::failure(-1, std::string("respuesta inválida de hvmon: ") + e.what());
+  }
+}
+
+int fail(const Error& e) {
+  logError(e.message);
+  return kExitError;
+}
+
+int cmdSocketRead(const std::string& sock, const Options& o, const Config& cfg) {
+  auto r = request(sock, {{"cmd", "read"}}, 10);
+  if (!r) return fail(r.error());
+  const auto& j = r.value()["reading"];
+  if (o.json) {
+    std::cout << j.dump(2) << "\n";
+    return kExitOk;
+  }
+  auto rd = readingFromJson(j);
+  if (!rd) return fail(rd.error());
+  printReadingTable(rd.value(), cfg.statusBits, o.decode);
+  std::printf("# fuente: hvmon (sin sesión propia de la Wrapper), conectado=%s\n",
+              j.value("connected", false) ? "si" : "NO");
+  return kExitOk;
+}
+
+int cmdStatus(const std::string& sock, bool json) {
+  auto r = request(sock, {{"cmd", "status"}}, 10);
+  if (!r) return fail(r.error());
+  const auto& s = r.value()["state"];
+  if (json) {
+    std::cout << s.dump(2) << "\n";
+    return kExitOk;
+  }
+  const auto& c = s["connection"];
+  const auto& st = s["stats"];
+  const auto& w = s["writer"];
+  std::printf("hvmon pid %ld  %s\n", s.value("pid", 0L), s.value("t_utc", "").c_str());
+  std::printf("conexión: conectado=%s stale=%s edad=%.3f s reconexiones=%llu último error: %s\n",
+              c.value("connected", false) ? "si" : "NO", c.value("stale", true) ? "SI" : "no", c.value("age_s", -1.0),
+              static_cast<unsigned long long>(st.value("reconnections", 0ULL)), c.value("last_error", "").c_str());
+  std::printf("lecturas: rápidas %llu, completas %llu, errores %llu, media %.3f ms, máx %.3f ms\n",
+              static_cast<unsigned long long>(st.value("fast_reads", 0ULL)),
+              static_cast<unsigned long long>(st.value("full_reads", 0ULL)),
+              static_cast<unsigned long long>(st.value("read_errors", 0ULL)), st.value("fast_read_mean_ms", 0.0),
+              st.value("fast_read_max_ms", 0.0));
+  std::printf("escritor: ok=%s fsync=%llu bytes=%llu errores=%llu descartados=%llu %s\n", w.value("ok", false) ? "si" : "NO",
+              static_cast<unsigned long long>(w.value("fsyncs", 0ULL)), static_cast<unsigned long long>(w.value("bytes", 0ULL)),
+              static_cast<unsigned long long>(w.value("errors", 0ULL)), static_cast<unsigned long long>(w.value("dropped", 0ULL)),
+              w.value("last_error", "").c_str());
+  std::printf("GECO2020 en ejecución: %s   allow_commands: %s\n\n", s.value("geco_running", false) ? "si" : "no",
+              s.value("allow_commands", false) ? "si" : "no");
+  std::printf("CH   V0Set[V]   I0Set[A]    VMon[V]    IMon[A]  Pw  Status  flags\n");
+  for (const auto& ch : s["channels"]) {
+    const auto& v = ch["values"];
+    std::string flags;
+    for (const auto& f : ch["status_flags"]) flags += (flags.empty() ? "" : ",") + f.get<std::string>();
+    std::printf("%02d %9.3f %10.3e %9.3f %10.3e  %2u  0x%04X  %s\n", ch.value("ch", -1), v.value("V0Set_V", 0.0),
+                v.value("I0Set_A", 0.0), v.value("VMon_V", 0.0), v.value("IMon_A", 0.0), v.value("Pw", 0u),
+                v.value("Status", 0u), flags.empty() ? "-" : flags.c_str());
+  }
+  return kExitOk;
+}
+
+int cmdChanges(const std::string& sock, int n, bool json) {
+  auto r = request(sock, {{"cmd", "changes"}, {"n", n}}, 10);
+  if (!r) return fail(r.error());
+  const auto& ch = r.value()["changes"];
+  if (json) {
+    std::cout << ch.dump(2) << "\n";
+    return kExitOk;
+  }
+  if (ch.empty()) std::printf("(sin cambios desde que arrancó hvmon)\n");
+  for (const auto& c : ch)
+    std::printf("%s  CH%02d %-8s %s -> %s %s  origen=%s%s\n", c.value("t_utc", "").c_str(), c.value("ch", -1),
+                c.value("param", "").c_str(), c["old"].dump().c_str(), c["new"].dump().c_str(), c.value("unit", "").c_str(),
+                c.value("origin", "").c_str(), c.value("during_disconnect", false) ? " (tras desconexión)" : "");
+  return kExitOk;
+}
+
+int cmdNote(const std::string& sock, const Options& o) {
+  if (o.args.size() != 1) {
+    std::fprintf(stderr, "hvctl note: se espera un texto entre comillas\n");
+    return kExitUsage;
+  }
+  auto r = request(sock, {{"cmd", "note"}, {"text", o.args[0]}}, 10);
+  if (!r) return fail(r.error());
+  std::printf("nota registrada %s\n", r.value().value("t_utc", "").c_str());
+  return kExitOk;
+}
+
+int cmdOffsets(const std::string& sock, const Options& o) {
+  if (!o.seconds) {
+    std::fprintf(stderr, "hvctl measure-offsets: falta --seconds N\n");
+    return kExitUsage;
+  }
+  nlohmann::json req{{"cmd", "measure-offsets"}, {"seconds", *o.seconds}};
+  if (o.chSpec) {
+    auto c = parseChannels(*o.chSpec);
+    if (!c) {
+      std::fprintf(stderr, "hvctl: lista de canales inválida\n");
+      return kExitUsage;
+    }
+    req["channels"] = *c;
+  }
+  auto r = request(sock, req, *o.seconds + 90);
+  if (!r) return fail(r.error());
+  const auto& off = r.value()["offsets"];
+  if (o.json) {
+    std::cout << off.dump(2) << "\n";
+    return kExitOk;
+  }
+  std::printf("offsets %s, %.0f s, %llu lecturas; rechazados por Pw = 1: %s\n", off.value("t_start_utc", "").c_str(),
+              off.value("seconds", 0.0), static_cast<unsigned long long>(off.value("n_reads", 0ULL)),
+              off["refused_pw_on"].dump().c_str());
+  std::printf("CH   IMon offset [uA]   std [uA]   VMon offset [V]   std [V]\n");
+  for (const auto& c : off["channels"])
+    std::printf("%02d   %14.4f   %8.4f   %15.3f   %7.3f\n", c.value("ch", -1), c.value("imon_offset_A", 0.0) * 1e6,
+                c.value("imon_std_A", 0.0) * 1e6, c.value("vmon_offset_V", 0.0), c.value("vmon_std_V", 0.0));
+  return kExitOk;
+}
+
+int cmdPw(const std::string& sock, const Options& o) {
+  if (!o.chSpec || o.args.size() != 1 || (o.args[0] != "on" && o.args[0] != "off") || !o.authorize) {
+    std::fprintf(stderr, "Uso: hvctl pw --ch N on|off --authorize \"<motivo>\"\n");
+    return kExitUsage;
+  }
+  auto ch = toInt(*o.chSpec);
+  if (!ch) {
+    std::fprintf(stderr, "hvctl pw: --ch debe ser un único canal\n");
+    return kExitUsage;
+  }
+  auto r = request(sock, {{"cmd", "pw"}, {"ch", *ch}, {"on", o.args[0] == "on"}, {"authorize", *o.authorize}}, 3700);
+  if (!r) return fail(r.error());
+  std::printf("comando %llu: %s (%s)\n", static_cast<unsigned long long>(r.value().value("command_id", 0ULL)),
+              r.value().value("result", "").c_str(), r.value().value("detail", "").c_str());
+  return kExitOk;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
+  rlimit noCore{0, 0};
+  setrlimit(RLIMIT_CORE, &noCore);  // sin volcados de memoria que puedan contener la contraseña
   Logger::setThreadName("hvctl");
   std::string err;
   auto opt = parseArgs(argc, argv, err);
@@ -483,7 +633,11 @@ int main(int argc, char** argv) {
     std::fputs(kUsage, o.command == "help" ? stdout : stderr);
     return o.command == "help" ? kExitOk : kExitUsage;
   }
-  if (o.command != "map" && o.command != "params" && o.command != "read" && o.command != "bench") {
+  const std::vector<std::string> socketOnly{"status", "changes", "note", "measure-offsets", "pw"};
+  const std::vector<std::string> directOnly{"map", "params", "bench"};
+  const bool isSocketOnly = std::find(socketOnly.begin(), socketOnly.end(), o.command) != socketOnly.end();
+  const bool isDirectOnly = std::find(directOnly.begin(), directOnly.end(), o.command) != directOnly.end();
+  if (!isSocketOnly && !isDirectOnly && o.command != "read") {
     std::fprintf(stderr, "hvctl: subcomando desconocido: %s\n\n%s", o.command.c_str(), kUsage);
     return kExitUsage;
   }
@@ -497,8 +651,30 @@ int main(int argc, char** argv) {
   if (o.credentials) c.credentials = *o.credentials;
   const int slot = o.slot.value_or(c.slot);
 
+  const std::string runtimeDir = daq::hvmon::defaultRuntimeDir();
+  const std::string sock = o.socket.value_or(runtimeDir + "/hvmon.sock");
+  const std::string lockPath = runtimeDir + "/hvmon.lock";
+  const bool hvmonRunning = !o.fake && InstanceLock::isHeld(lockPath);
+  if (isSocketOnly) {
+    if (!hvmonRunning) {
+      logError("hvmon no está corriendo (lock libre: ", lockPath, "); '", o.command, "' necesita hvmon");
+      return kExitError;
+    }
+    if (o.command == "status") return cmdStatus(sock, o.json);
+    if (o.command == "changes") return cmdChanges(sock, o.n.value_or(20), o.json);
+    if (o.command == "note") return cmdNote(sock, o);
+    if (o.command == "measure-offsets") return cmdOffsets(sock, o);
+    return cmdPw(sock, o);
+  }
+  if (hvmonRunning) {
+    if (o.command == "read") return cmdSocketRead(sock, o, c);
+    logError("hvmon tiene la sesión de la Wrapper; '", o.command, "' no está disponible mientras corre (use read/status)");
+    return kExitError;
+  }
+
   SystemClock clock;
   std::unique_ptr<HVBackend> be;
+  InstanceLock directLock;
   if (o.fake) {
     auto f = FakeHVBackend::fromFile(*o.fake, clock);
     if (!f) {
@@ -507,12 +683,25 @@ int main(int argc, char** argv) {
     }
     be = std::move(f).value();
   } else {
-    auto cred = loadCredentials(c.credentials);
-    if (!cred) {
-      logError(cred.error().message);
+    // Modo directo: tomar el lock de dueño de la Wrapper mientras dure (hvmon no puede arrancar).
+    if (auto st = ensurePrivateDirectory(runtimeDir, 0700); !st) {
+      logError(st.error().message);
       return kExitError;
     }
-    be = std::make_unique<CaenHVBackend>(ConnectionConfig{c.system, c.host, cred.value()}, &clock);
+    auto l = InstanceLock::acquire(lockPath);
+    if (!l) {
+      logError("no se puede usar la Wrapper: ", l.error().message);
+      return kExitError;
+    }
+    directLock = std::move(l).value();
+    Secrets secrets;
+    auto login = resolveHvLogin(secrets, c.host, c.credentials);
+    if (!login) {
+      logError(login.error().message);
+      return kExitError;
+    }
+    const std::string host = o.host.value_or(login.value().host);
+    be = std::make_unique<CaenHVBackend>(ConnectionConfig{c.system, host, login.value().credentials}, &clock);
   }
   if (auto st = be->connect(); !st) {
     logError("connect: ", st.error().message);

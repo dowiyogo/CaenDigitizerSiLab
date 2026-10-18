@@ -32,9 +32,9 @@ target_compile_options(daq_warnings INTERFACE
 find_package(Threads REQUIRED)
 find_package(nlohmann_json 3.11 REQUIRED)
 
-# ROOT: se busca para las fases siguientes (daqrun, hvmon). Ningún target de la fase 0 lo usa.
+# ROOT: solo lo enlaza apps/hvmon (THttpServer, TGraph); las bibliotecas daq_* no dependen de ROOT.
 list(APPEND CMAKE_PREFIX_PATH "$ENV{ROOTSYS}" "$ENV{HOME}/root6")
-find_package(ROOT 6.32 REQUIRED COMPONENTS Core RIO Tree RHTTP)
+find_package(ROOT 6.32 REQUIRED COMPONENTS Core RIO Tree Hist RHTTP)
 
 # CAEN HV Wrapper 6.6: ruta explícita. La biblioteca no tiene SONAME, así que DT_NEEDED
 # queda con esta ruta. UNIX es obligatorio para el header en Linux.
@@ -46,7 +46,10 @@ set_target_properties(caen::hvwrapper PROPERTIES
 
 add_subdirectory(core)
 add_subdirectory(hv)
+add_subdirectory(temp)
+add_subdirectory(hvmon)
 add_subdirectory(apps/hvctl)
+add_subdirectory(apps/hvmon)
 add_subdirectory(tools/legacy)
 
 if(DAQ_BUILD_TESTS)
