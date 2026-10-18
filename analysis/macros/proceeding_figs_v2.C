@@ -118,14 +118,14 @@ void proceeding_figs_v2(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.r
     // Data structures for 3d: Q spectra of hod2018 channels 0,1,2,4,5,6,7,8
     // -------------------------------------------------------------
     const std::vector<int> chs3d = {0, 1, 2, 4, 5, 6, 7, 8};
-    constexpr int kNBins3d = 200;
+    constexpr int kNBins3d = 80;
     constexpr double kQlo3d = 0.0;
-    constexpr double kQhi3d = 40000.0;
+    constexpr double kQhi3d = 80000.0;
     std::map<int, TH1D*> h_q_sig;
     std::map<int, TH1D*> h_q_ctl;
     for (int ch : chs3d) {
-        h_q_sig[ch] = new TH1D(Form("h_q_sig_ch%d", ch), Form("Ch %d;Q [mV#upointns];Hits / 200 mV#upointns", ch), kNBins3d, kQlo3d, kQhi3d);
-        h_q_ctl[ch] = new TH1D(Form("h_q_ctl_ch%d", ch), Form("Ch %d;Q [mV#upointns];Hits / 200 mV#upointns", ch), kNBins3d, kQlo3d, kQhi3d);
+        h_q_sig[ch] = new TH1D(Form("h_q_sig_ch%d", ch), Form("Ch %d;Q [mV#upointns];Hits / 1000 mV#upointns", ch), kNBins3d, kQlo3d, kQhi3d);
+        h_q_ctl[ch] = new TH1D(Form("h_q_ctl_ch%d", ch), Form("Ch %d;Q [mV#upointns];Hits / 1000 mV#upointns", ch), kNBins3d, kQlo3d, kQhi3d);
     }
 
     bool checked_step = false;
@@ -216,7 +216,7 @@ void proceeding_figs_v2(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.r
                 int k = ch_to_strip(c);
                 if (k >= 0 && hit_w2_sig) n18x_s[k]++;
                 if (k >= 0 && hit_w2_ctl) n18x_c[k]++;
-            } else if (c >= 32 && c <= 63) {
+            } else if (c >= 48 && c <= 63) {
                 int k = ch_to_strip(c);
                 if (k >= 0 && hit_w2_sig) n19x_s[k]++;
             }
@@ -439,7 +439,7 @@ void proceeding_figs_v2(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.r
         gPad->SetTopMargin(0.10);
 
         TH1D* h_diff = new TH1D(Form("h_q_diff_ch%d", ch),
-                                Form("hod2018 Ch %d (W2);Q [mV#upointns];Hits / 200 mV#upointns", ch),
+                                Form("hod2018 Ch %d (W2);Q [mV#upointns];Hits / 1000 mV#upointns", ch),
                                 kNBins3d, kQlo3d, kQhi3d);
         h_diff->Add(h_q_sig[ch], 1.0);
         h_diff->Add(h_q_ctl[ch], -1.0);
