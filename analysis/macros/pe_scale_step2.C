@@ -350,3 +350,4 @@ void pe_scale_step2(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.root"
     pf.close();
     std::cout << "Fit calibration saved to outputs/pe_calibration_v8.txt\n";
 }
+
