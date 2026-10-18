@@ -325,3 +325,23 @@ TEST(HvmonPoller, ShutdownAnswersPendingRequests) {
   EXPECT_EQ(f.get()["error"], "hvmon se está apagando");
   EXPECT_EQ(g.get()["error"], "hvmon se está apagando");
 }
+
+TEST(HvmonPoller, FullReadIncludesBoardParametersAndBoardTemperature) {
+  auto sc = scenario({{{"t_s", 30.0}, {"type", "board"}, {"param", "Temp"}, {"value", 27.25}}});
+  Rig r(sc);
+  r.runUntil(61s);
+  auto st = r.hub.compose(r.cfg, r.clock.now_utc_ns(), 1, false);
+  ASSERT_TRUE(st["board"].is_object());
+  EXPECT_DOUBLE_EQ(st["board_temperature_degC"].get<double>(), 27.25);  // lectura completa de t = 60 s
+  EXPECT_DOUBLE_EQ(st["board"]["values"]["HVMax_V"].get<double>(), 3127.0);
+  EXPECT_EQ(st["board"]["values"]["BdStatus"], 0);
+  int fulls = 0;
+  bool hasBoard = true;
+  while (auto item = r.writer.try_pop())
+    if (auto* f = std::get_if<FullRows>(&*item)) {
+      ++fulls;
+      hasBoard = hasBoard && f->board.has_value() && f->board->params.size() == 4;
+    }
+  EXPECT_EQ(fulls, 2);
+  EXPECT_TRUE(hasBoard);
+}

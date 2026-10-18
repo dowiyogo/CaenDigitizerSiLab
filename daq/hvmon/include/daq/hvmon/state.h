@@ -75,6 +75,7 @@ struct PollerState {
   std::vector<hv::ParamInfo> params;                        // orden de la placa
   std::map<int, std::map<std::string, hv::ParamValue>> values;  // canal -> parámetro -> valor
   std::deque<ChangeRecord> recentChanges;
+  std::optional<hv::BoardReading> board;  // parámetros de placa de la última lectura completa
   nlohmann::json activeCommand;  // null si no hay
   nlohmann::json activeOffsets;
   nlohmann::json lastOffsets;

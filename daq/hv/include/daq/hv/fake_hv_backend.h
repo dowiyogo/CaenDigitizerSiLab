@@ -17,7 +17,7 @@
 //
 // Guion (JSON): tiempos en segundos desde la construcción del backend, medidos con el Clock
 // inyectado. Eventos: "set" (cambio externo de un parámetro, p. ej. hecho en GECO), "current"
-// (excursión de corriente), "connection_loss" (las llamadas fallan; después hay que llamar a
+// (excursión de corriente), "board" (parámetro de placa, p. ej. Temp), "connection_loss" (las llamadas fallan; después hay que llamar a
 // connect()). Con "base": "default" el guion usa los slots del guion por defecto y solo
 // aporta eventos y semilla. Ver daq/config/fake/README.md.
 // Seguridad entre hilos: como HVBackend, un solo hilo dueño.
@@ -47,6 +47,8 @@ class FakeHVBackend final : public HVBackend {
   static nlohmann::json defaultScenario();
   // Tabla de parámetros del A7030DP (nombres, tipos, modos, unidades, rangos).
   static std::vector<ParamInfo> a7030dpParams();
+  // Parámetros de placa del A7030DP (BdStatus, HVMax, HIMax, Temp).
+  static std::vector<ParamInfo> a7030dpBoardParams();
 
   Status connect() override;
   void disconnect() override;
@@ -57,6 +59,8 @@ class FakeHVBackend final : public HVBackend {
                                       const std::vector<std::string>& params) override;
   // Como un "set" de Pw en el instante actual. Con "pw_write_ignored": true en el guion,
   // devuelve OK pero no cambia nada (para probar la verificación fallida).
+  Result<std::vector<ParamInfo>> boardParamNames(int slot) override;
+  Result<BoardReading> readBoard(int slot, const std::vector<std::string>& params) override;
   Status setChannelPw(int slot, int channel, bool on) override;
   std::string describe() const override { return "FakeHVBackend"; }
 
@@ -85,6 +89,7 @@ class FakeHVBackend final : public HVBackend {
     double vmonNoiseV = 0.0;
     double imonStepUA = 0.002;
     double vmonStepV = 0.01;
+    std::map<std::string, double> board;  // parámetros de placa (unidades de la placa)
   };
   struct Event {
     double t = 0.0;
@@ -114,6 +119,7 @@ class FakeHVBackend final : public HVBackend {
   std::vector<Event> events_;        // ordenados por tiempo, pendientes
   std::vector<std::pair<double, double>> losses_;  // [inicio, fin) de pérdidas de conexión
   std::vector<ParamInfo> params_;
+  std::vector<ParamInfo> boardParams_;
   bool connected_ = false;
   std::uint64_t calls_ = 0;
   std::uint64_t pwWrites_ = 0;

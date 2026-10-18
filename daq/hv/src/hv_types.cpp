@@ -68,6 +68,23 @@ const ParamValue* ChannelReading::get(const std::string& param, int channel) con
   return &values[pi][ci];
 }
 
+const ParamValue* BoardReading::get(const std::string& param) const {
+  for (std::size_t i = 0; i < params.size(); ++i)
+    if (params[i].name == param) return &values[i];
+  return nullptr;
+}
+
+std::vector<std::string> decodeBoardStatus(std::uint32_t word) {
+  static const char* names[] = {"power_fail", "firmware_checksum_error", "hv_calibration_error",
+                                "temperature_calibration_error", "under_temperature", "over_temperature"};
+  std::vector<std::string> out;
+  for (int b = 0; b < 32; ++b) {
+    if (((word >> b) & 1u) == 0u) continue;
+    out.push_back(b < 6 ? std::string(names[b]) : "bit" + std::to_string(b));
+  }
+  return out;
+}
+
 ParamValue numericValue(const ParamInfo& info, double boardValue) {
   ParamValue v;
   v.type = ParamType::Numeric;

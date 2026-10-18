@@ -2,7 +2,8 @@
 // Hilo escritor de hvmon: archivos diarios de control lento bajo <slowcontrol_dir>/YYYY/, con
 // rotación a medianoche UTC según la marca de tiempo de cada dato (no la hora de escritura):
 //   hv_YYYYMMDD.csv          una fila por canal por lectura rápida
-//   hv_full_YYYYMMDD.csv     una fila por canal por lectura completa (cada 60 s)
+//   hv_full_YYYYMMDD.csv     una fila por canal por lectura completa (cada 60 s), con los
+//                            parámetros de placa (bd_BdStatus, bd_HVMax_V, bd_HIMax_A, bd_Temp_degC)
 //   hv_changes_YYYYMMDD.jsonl cambios y registros de comandos, uno por línea
 //   temp_YYYYMMDD.csv        temperaturas
 //   notes_YYYYMMDD.jsonl     notas del operador
@@ -17,6 +18,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <variant>
 #include <vector>
@@ -39,6 +41,7 @@ struct FastRows {
 struct FullRows {
   hv::ChannelReading reading;
   std::uint64_t seq = 0;
+  std::optional<hv::BoardReading> board;  // columnas bd_* repetidas en cada fila de canal
 };
 struct ChangeItem {
   ChangeRecord rec;
@@ -106,8 +109,10 @@ class SlowControlWriter {
 };
 
 // Esquemas (también se escriben como .schema.json).
-nlohmann::json readingSchema(const std::string& schemaName, const hv::ChannelReading& r);
-std::string readingHeader(const hv::ChannelReading& r);
-std::vector<std::string> readingRows(const hv::ChannelReading& r, std::uint64_t seq);
+nlohmann::json readingSchema(const std::string& schemaName, const hv::ChannelReading& r,
+                             const hv::BoardReading* board = nullptr);
+std::string readingHeader(const hv::ChannelReading& r, const hv::BoardReading* board = nullptr);
+std::vector<std::string> readingRows(const hv::ChannelReading& r, std::uint64_t seq,
+                                     const hv::BoardReading* board = nullptr);
 
 }  // namespace daq::hvmon

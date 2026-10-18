@@ -1,6 +1,6 @@
 // caen_hv_backend.h
 // Backend sobre CAEN HV Wrapper 6.6 (libcaenhvwrapper). Usa CAENHV_InitSystem/DeinitSystem,
-// funciones CAENHV_Get* y una sola llamada de escritura, CAENHV_SetChParam con el parámetro "Pw",
+// funciones CAENHV_Get* (canal y placa) y una sola llamada de escritura, CAENHV_SetChParam con el parámetro "Pw",
 // dentro de setChannelPw(); ninguna otra función escribe.
 // - Es dueño del handle (RAII): el destructor llama a DeinitSystem.
 // - Libera con CAENHV_Free cada buffer que reserva la Wrapper.
@@ -44,6 +44,8 @@ class CaenHVBackend final : public HVBackend {
   Result<std::vector<ParamInfo>> channelParamNames(int slot, int channel) override;
   Result<ChannelReading> readChannels(int slot, const std::vector<int>& channels,
                                       const std::vector<std::string>& params) override;
+  Result<std::vector<ParamInfo>> boardParamNames(int slot) override;
+  Result<BoardReading> readBoard(int slot, const std::vector<std::string>& params) override;
   Status setChannelPw(int slot, int channel, bool on) override;
   std::string describe() const override;
 
@@ -52,6 +54,7 @@ class CaenHVBackend final : public HVBackend {
 
  private:
   Result<ParamInfo> paramInfo(int slot, int channel, const std::string& name);
+  Result<ParamInfo> boardParamInfo(int slot, const std::string& name);
   Error wrapperError(int code, const std::string& where) const;
 
   ConnectionConfig config_;
@@ -59,6 +62,7 @@ class CaenHVBackend final : public HVBackend {
   const Clock* clock_;
   int handle_ = -1;
   std::map<std::pair<int, std::string>, ParamInfo> infoCache_;  // (slot, nombre)
+  std::map<std::pair<int, std::string>, ParamInfo> bdInfoCache_;
 };
 
 }  // namespace daq::hv

@@ -16,6 +16,7 @@
 #include "daq/temp/temp_backend.h"
 
 using namespace std::chrono_literals;
+using namespace std::string_literals;
 using namespace daq;
 
 TEST(HvmonConfig, DefaultsAreReadOnlyAndValidated) {
@@ -63,20 +64,38 @@ TEST(ReadingJson, RoundTripAndColumnNames) {
   EXPECT_FALSE(hv::readingFromJson(nlohmann::json::object()).ok());
 }
 
-TEST(SystemProbe, FindsProcessByPatternInProcRoot) {
+TEST(SystemProbe, MatchesExecutableOrArgv0Only) {
   const std::string root = ::testing::TempDir() + "daq_fake_proc";
+  auto mkproc = [&](const std::string& pid, const std::string& cmd, const std::string& exe) {
+    ::mkdir((root + "/" + pid).c_str(), 0700);
+    std::ofstream o(root + "/" + pid + "/cmdline", std::ios::binary);
+    o.write(cmd.data(), static_cast<std::streamsize>(cmd.size()));
+    if (!exe.empty()) {
+      ASSERT_EQ(::symlink(exe.c_str(), (root + "/" + pid + "/exe").c_str()), 0);
+    }
+  };
+  auto clean = [&] {
+    for (const char* pid : {"4242", "4243", "4244"}) {
+      std::remove((root + "/" + pid + "/cmdline").c_str());
+      std::remove((root + "/" + pid + "/exe").c_str());
+      ::rmdir((root + "/" + pid).c_str());
+    }
+    ::rmdir(root.c_str());
+  };
+  clean();
   ::mkdir(root.c_str(), 0700);
-  ::mkdir((root + "/4242").c_str(), 0700);
-  {
-    std::ofstream o(root + "/4242/cmdline", std::ios::binary);
-    const char cmd[] = "/snap/caengeco2020/x1/bin/CAENGECO2020\0--algo\0";
-    o.write(cmd, sizeof cmd - 1);
-  }
+  // Un proceso que solo menciona el patrón en sus argumentos (grep, script de muestreo) no cuenta.
+  mkproc("4242", "/bin/bash\0-c\0pgrep bin/CAENGECO2020; geco_running\0"s, "/usr/bin/bash");
+  EXPECT_FALSE(hvmon::processRunning("bin/CAENGECO2020", root));
+  // argv[0] con el ejecutable del snap.
+  mkproc("4243", "/snap/caengeco2020/x1/bin/CAENGECO2020\0--algo\0"s, "");
+  EXPECT_TRUE(hvmon::processRunning("bin/CAENGECO2020", root));
+  std::remove((root + "/4243/cmdline").c_str());
+  // Solo el enlace exe (argv[0] cambiado por el programa).
+  mkproc("4244", "geco\0"s, "/snap/caengeco2020/x1/bin/CAENGECO2020");
   EXPECT_TRUE(hvmon::processRunning("bin/CAENGECO2020", root));
   EXPECT_FALSE(hvmon::processRunning("bin/NOEXISTE", root));
-  std::remove((root + "/4242/cmdline").c_str());
-  ::rmdir((root + "/4242").c_str());
-  ::rmdir(root.c_str());
+  clean();
   EXPECT_FALSE(hvmon::processRunning("no-hay-tal-proceso-en-este-host"));
 }
 

@@ -103,9 +103,19 @@ void Poller::tryConnect(SteadyTime now) {
       for (const auto& f : cfg_.fastParams)
         if (!containsStr(allParams_, f)) st = Status::failure(-1, "la placa no tiene el parámetro " + f);
     }
+    if (st) {
+      // Parámetros de placa: opcionales (si la placa no los informa, sigue sin ellos).
+      auto bp = backend_.boardParamNames(cfg_.slot);
+      if (bp) {
+        for (const auto& info : bp.value()) boardParams_.push_back(info.name);
+      } else {
+        logWarn("la placa no informa parámetros de placa: ", bp.error().message);
+      }
+    }
     if (!st) {
       allParams_.clear();
       fullTracked_.clear();
+      boardParams_.clear();
       backend_.disconnect();
     }
   }
@@ -208,7 +218,17 @@ void Poller::fullRead(SteadyTime now) {
     addChanges(changes);
   }
   fullGap_ = false;
-  pushWriter(FullRows{rd, readSeq_});
+  std::optional<hv::BoardReading> board;
+  if (!boardParams_.empty()) {
+    auto b = backend_.readBoard(cfg_.slot, boardParams_);
+    if (!b) {
+      onReadError(b.error(), now);
+      return;
+    }
+    board = b.value();
+    state_.board = board;
+  }
+  pushWriter(FullRows{rd, readSeq_, board});
   state_.params = rd.params;
   for (std::size_t p = 0; p < rd.params.size(); ++p)
     for (std::size_t c = 0; c < rd.channels.size(); ++c) state_.values[rd.channels[c]][rd.params[p].name] = rd.values[p][c];

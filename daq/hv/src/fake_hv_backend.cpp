@@ -84,6 +84,14 @@ std::vector<ParamInfo> FakeHVBackend::a7030dpParams() {
   };
 }
 
+std::vector<ParamInfo> FakeHVBackend::a7030dpBoardParams() {
+  // Nombres de GECO2020 sobre la placa real (René, 2026-10-18); tipos y unidades a confirmar con
+  // hvctl board (las unidades de HIMax/Temp son inferencias hasta esa lectura).
+  const auto RO = ParamMode::ReadOnly;
+  return {other("BdStatus", ParamType::BdStatus, RO), numeric("HVMax", RO, 2, 0, 0.0, 3150.0),
+          numeric("HIMax", RO, 1, -6, 0.0, 1111.0), numeric("Temp", RO, 4, 0, -50.0, 150.0)};
+}
+
 nlohmann::json FakeHVBackend::defaultScenario() {
   // Valores de hv_readall en el slot 3 el 2026-10-18T21:56:18Z, HV apagada (CH00-11).
   return nlohmann::json::parse(R"json({
@@ -107,14 +115,15 @@ nlohmann::json FakeHVBackend::defaultScenario() {
       "imon_offset_uA": [-0.048, -0.036, -0.046, -0.036, -0.044, -0.046, -0.046, -0.074, -0.118, -0.094, -0.074, -0.084],
       "vmon_offset_V": [0.19, 0.92, 0.67, 0.78, 0.38, 0.0, 0.0, 0.62, 1.26, 1.18, 1.15, 1.47],
       "imon_noise_uA": 0.004, "vmon_noise_V": 0.02,
-      "imon_step_uA": 0.002, "vmon_step_V": 0.01
+      "imon_step_uA": 0.002, "vmon_step_V": 0.01,
+      "board": {"BdStatus": 0, "HVMax": 3127, "HIMax": 1111, "Temp": 26.0}
     }],
     "events": []
   })json");
 }
 
 FakeHVBackend::FakeHVBackend(const nlohmann::json& sc, const Clock& clock)
-    : clock_(clock), t0_(clock.now_steady()), params_(a7030dpParams()) {
+    : clock_(clock), t0_(clock.now_steady()), params_(a7030dpParams()), boardParams_(a7030dpBoardParams()) {
   rng_.seed(sc.value("seed", static_cast<std::uint64_t>(1)));
   pwWriteIgnored_ = sc.value("pw_write_ignored", false);
   if (!sc.contains("slots") || !sc["slots"].is_array() || sc["slots"].empty())
@@ -137,6 +146,9 @@ FakeHVBackend::FakeHVBackend(const nlohmann::json& sc, const Clock& clock)
     s.vmonNoiseV = js.value("vmon_noise_V", 0.0);
     s.imonStepUA = js.value("imon_step_uA", 0.002);
     s.vmonStepV = js.value("vmon_step_V", 0.01);
+    for (const auto& p : boardParams_) s.board[p.name] = 0.0;
+    if (js.contains("board"))
+      for (auto it = js["board"].begin(); it != js["board"].end(); ++it) s.board[it.key()] = it.value().get<double>();
     const auto& set = js.contains("set") ? js["set"] : nlohmann::json::object();
     for (int c = 0; c < s.info.channels; ++c) {
       const auto ch = static_cast<std::size_t>(c);
@@ -178,6 +190,11 @@ FakeHVBackend::FakeHVBackend(const nlohmann::json& sc, const Clock& clock)
       end.t = e.t + e.duration;
       end.value = -e.value;
       events_.push_back(end);
+    } else if (e.type == "board") {
+      e.param = je.at("param").get<std::string>();
+      e.value = je.at("value").get<double>();
+      e.channel = 0;  // no se usa
+      events_.push_back(e);
     } else if (e.type == "connection_loss") {
       losses_.emplace_back(e.t, e.t + e.duration);
     } else {
@@ -227,6 +244,10 @@ bool FakeHVBackend::inConnectionLoss(double t) const {
 
 void FakeHVBackend::apply(const Event& e) {
   Slot* s = findSlot(e.slot);
+  if (e.type == "board") {
+    s->board[e.param] = e.value;
+    return;
+  }
   Channel& c = s->channels[static_cast<std::size_t>(e.channel)];
   if (e.type == "current") {
     c.extraUA += e.value;
@@ -395,6 +416,33 @@ Result<ChannelReading> FakeHVBackend::readChannels(int slot, const std::vector<i
     out.values.push_back(std::move(row));
   }
   out.durationNs = std::chrono::duration_cast<std::chrono::nanoseconds>(clock_.now_steady() - t0).count();
+  out.tRespUtcNs = clock_.now_utc_ns();
+  return out;
+}
+
+Result<std::vector<ParamInfo>> FakeHVBackend::boardParamNames(int slot) {
+  using R = Result<std::vector<ParamInfo>>;
+  if (auto st = checkLink(); !st) return R(st.error());
+  if (!findSlot(slot)) return R::failure(-3, "fake: slot inexistente");
+  return boardParams_;
+}
+
+Result<BoardReading> FakeHVBackend::readBoard(int slot, const std::vector<std::string>& params) {
+  using R = Result<BoardReading>;
+  if (auto st = checkLink(); !st) return R(st.error());
+  Slot* s = findSlot(slot);
+  if (!s) return R::failure(-3, "fake: slot inexistente");
+  BoardReading out;
+  out.slot = slot;
+  out.tReqUtcNs = clock_.now_utc_ns();
+  for (const auto& name : params) {
+    auto it = std::find_if(boardParams_.begin(), boardParams_.end(), [&](const ParamInfo& p) { return p.name == name; });
+    if (it == boardParams_.end()) return R::failure(-4, "fake: parámetro de placa inexistente " + name);
+    out.params.push_back(*it);
+    const double v = s->board[name];
+    out.values.push_back(it->type == ParamType::Numeric ? numericValue(*it, v)
+                                                        : integerValue(*it, static_cast<std::uint32_t>(v)));
+  }
   out.tRespUtcNs = clock_.now_utc_ns();
   return out;
 }

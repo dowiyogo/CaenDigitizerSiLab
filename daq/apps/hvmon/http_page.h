@@ -3,6 +3,8 @@
 // dirección de tailscale0). Objetos servidos:
 //   /CHxx/VMon_CHxx, /CHxx/IMon_CHxx   TGraph de las últimas 24 h (anillo de tamaño fijo, un punto
 //                                      cada graph_period_s), eje x en tiempo UTC, unidades SI
+//   /board/BoardTemp_degC              TGraph de la temperatura de la placa A7030DP (no del
+//                                      detector; sigue la del rack), 24 h
 //   /status/table                      TNamed; el título es la tabla de estado (texto)
 //   /status/state_json                 TNamed; el título es el JSON completo del estado
 // SetReadOnly(kTRUE) y ningún comando registrado: no hay acciones por HTTP. SetTimer(0): las
@@ -57,6 +59,9 @@ class HttpPage {
   std::unique_ptr<TNamed> table_;
   std::unique_ptr<TNamed> json_;
   std::map<int, Channel> channels_;
+  TGraph* boardTemp_ = nullptr;
+  Ring boardRing_;
+  UtcNs lastBoardUtc_ = 0;
   UtcNs lastGraphUtc_ = 0;
   std::string url_;
 };

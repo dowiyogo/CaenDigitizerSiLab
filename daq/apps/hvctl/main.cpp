@@ -64,6 +64,7 @@ const char* kUsage =
     "  pw --ch N on|off --authorize \"<motivo>\"          escritura de Pw (requiere allow_commands)\n"
     "Sin hvmon (modo directo, solo lectura):\n"
     "  map                                   mapa del crate\n"
+    "  board  --slot S [--json]              parámetros de placa (BdStatus, HVMax, HIMax, Temp)\n"
     "  params --slot S [--ch C]              parámetros de un canal: tipo, modo, unidades\n"
     "  read   --slot S [--ch 0-11] [--params A,B] [--json] [--decode]\n"
     "  bench  --slot S --n N [--ch 0-11] [--params V0Set,I0Set,VMon,IMon,Status,Pw] [--json]\n"
@@ -262,6 +263,58 @@ int cmdMap(HVBackend& be, bool json) {
       std::printf("Slot %2d: %-8s %-30s ch=%d SN=%u FW=%d.%02d\n", s.slot, s.model.c_str(), s.description.c_str(),
                   s.channels, s.serial, s.fwMajor, s.fwMinor);
     }
+  }
+  return kExitOk;
+}
+
+int cmdBoard(HVBackend& be, int slot, bool json) {
+  auto names = be.boardParamNames(slot);
+  if (!names) {
+    logError("boardParamNames: ", names.error().message);
+    return kExitError;
+  }
+  std::vector<std::string> list;
+  for (const auto& p : names.value()) list.push_back(p.name);
+  auto r = be.readBoard(slot, list);
+  if (!r) {
+    logError("readBoard: ", r.error().message);
+    return kExitError;
+  }
+  if (json) {
+    nlohmann::json arr = nlohmann::json::array();
+    for (std::size_t i = 0; i < r.value().params.size(); ++i) {
+      const auto& p = r.value().params[i];
+      const auto& v = r.value().values[i];
+      nlohmann::json e{{"name", p.name}, {"type", toString(p.type)}, {"type_code", static_cast<int>(p.type)},
+                       {"mode", toString(p.mode)}};
+      if (p.type == ParamType::Numeric) {
+        e["unit_code"] = p.unitCode;
+        e["exp"] = p.exponent;
+        e["unit_board"] = p.boardUnit();
+        e["unit_si"] = p.siUnit();
+        e["unit_from_board"] = p.unitFromBoard;
+        e["value_board"] = v.boardValue;
+        e["value_si"] = v.si;
+      } else {
+        e["value"] = v.raw;
+        if (p.type == ParamType::BdStatus) e["decoded"] = decodeBoardStatus(v.raw);
+      }
+      arr.push_back(e);
+    }
+    std::cout << nlohmann::json{{"slot", slot}, {"t_req_utc", formatUtcIso(r.value().tReqUtcNs)}, {"params", arr}}.dump(2)
+              << "\n";
+    return kExitOk;
+  }
+  std::printf("Slot %d: %zu parametros de placa\n", slot, r.value().params.size());
+  for (std::size_t i = 0; i < r.value().params.size(); ++i) {
+    const auto& p = r.value().params[i];
+    const auto& v = r.value().values[i];
+    if (p.type == ParamType::Numeric)
+      std::printf("%-10s tipo=%d | %10.3f %-5s (unidad %s, %s)\n", p.name.c_str(), static_cast<int>(p.type), v.boardValue,
+                  p.boardUnit().c_str(), p.siUnit().c_str(), p.unitFromBoard ? "placa" : "tabla de respaldo");
+    else
+      std::printf("%-10s tipo=%d |     0x%04X %s\n", p.name.c_str(), static_cast<int>(p.type), v.raw,
+                  p.type == ParamType::BdStatus ? "(BdStatus)" : "");
   }
   return kExitOk;
 }
@@ -527,8 +580,16 @@ int cmdStatus(const std::string& sock, bool json) {
               static_cast<unsigned long long>(w.value("fsyncs", 0ULL)), static_cast<unsigned long long>(w.value("bytes", 0ULL)),
               static_cast<unsigned long long>(w.value("errors", 0ULL)), static_cast<unsigned long long>(w.value("dropped", 0ULL)),
               w.value("last_error", "").c_str());
-  std::printf("GECO2020 en ejecución: %s   allow_commands: %s\n\n", s.value("geco_running", false) ? "si" : "no",
+  std::printf("GECO2020 en ejecución: %s   allow_commands: %s\n", s.value("geco_running", false) ? "si" : "no",
               s.value("allow_commands", false) ? "si" : "no");
+  if (s.contains("board") && s["board"].is_object()) {
+    std::printf("placa:");
+    for (auto it = s["board"]["values"].begin(); it != s["board"]["values"].end(); ++it)
+      std::printf(" %s=%s", it.key().c_str(), it.value().dump().c_str());
+    std::printf("\ntemperatura de la placa A7030DP (no del detector): %s degC\n",
+                s["board_temperature_degC"].dump().c_str());
+  }
+  std::printf("\n");
   std::printf("CH   V0Set[V]   I0Set[A]    VMon[V]    IMon[A]  Pw  Status  flags\n");
   for (const auto& ch : s["channels"]) {
     const auto& v = ch["values"];
@@ -634,7 +695,7 @@ int main(int argc, char** argv) {
     return o.command == "help" ? kExitOk : kExitUsage;
   }
   const std::vector<std::string> socketOnly{"status", "changes", "note", "measure-offsets", "pw"};
-  const std::vector<std::string> directOnly{"map", "params", "bench"};
+  const std::vector<std::string> directOnly{"map", "params", "bench", "board"};
   const bool isSocketOnly = std::find(socketOnly.begin(), socketOnly.end(), o.command) != socketOnly.end();
   const bool isDirectOnly = std::find(directOnly.begin(), directOnly.end(), o.command) != directOnly.end();
   if (!isSocketOnly && !isDirectOnly && o.command != "read") {
@@ -713,6 +774,7 @@ int main(int argc, char** argv) {
   else if (o.command == "params") rc = cmdParams(*be, slot, o.chSpec ? toInt(*o.chSpec).value_or(0) : 0, o.json);
   else if (o.command == "read") rc = cmdRead(*be, slot, o, c);
   else if (o.command == "bench") rc = cmdBench(*be, slot, o);
+  else if (o.command == "board") rc = cmdBoard(*be, slot, o.json);
   be->disconnect();
   return rc;
 }

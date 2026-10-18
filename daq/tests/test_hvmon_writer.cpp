@@ -150,3 +150,22 @@ TEST(HvmonWriter, DateKeyIsUtc) {
   EXPECT_EQ(SlowControlWriter::dateKey(kNearMidnight), "20261018");
   EXPECT_EQ(SlowControlWriter::dateKey(kNearMidnight + 2000000000LL), "20261019");
 }
+
+TEST(HvmonWriter, FullFileHasBoardColumns) {
+  WRig r;
+  r.clock.advance(5s);
+  hv::FakeHVBackend be(hv::FakeHVBackend::defaultScenario(), r.clock);
+  ASSERT_TRUE(be.connect().ok());
+  auto rd = be.readChannels(3, {0, 1}, {"V0Set", "Status"}).value();
+  auto bd = be.readBoard(3, {"BdStatus", "HVMax", "HIMax", "Temp"}).value();
+  r.w.handle(FullRows{rd, 1, bd});
+  const std::string c = r.fs.content("/sc/2026/hv_full_20261019.csv");
+  const std::string header = c.substr(0, c.find('\n'));
+  EXPECT_EQ(header,
+            "t_req_utc_ns,t_resp_utc_ns,read_seq,slot,ch,V0Set_V,Status,read_duration_ns,bd_BdStatus,bd_HVMax_V,"
+            "bd_HIMax_A,bd_Temp_degC");
+  EXPECT_NE(c.find(",0,3127,0.001111,26\n"), std::string::npos) << c;
+  const auto schema = nlohmann::json::parse(r.fs.content("/sc/2026/hv_full_20261019.csv.schema.json"));
+  EXPECT_EQ(schema["schema"], "daqv2.hv_full/2");
+  EXPECT_EQ(schema["columns"].back()["unit"], "degC");
+}

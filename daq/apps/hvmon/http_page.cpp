@@ -55,6 +55,18 @@ Result<std::unique_ptr<HttpPage>> HttpPage::create(const HvmonConfig& cfg, const
     c.imon = mk("IMon", "A");
     page->channels_[ch] = std::move(c);
   }
+  {
+    auto g = std::make_unique<TGraph>();
+    g->SetName("BoardTemp_degC");
+    g->SetTitle("Temperatura de la placa A7030DP (no del detector);tiempo (UTC);T [degC]");
+    g->GetXaxis()->SetTimeDisplay(1);
+    g->GetXaxis()->SetTimeFormat("%H:%M%F1970-01-01 00:00:00s0 GMT");
+    page->boardTemp_ = g.get();
+    page->boardRing_.t.assign(static_cast<std::size_t>(cfg.graphHours * 3600.0 / 60.0) + 1, 0.0);
+    page->boardRing_.y = page->boardRing_.t;
+    page->server_->Register("/board", g.get());
+    page->graphs_.push_back(std::move(g));
+  }
   page->table_ = std::make_unique<TNamed>("table", "sin datos");
   page->json_ = std::make_unique<TNamed>("state_json", "{}");
   page->server_->Register("/status", page->table_.get());
@@ -97,13 +109,24 @@ void HttpPage::update(const PollerState& p, const nlohmann::json& state, UtcNs n
       refill(kv.second.imon, kv.second.iRing);
     }
   }
+  if (p.board && p.board->tRespUtcNs != lastBoardUtc_) {  // un punto por lectura completa (60 s)
+    lastBoardUtc_ = p.board->tRespUtcNs;
+    if (const auto* t = p.board->get("Temp")) {
+      boardRing_.push(static_cast<double>(p.board->tRespUtcNs) / 1e9, t->si);
+      refill(boardTemp_, boardRing_);
+    }
+  }
   std::ostringstream os;
   const auto& conn = state["connection"];
   os << "hvmon  " << state.value("t_utc", "") << "\n"
      << "conectado=" << conn.value("connected", false) << "  stale=" << conn.value("stale", true)
      << "  edad=" << conn.value("age_s", -1.0) << " s  GECO=" << state.value("geco_running", false)
      << "  allow_commands=" << state.value("allow_commands", false) << "\n"
-     << "ultimo error: " << conn.value("last_error", "") << "\n\n";
+     << "ultimo error: " << conn.value("last_error", "") << "\n";
+  if (state["board_temperature_degC"].is_number())
+    os << "temperatura de la placa A7030DP (board temperature, no del detector): "
+       << state["board_temperature_degC"].get<double>() << " degC\n";
+  os << "\n";
   os << "CH  V0Set[V]  I0Set[A]     VMon[V]  IMon[A]      Pw  Status\n";
   for (const auto& c : state["channels"]) {
     const auto& v = c["values"];

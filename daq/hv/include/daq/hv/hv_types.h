@@ -89,6 +89,20 @@ struct ChannelReading {
   const ParamValue* get(const std::string& param, int channel) const;
 };
 
+// Lectura de parámetros de placa (BdStatus, HVMax, HIMax, Temp en el A7030DP).
+struct BoardReading {
+  int slot = 0;
+  std::vector<ParamInfo> params;
+  std::vector<ParamValue> values;  // values[iParam]
+  UtcNs tReqUtcNs = 0;
+  UtcNs tRespUtcNs = 0;
+  std::int64_t durationNs = 0;
+  const ParamValue* get(const std::string& param) const;
+};
+
+// Bits de BdStatus (PARAM_TYPE_BDSTATUS, manual de la Wrapper Rev. 13).
+std::vector<std::string> decodeBoardStatus(std::uint32_t word);
+
 // Construye el valor de un parámetro numérico desde el número de la placa.
 ParamValue numericValue(const ParamInfo& info, double boardValue);
 // Construye el valor de un parámetro entero (ON/OFF, Status, binario).

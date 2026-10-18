@@ -21,12 +21,19 @@ bool processRunning(const std::string& pattern, const std::string& procRoot) {
   while (dirent* e = ::readdir(d)) {
     const std::string name = e->d_name;
     if (name.empty() || !std::isdigit(static_cast<unsigned char>(name[0])) || name == self) continue;
+    // Ejecutable real (enlace /proc/<pid>/exe; de otros usuarios puede no ser legible).
+    char exe[4096];
+    const ssize_t n = ::readlink((procRoot + "/" + name + "/exe").c_str(), exe, sizeof exe - 1);
+    if (n > 0 && std::string(exe, static_cast<std::size_t>(n)).find(pattern) != std::string::npos) {
+      found = true;
+      break;
+    }
+    // argv[0]: primer campo de cmdline (hasta el primer NUL).
     std::ifstream in(procRoot + "/" + name + "/cmdline", std::ios::binary);
     if (!in) continue;
-    std::string cmd((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    for (char& c : cmd)
-      if (c == '\0') c = ' ';
-    if (cmd.find(pattern) != std::string::npos) {
+    std::string argv0;
+    std::getline(in, argv0, '\0');
+    if (argv0.find(pattern) != std::string::npos) {
       found = true;
       break;
     }

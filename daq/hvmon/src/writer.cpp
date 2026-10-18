@@ -70,14 +70,17 @@ const nlohmann::json& tempSchema() {
 
 }  // namespace
 
-std::string readingHeader(const hv::ChannelReading& r) {
+std::string readingHeader(const hv::ChannelReading& r, const hv::BoardReading* board) {
   std::string h = "t_req_utc_ns,t_resp_utc_ns,read_seq,slot,ch";
   for (const auto& p : r.params) h += "," + hv::columnName(p);
   h += ",read_duration_ns";
+  if (board)
+    for (const auto& p : board->params) h += ",bd_" + hv::columnName(p);
   return h;
 }
 
-nlohmann::json readingSchema(const std::string& schemaName, const hv::ChannelReading& r) {
+nlohmann::json readingSchema(const std::string& schemaName, const hv::ChannelReading& r,
+                             const hv::BoardReading* board) {
   nlohmann::json cols = nlohmann::json::array(
       {col("t_req_utc_ns", "int64", "ns", "UTC antes de la primera llamada de la lectura"),
        col("t_resp_utc_ns", "int64", "ns", "UTC después de la última llamada"),
@@ -90,10 +93,20 @@ nlohmann::json readingSchema(const std::string& schemaName, const hv::ChannelRea
       cols.push_back(col(p.name, "uint32", "", std::string(p.name) + " (" + hv::toString(p.type) + ")"));
   }
   cols.push_back(col("read_duration_ns", "int64", "ns", "duración de la lectura (steady_clock)"));
+  if (board) {
+    for (const auto& p : board->params) {
+      const std::string extra = p.name == "Temp" ? " (temperatura de la placa A7030DP, no del detector)" : "";
+      if (p.type == hv::ParamType::Numeric)
+        cols.push_back(col("bd_" + hv::columnName(p), "float64", p.siUnit(),
+                           "placa: " + p.name + " (" + p.boardUnit() + ")" + extra));
+      else
+        cols.push_back(col("bd_" + p.name, "uint32", "", "placa: " + p.name + " (" + hv::toString(p.type) + ")"));
+    }
+  }
   return nlohmann::json{{"schema", schemaName}, {"format", "csv"}, {"columns", cols}};
 }
 
-std::vector<std::string> readingRows(const hv::ChannelReading& r, std::uint64_t seq) {
+std::vector<std::string> readingRows(const hv::ChannelReading& r, std::uint64_t seq, const hv::BoardReading* board) {
   std::vector<std::string> rows;
   for (std::size_t c = 0; c < r.channels.size(); ++c) {
     std::string row = std::to_string(r.tReqUtcNs) + "," + std::to_string(r.tRespUtcNs) + "," + std::to_string(seq) +
@@ -103,6 +116,8 @@ std::vector<std::string> readingRows(const hv::ChannelReading& r, std::uint64_t 
       row += "," + (v.isNumeric() ? fmtDouble(v.si) : std::to_string(v.raw));
     }
     row += "," + std::to_string(r.durationNs);
+    if (board)
+      for (const auto& v : board->values) row += "," + (v.isNumeric() ? fmtDouble(v.si) : std::to_string(v.raw));
     rows.push_back(std::move(row));
   }
   return rows;
@@ -216,9 +231,10 @@ void SlowControlWriter::handle(const WriterItem& item) {
       writeDaily("hv", "csv", f->reading.tRespUtcNs, readingHeader(f->reading),
                  readingSchema("daqv2.hv_fast/1", f->reading), row);
   } else if (const auto* g = std::get_if<FullRows>(&item)) {
-    for (const auto& row : readingRows(g->reading, g->seq))
-      writeDaily("hv_full", "csv", g->reading.tRespUtcNs, readingHeader(g->reading),
-                 readingSchema("daqv2.hv_full/1", g->reading), row);
+    const hv::BoardReading* bd = g->board ? &*g->board : nullptr;
+    for (const auto& row : readingRows(g->reading, g->seq, bd))
+      writeDaily("hv_full", "csv", g->reading.tRespUtcNs, readingHeader(g->reading, bd),
+                 readingSchema("daqv2.hv_full/2", g->reading, bd), row);
   } else if (const auto* c = std::get_if<ChangeItem>(&item)) {
     writeDaily("hv_changes", "jsonl", c->rec.tUtcNs, "", changesSchema(), c->rec.toJson().dump());
   } else if (const auto* k = std::get_if<CommandItem>(&item)) {

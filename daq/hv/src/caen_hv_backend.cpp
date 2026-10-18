@@ -268,6 +268,91 @@ Result<ChannelReading> CaenHVBackend::readChannels(int slot, const std::vector<i
   return out;
 }
 
+Result<ParamInfo> CaenHVBackend::boardParamInfo(int slot, const std::string& name) {
+  auto key = std::make_pair(slot, name);
+  if (auto it = bdInfoCache_.find(key); it != bdInfoCache_.end()) return it->second;
+  const auto s = static_cast<unsigned short>(slot);
+  ParamInfo info;
+  info.name = name;
+  PropBuffer b;
+  CAENHVRESULT r = CAENHV_GetBdParamProp(handle_, s, name.c_str(), "Type", b.bytes.data());
+  if (r != CAENHV_OK) return wrapperError(r, "GetBdParamProp(" + name + ", Type)");
+  info.type = paramTypeFromInt(static_cast<int>(b.as<unsigned int>()));
+  b = PropBuffer{};
+  if (CAENHV_GetBdParamProp(handle_, s, name.c_str(), "Mode", b.bytes.data()) == CAENHV_OK)
+    info.mode = paramModeFromInt(static_cast<int>(b.as<unsigned int>()));
+  if (info.type == ParamType::Numeric) {
+    PropBuffer bu, be, bmin, bmax;
+    const bool okUnit = CAENHV_GetBdParamProp(handle_, s, name.c_str(), "Unit", bu.bytes.data()) == CAENHV_OK;
+    const bool okExp = CAENHV_GetBdParamProp(handle_, s, name.c_str(), "Exp", be.bytes.data()) == CAENHV_OK;
+    if (okUnit && okExp) {
+      info.unitCode = bu.as<unsigned short>();
+      info.exponent = be.as<short>();
+      info.unitFromBoard = true;
+    } else {
+      info.unitCode = name == "Temp" ? PARAM_UN_CELSIUS : PARAM_UN_NONE;
+      info.exponent = 0;
+    }
+    if (CAENHV_GetBdParamProp(handle_, s, name.c_str(), "Minval", bmin.bytes.data()) == CAENHV_OK)
+      info.minBoard = static_cast<double>(bmin.as<float>());
+    if (CAENHV_GetBdParamProp(handle_, s, name.c_str(), "Maxval", bmax.bytes.data()) == CAENHV_OK)
+      info.maxBoard = static_cast<double>(bmax.as<float>());
+  }
+  bdInfoCache_[key] = info;
+  return info;
+}
+
+Result<std::vector<ParamInfo>> CaenHVBackend::boardParamNames(int slot) {
+  using R = Result<std::vector<ParamInfo>>;
+  if (!isConnected()) return R::failure(-1, "no conectado");
+  char* list = nullptr;
+  const CAENHVRESULT r = CAENHV_GetBdParamInfo(handle_, static_cast<unsigned short>(slot), &list);
+  CaenPtr<char> pList(list);
+  if (r != CAENHV_OK) return wrapperError(r, "GetBdParamInfo");
+  if (!list) return R::failure(-1, "GetBdParamInfo: lista vacía");
+  // La Wrapper no da la cantidad: bloques de MAX_PARAM_NAME bytes terminados por un nombre vacío.
+  std::vector<ParamInfo> out;
+  for (int p = 0; p < 64; ++p) {
+    const char* name = list + static_cast<std::ptrdiff_t>(p) * MAX_PARAM_NAME;
+    if (name[0] == '\0') break;
+    auto info = boardParamInfo(slot, std::string(name, strnlen(name, MAX_PARAM_NAME)));
+    if (!info) return R(info.error());
+    out.push_back(info.value());
+  }
+  return out;
+}
+
+Result<BoardReading> CaenHVBackend::readBoard(int slot, const std::vector<std::string>& params) {
+  using R = Result<BoardReading>;
+  if (!isConnected()) return R::failure(-1, "no conectado");
+  BoardReading out;
+  out.slot = slot;
+  for (const auto& name : params) {
+    auto info = boardParamInfo(slot, name);
+    if (!info) return R(info.error());
+    out.params.push_back(info.value());
+  }
+  const unsigned short s = static_cast<unsigned short>(slot);
+  out.tReqUtcNs = clock_->now_utc_ns();
+  const SteadyTime t0 = clock_->now_steady();
+  for (const auto& info : out.params) {
+    if (info.type == ParamType::Numeric) {
+      float f = 0;
+      const CAENHVRESULT r = CAENHV_GetBdParam(handle_, 1, &s, info.name.c_str(), &f);
+      if (r != CAENHV_OK) return wrapperError(r, "GetBdParam(" + info.name + ")");
+      out.values.push_back(numericValue(info, floatToDouble(f)));
+    } else {
+      unsigned int u = 0;
+      const CAENHVRESULT r = CAENHV_GetBdParam(handle_, 1, &s, info.name.c_str(), &u);
+      if (r != CAENHV_OK) return wrapperError(r, "GetBdParam(" + info.name + ")");
+      out.values.push_back(integerValue(info, u));
+    }
+  }
+  out.durationNs = std::chrono::duration_cast<std::chrono::nanoseconds>(clock_->now_steady() - t0).count();
+  out.tRespUtcNs = clock_->now_utc_ns();
+  return out;
+}
+
 // ÚNICA llamada de escritura de todo el código base: Pw de un canal.
 Status CaenHVBackend::setChannelPw(int slot, int channel, bool on) {
   if (!isConnected()) return Status::failure(-1, "no conectado");

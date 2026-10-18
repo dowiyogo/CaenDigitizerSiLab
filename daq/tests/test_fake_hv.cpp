@@ -250,3 +250,26 @@ TEST(FakeHV, FromFileWithBaseDefaultUsesDefaultSlotsAndFileEvents) {
   EXPECT_FALSE(FakeHVBackend::fromFile(::testing::TempDir() + "no_existe.json", clock).ok());
   std::remove(path.c_str());
 }
+
+TEST(FakeHV, BoardParametersAndScriptedTemperature) {
+  auto sc = FakeHVBackend::defaultScenario();
+  sc["events"] = {{{"t_s", 10.0}, {"type", "board"}, {"param", "Temp"}, {"value", 31.5}}};
+  ManualClock clock;
+  FakeHVBackend be(sc, clock);
+  ASSERT_TRUE(be.connect().ok());
+  auto names = be.boardParamNames(3);
+  ASSERT_TRUE(names.ok());
+  ASSERT_EQ(names.value().size(), 4u);
+  EXPECT_EQ(names.value()[0].name, "BdStatus");
+  EXPECT_EQ(names.value()[0].type, daq::hv::ParamType::BdStatus);
+  auto r = be.readBoard(3, {"BdStatus", "HVMax", "HIMax", "Temp"});
+  ASSERT_TRUE(r.ok());
+  EXPECT_DOUBLE_EQ(r.value().get("Temp")->si, 26.0);
+  EXPECT_DOUBLE_EQ(r.value().get("HVMax")->si, 3127.0);
+  EXPECT_NEAR(r.value().get("HIMax")->si, 1111e-6, 1e-15);
+  EXPECT_EQ(r.value().get("BdStatus")->raw, 0u);
+  clock.sleep_until(daq::SteadyTime{} + 11s);
+  EXPECT_DOUBLE_EQ(be.readBoard(3, {"Temp"}).value().get("Temp")->si, 31.5);
+  EXPECT_FALSE(be.readBoard(3, {"NoExiste"}).ok());
+  EXPECT_EQ(daq::hv::decodeBoardStatus(0x21), (std::vector<std::string>{"power_fail", "over_temperature"}));
+}

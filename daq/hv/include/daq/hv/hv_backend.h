@@ -31,6 +31,10 @@ class HVBackend {
   virtual Result<ChannelReading> readChannels(int slot, const std::vector<int>& channels,
                                               const std::vector<std::string>& params) = 0;
 
+  // Parámetros de placa (solo lectura): nombres/tipos/unidades y una lectura.
+  virtual Result<std::vector<ParamInfo>> boardParamNames(int slot) = 0;
+  virtual Result<BoardReading> readBoard(int slot, const std::vector<std::string>& params) = 0;
+
   // Escribe Pw de un canal. No verifica: la verificación por relectura la hace hvmon.
   virtual Status setChannelPw(int slot, int channel, bool on) = 0;
 

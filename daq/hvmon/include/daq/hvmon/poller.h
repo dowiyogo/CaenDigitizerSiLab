@@ -126,6 +126,7 @@ class Poller {
   bool fullGap_ = false;
   std::vector<std::string> allParams_;
   std::vector<std::string> fullTracked_;
+  std::vector<std::string> boardParams_;  // vacío si la placa no informa parámetros
   std::optional<hv::ChannelReading> prevFast_;
   std::optional<hv::ChannelReading> prevFull_;
   std::uint64_t readSeq_ = 0;

@@ -72,6 +72,23 @@ nlohmann::json StateHub::compose(const HvmonConfig& cfg, UtcNs now, std::uint64_
   }
   nlohmann::json changes = nlohmann::json::array();
   for (const auto& c : p.recentChanges) changes.push_back(c.toJson());
+  nlohmann::json board;  // null si la placa no informa parámetros
+  nlohmann::json boardTemp;
+  if (p.board) {
+    nlohmann::json values = nlohmann::json::object();
+    nlohmann::json flags = nlohmann::json::array();
+    for (std::size_t i = 0; i < p.board->params.size(); ++i) {
+      const auto& info = p.board->params[i];
+      const auto& v = p.board->values[i];
+      if (info.type == hv::ParamType::Numeric)
+        values[hv::columnName(info)] = v.si;
+      else
+        values[info.name] = v.raw;
+      if (info.type == hv::ParamType::BdStatus) flags = hv::decodeBoardStatus(v.raw);
+      if (info.name == "Temp") boardTemp = v.si;
+    }
+    board = {{"slot", p.board->slot}, {"t_utc_ns", p.board->tRespUtcNs}, {"values", values}, {"status_flags", flags}};
+  }
 
   return nlohmann::json{
       {"schema", "daqv2.hvmon_state/1"},
@@ -107,7 +124,10 @@ nlohmann::json StateHub::compose(const HvmonConfig& cfg, UtcNs now, std::uint64_
       {"active_command", p.activeCommand},
       {"active_offsets", p.activeOffsets},
       {"last_offsets", p.lastOffsets},
-      {"temperature", temp}};
+      {"temperature", temp},
+      {"board", board},
+      {"board_temperature_degC", boardTemp},
+      {"board_temperature_note", "temperatura de la placa A7030DP (sigue la del rack), no la del detector"}};
 }
 
 }  // namespace daq::hvmon
