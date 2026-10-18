@@ -1,7 +1,8 @@
 // hv_backend.h
-// Interfaz de acceso a una fuente de HV CAEN. En la fase 0 es de SOLO LECTURA: no existe
-// ningún método que escriba en la fuente (las escrituras llegan en las fases 1-2 con su propia
-// autorización, ver docs/daq_v2_design.md, sección 9.2).
+// Interfaz de acceso a una fuente de HV CAEN. Solo hay UNA operación de escritura en todo el
+// código: setChannelPw() (Pw de un canal a 0 o 1). No existe escritura de V0Set, I0Set, Trip ni de
+// ningún otro parámetro. setChannelPw() solo la llama el hilo de sondeo de hvmon, tras validar
+// allow_commands y la secuencia de docs/daq_v2_design.md, sección 9.2.
 // Seguridad entre hilos: una instancia NO es segura entre hilos; la usa un único hilo dueño
 // (en hvmon, el hilo HV). Unidades: ver hv_types.h (SI por encima del backend).
 #pragma once
@@ -29,6 +30,9 @@ class HVBackend {
   // de referencia tReq/tResp). Falla completa si falla cualquier parámetro.
   virtual Result<ChannelReading> readChannels(int slot, const std::vector<int>& channels,
                                               const std::vector<std::string>& params) = 0;
+
+  // Escribe Pw de un canal. No verifica: la verificación por relectura la hace hvmon.
+  virtual Status setChannelPw(int slot, int channel, bool on) = 0;
 
   virtual std::string describe() const = 0;
 };

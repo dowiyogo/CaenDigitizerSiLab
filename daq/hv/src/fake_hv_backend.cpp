@@ -116,6 +116,7 @@ nlohmann::json FakeHVBackend::defaultScenario() {
 FakeHVBackend::FakeHVBackend(const nlohmann::json& sc, const Clock& clock)
     : clock_(clock), t0_(clock.now_steady()), params_(a7030dpParams()) {
   rng_.seed(sc.value("seed", static_cast<std::uint64_t>(1)));
+  pwWriteIgnored_ = sc.value("pw_write_ignored", false);
   if (!sc.contains("slots") || !sc["slots"].is_array() || sc["slots"].empty())
     throw std::invalid_argument("guion: falta 'slots'");
   int maxSlot = 0;
@@ -396,6 +397,23 @@ Result<ChannelReading> FakeHVBackend::readChannels(int slot, const std::vector<i
   out.durationNs = std::chrono::duration_cast<std::chrono::nanoseconds>(clock_.now_steady() - t0).count();
   out.tRespUtcNs = clock_.now_utc_ns();
   return out;
+}
+
+Status FakeHVBackend::setChannelPw(int slot, int channel, bool on) {
+  if (auto st = checkLink(); !st) return st;
+  Slot* s = findSlot(slot);
+  if (!s || channel < 0 || channel >= s->info.channels) return Status::failure(-3, "fake: slot o canal inexistente");
+  ++pwWrites_;
+  if (pwWriteIgnored_) return okStatus();
+  Event e;
+  e.t = simTime_;
+  e.type = "set";
+  e.slot = slot;
+  e.channel = channel;
+  e.param = "Pw";
+  e.value = on ? 1.0 : 0.0;
+  apply(e);
+  return okStatus();
 }
 
 double FakeHVBackend::trueVoltage(int slot, int channel) {

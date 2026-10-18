@@ -1,7 +1,7 @@
 // caen_hv_backend.h
-// Backend de SOLO LECTURA sobre CAEN HV Wrapper 6.6 (libcaenhvwrapper). Usa únicamente
-// CAENHV_InitSystem/DeinitSystem y funciones CAENHV_Get*; no contiene ninguna llamada de
-// escritura (verificable con `nm -D --undefined-only`).
+// Backend sobre CAEN HV Wrapper 6.6 (libcaenhvwrapper). Usa CAENHV_InitSystem/DeinitSystem,
+// funciones CAENHV_Get* y una sola llamada de escritura, CAENHV_SetChParam con el parámetro "Pw",
+// dentro de setChannelPw(); ninguna otra función escribe.
 // - Es dueño del handle (RAII): el destructor llama a DeinitSystem.
 // - Libera con CAENHV_Free cada buffer que reserva la Wrapper.
 // - Convierte a SI en esta frontera: valor_SI = valor_placa * 10^Exp, con la unidad y el
@@ -44,6 +44,7 @@ class CaenHVBackend final : public HVBackend {
   Result<std::vector<ParamInfo>> channelParamNames(int slot, int channel) override;
   Result<ChannelReading> readChannels(int slot, const std::vector<int>& channels,
                                       const std::vector<std::string>& params) override;
+  Status setChannelPw(int slot, int channel, bool on) override;
   std::string describe() const override;
 
   // Versión de la biblioteca (CAENHVLibSwRel).

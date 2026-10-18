@@ -1,7 +1,7 @@
 // caen_hv_backend.cpp
-// Implementación de solo lectura sobre la Wrapper. Ninguna función de este archivo escribe en
-// la fuente: se usan InitSystem, DeinitSystem, GetCrateMap, GetChParamInfo, GetChParamProp,
-// GetChParam, GetError, Free y CAENHVLibSwRel.
+// Implementación sobre la Wrapper: InitSystem, DeinitSystem, GetCrateMap, GetChParamInfo,
+// GetChParamProp, GetChParam, GetError, Free, CAENHVLibSwRel y, como única escritura,
+// CAENHV_SetChParam("Pw") en setChannelPw().
 #include "daq/hv/caen_hv_backend.h"
 
 #include <array>
@@ -266,6 +266,16 @@ Result<ChannelReading> CaenHVBackend::readChannels(int slot, const std::vector<i
   out.durationNs = std::chrono::duration_cast<std::chrono::nanoseconds>(clock_->now_steady() - t0).count();
   out.tRespUtcNs = clock_->now_utc_ns();
   return out;
+}
+
+// ÚNICA llamada de escritura de todo el código base: Pw de un canal.
+Status CaenHVBackend::setChannelPw(int slot, int channel, bool on) {
+  if (!isConnected()) return Status::failure(-1, "no conectado");
+  unsigned short ch = static_cast<unsigned short>(channel);
+  unsigned int value = on ? 1u : 0u;
+  const CAENHVRESULT r = CAENHV_SetChParam(handle_, static_cast<unsigned short>(slot), "Pw", 1, &ch, &value);
+  if (r != CAENHV_OK) return Status(wrapperError(r, "SetChParam(Pw)"));
+  return okStatus();
 }
 
 }  // namespace daq::hv

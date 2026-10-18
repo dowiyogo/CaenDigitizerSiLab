@@ -55,11 +55,15 @@ class FakeHVBackend final : public HVBackend {
   Result<std::vector<ParamInfo>> channelParamNames(int slot, int channel) override;
   Result<ChannelReading> readChannels(int slot, const std::vector<int>& channels,
                                       const std::vector<std::string>& params) override;
+  // Como un "set" de Pw en el instante actual. Con "pw_write_ignored": true en el guion,
+  // devuelve OK pero no cambia nada (para probar la verificación fallida).
+  Status setChannelPw(int slot, int channel, bool on) override;
   std::string describe() const override { return "FakeHVBackend"; }
 
   // Solo para tests: tensión verdadera (sin offset ni ruido) en V, tras avanzar al instante actual.
   double trueVoltage(int slot, int channel);
   std::uint64_t callCount() const { return calls_; }
+  std::uint64_t pwWrites() const { return pwWrites_; }
 
  private:
   struct Channel {
@@ -112,6 +116,8 @@ class FakeHVBackend final : public HVBackend {
   std::vector<ParamInfo> params_;
   bool connected_ = false;
   std::uint64_t calls_ = 0;
+  std::uint64_t pwWrites_ = 0;
+  bool pwWriteIgnored_ = false;
   std::mt19937_64 rng_;
 };
 

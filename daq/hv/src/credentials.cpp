@@ -10,6 +10,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "daq/core/logger.h"
+
 namespace daq::hv {
 
 std::string expandHome(const std::string& path) {
@@ -45,6 +47,32 @@ Result<Credentials> loadCredentials(const std::string& rawPath) {
       !j["password"].is_string())
     return Result<Credentials>::failure(-1, "credenciales: faltan 'user' o 'password' en " + path);
   return Credentials{j["user"].get<std::string>(), j["password"].get<std::string>()};
+}
+
+Result<HvLogin> resolveHvLogin(Secrets& secrets, const std::string& defaultHost, const std::string& legacyPath) {
+  using R = Result<HvLogin>;
+  HvLogin login;
+  auto host = secrets.get("DAQ_HV_HOST");
+  if (!host) return R(host.error());
+  login.host = host.value().value_or(defaultHost);
+  auto user = secrets.get("DAQ_HV_USER");
+  if (!user) return R(user.error());
+  auto pass = secrets.get("DAQ_HV_PASSWORD");
+  if (!pass) return R(pass.error());
+  if (user.value() && pass.value()) {
+    login.credentials = Credentials{*user.value(), *pass.value()};
+    login.source = "secrets";
+    return login;
+  }
+  auto legacy = loadCredentials(legacyPath);
+  if (!legacy)
+    return R::failure(-1, "faltan DAQ_HV_USER/DAQ_HV_PASSWORD (entorno o " + secrets.path() +
+                              ") y el respaldo falló: " + legacy.error().message);
+  logWarn("credenciales HV desde ", expandHome(legacyPath),
+          ": mecanismo OBSOLETO, usar DAQ_HV_USER/DAQ_HV_PASSWORD en ", secrets.path());
+  login.credentials = legacy.value();
+  login.source = "hv_credentials.json (obsoleto)";
+  return login;
 }
 
 }  // namespace daq::hv
