@@ -1,0 +1,97 @@
+// Tests varios de hvmon: configuración, serialización de lecturas, detección de procesos,
+// enlace HTTP permitido, backend de temperatura fake.
+#include <gtest/gtest.h>
+
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <cstdio>
+#include <fstream>
+
+#include "daq/core/clock.h"
+#include "daq/hv/fake_hv_backend.h"
+#include "daq/hv/reading_json.h"
+#include "daq/hvmon/config.h"
+#include "daq/hvmon/system_probe.h"
+#include "daq/temp/temp_backend.h"
+
+using namespace std::chrono_literals;
+using namespace daq;
+
+TEST(HvmonConfig, DefaultsAreReadOnlyAndValidated) {
+  auto c = hvmon::HvmonConfig::fromJson(nlohmann::json::object());
+  ASSERT_TRUE(c.ok());
+  EXPECT_FALSE(c.value().allowCommands);
+  EXPECT_EQ(c.value().httpBind, "127.0.0.1");
+  EXPECT_EQ(c.value().channels.size(), 12u);
+  EXPECT_DOUBLE_EQ(c.value().fsyncPeriodS, 10.0);
+  EXPECT_FALSE(hvmon::HvmonConfig::fromJson({{"http", {{"bind", "0.0.0.0"}}}}).ok());
+  EXPECT_FALSE(hvmon::HvmonConfig::fromJson({{"http", {{"bind", "10.3.84.38"}}}}).ok());
+  EXPECT_FALSE(hvmon::HvmonConfig::fromJson({{"fast_params", {"VMon"}}}).ok());
+  EXPECT_FALSE(hvmon::HvmonConfig::fromJson({{"trip_flags", {"no_existe"}}}).ok());
+  EXPECT_FALSE(hvmon::HvmonConfig::fromJson({{"fsync_period_s", 0}}).ok());
+}
+
+TEST(HvmonConfig, HttpBindResolution) {
+  EXPECT_EQ(hvmon::resolveHttpBind("127.0.0.1").value(), "127.0.0.1");
+  EXPECT_EQ(hvmon::resolveHttpBind("localhost").value(), "127.0.0.1");
+  EXPECT_FALSE(hvmon::resolveHttpBind("0.0.0.0").ok());
+  auto t = hvmon::resolveHttpBind("tailscale");
+  if (t.ok()) {
+    EXPECT_EQ(t.value().rfind("100.", 0), 0u);  // red CGNAT de Tailscale
+  }
+}
+
+TEST(ReadingJson, RoundTripAndColumnNames) {
+  ManualClock clock;
+  hv::FakeHVBackend be(hv::FakeHVBackend::defaultScenario(), clock);
+  ASSERT_TRUE(be.connect().ok());
+  auto r = be.readChannels(3, {0, 8}, {"V0Set", "IMon", "RUp", "Trip", "Status", "Pw"}).value();
+  const auto j = hv::readingToJson(r, hv::StatusBitMap::wrapperRev13());
+  ASSERT_EQ(j["params"].size(), 6u);
+  EXPECT_EQ(j["params"][0]["name"], "V0Set");  // orden preservado
+  auto back = hv::readingFromJson(j);
+  ASSERT_TRUE(back.ok()) << back.error().message;
+  EXPECT_EQ(back.value().params.size(), 6u);
+  EXPECT_DOUBLE_EQ(back.value().get("V0Set", 0)->boardValue, 65.75);
+  EXPECT_DOUBLE_EQ(back.value().get("IMon", 8)->si, r.get("IMon", 8)->si);
+  EXPECT_EQ(back.value().get("Pw", 8)->raw, 0u);
+  EXPECT_EQ(hv::columnName(r.params[1]), "IMon_A");
+  EXPECT_EQ(hv::columnName(r.params[2]), "RUp_V_per_s");
+  EXPECT_EQ(hv::columnName(r.params[3]), "Trip_s");
+  EXPECT_EQ(hv::columnName(r.params[4]), "Status");
+  EXPECT_FALSE(hv::readingFromJson(nlohmann::json::object()).ok());
+}
+
+TEST(SystemProbe, FindsProcessByPatternInProcRoot) {
+  const std::string root = ::testing::TempDir() + "daq_fake_proc";
+  ::mkdir(root.c_str(), 0700);
+  ::mkdir((root + "/4242").c_str(), 0700);
+  {
+    std::ofstream o(root + "/4242/cmdline", std::ios::binary);
+    const char cmd[] = "/snap/caengeco2020/x1/bin/CAENGECO2020\0--algo\0";
+    o.write(cmd, sizeof cmd - 1);
+  }
+  EXPECT_TRUE(hvmon::processRunning("bin/CAENGECO2020", root));
+  EXPECT_FALSE(hvmon::processRunning("bin/NOEXISTE", root));
+  std::remove((root + "/4242/cmdline").c_str());
+  ::rmdir((root + "/4242").c_str());
+  ::rmdir(root.c_str());
+  EXPECT_FALSE(hvmon::processRunning("no-hay-tal-proceso-en-este-host"));
+}
+
+TEST(FakeTemp, SineAndFailure) {
+  ManualClock clock;
+  temp::FakeTempBackend t(clock, {{"sensors", {{{"id", "s1"}, {"base_degC", 20.0}, {"amplitude_degC", 2.0},
+                                                {"period_s", 40.0}}}}});
+  auto r0 = t.read();
+  ASSERT_TRUE(r0.ok());
+  EXPECT_NEAR(r0.value()[0].tDegC, 20.0, 1e-9);
+  clock.advance(10s);
+  EXPECT_NEAR(t.read().value()[0].tDegC, 22.0, 1e-9);
+  EXPECT_EQ(t.read().value()[0].sensorId, "s1");
+  temp::FakeTempBackend bad(clock, {{"fail", true}});
+  EXPECT_FALSE(bad.read().ok());
+  EXPECT_FALSE(temp::makeTempBackend("ds18b20", clock, {}).ok());
+  EXPECT_EQ(temp::makeTempBackend("none", clock, {}).value(), nullptr);
+}
