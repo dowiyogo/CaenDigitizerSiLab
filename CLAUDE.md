@@ -33,6 +33,7 @@ Acquisition and analysis for two scintillator hodoscopes read by MPPCs:
     raw data (read-only)  /data/daq/raw/<campaign>/   (also /home/xplus/digitizer/data/raw -> /data/daq/raw)
     slow control (new)    /data/daq/slowcontrol/      (does not exist yet)
     raw manifests         /data/daq/manifests/
+    DAQ v2 user config    ~/.config/daqv2/ (hv_credentials.json mode 600, hvctl.json)
     analysis outputs      outputs/  (not in git)
     ROOT                  ~/root6 (6.32.10, built with C++17)
     CAEN HV Wrapper 6.6   /usr/lib64/libcaenhvwrapper.so, /usr/include/CAENHVWrapper.h (needs -DUNIX)
@@ -81,20 +82,39 @@ Analysis (Makefile, C++17, run everything from the repository root):
     make -C analysis                      # binaries in analysis/bin/
     analysis/scripts/run_*.sh             # pipeline scripts, cd to the root themselves
 
-New DAQ (CMake, planned; nothing exists yet). Tests use GoogleTest from apt
-(`libgtest-dev`) through `gtest_discover_tests`. If GoogleTest is not installed when a task
-needs it, stop and say so; do not vendor a test framework.
+New DAQ (CMake, `daq/`; phase 0 exists: core, read-only HV library, `hvctl`). Tests use
+GoogleTest from apt (`libgtest-dev` 1.14) through `gtest_discover_tests`. If GoogleTest is
+missing, stop and say so; do not vendor a test framework. Details for René: `daq/README.md`.
 
+    # normal build (from the repository root)
     cmake -S daq -B daq/build -DCMAKE_BUILD_TYPE=RelWithDebInfo
-    cmake --build daq/build -j4
-    ctest --test-dir daq/build --output-on-failure
+    ( ulimit -v 4194304; timeout 3600 cmake --build daq/build -j4 )
+    ( ulimit -v 4194304; timeout 3600 ctest --test-dir daq/build --output-on-failure -j4 )
+
+    # sanitizers: ASan+UBSan together, TSan alone. They reserve terabytes of virtual memory and
+    # do not run under ulimit -v; cap real memory with a cgroup instead. TSan tests run under
+    # setarch -R automatically (GCC 13 TSan vs this kernel's ASLR).
+    cmake -S daq -B daq/build-address-undefined -DDAQ_SANITIZE=address,undefined
+    cmake -S daq -B daq/build-thread -DDAQ_SANITIZE=thread
+    timeout 3600 systemd-run --user --scope --quiet -p MemoryMax=4G -p MemorySwapMax=0 \
+        cmake --build daq/build-thread -j4
+    timeout 3600 systemd-run --user --scope --quiet -p MemoryMax=4G -p MemorySwapMax=0 \
+        ctest --test-dir daq/build-thread --output-on-failure -j4
+
+ROOT must be findable at configure time (`ROOTSYS` or `~/root6`); no phase 0 target links it.
+The CAEN HV Wrapper is the IMPORTED target `caen::hvwrapper` (adds `-DUNIX`).
 
 Tests must run against the fakes only (`FakeHVBackend`, fake digitizer, fake temperature
 source). No test may open the digitizer or connect to the SY5527.
 
-HV test programs (untracked, written by the HV chat): `gcc -Wall -DUNIX hv_readall.c -o
-hv_readall -lcaenhvwrapper`. Running them connects to the mainframe: only when the task
-authorizes HV reads.
+HV tools (connect to the mainframe: only when the task authorizes HV reads):
+
+    daq/build/apps/hvctl/hvctl map | params --slot 3 | read --slot 3 [--json] | bench --slot 3 --n 100
+    daq/build/apps/hvctl/hvctl --fake default read --slot 3     # no hardware
+    daq/build/tools/legacy/hv_readall 192.168.1.118 3 <user> <password>   # legacy, read-only
+
+Credentials: `~/.config/daqv2/hv_credentials.json`, mode 600, never in the repository. Phase 0
+code contains no HV write wrapper; check with `nm -D --undefined-only daq/build/apps/hvctl/hvctl`.
 
 ## Coding conventions for daq/
 

@@ -199,17 +199,20 @@ Dos ejecutables (`hvmon`, `daqrun`) y herramientas de línea de comandos (`hvctl
 
     daq/
       CMakeLists.txt
-      core/        tiempo (Clock), cola acotada, StopSource/JThread, config JSON, mapeo, flags
+      core/        tiempo (Clock), cola acotada, StopSource/JThread, logger, unidades (fase 0);
+                   config JSON, mapeo, flags (fases siguientes). Headers en core/include/daq/core/
       core/include/daq/trigger_interval_stats.h   estadística de Δt (header-only, también para analysis/)
-      hv/          IHVBackend, CaenHVBackend (Wrapper), FakeHVBackend, máquina de auto-retry
+      hv/          HVBackend, CaenHVBackend (Wrapper), FakeHVBackend, Status, credenciales (fase 0);
+                   máquina de auto-retry (fase 2). Headers en hv/include/daq/hv/
       dig/         IDigitizer, CaenDigitizer (CAENDigitizer), FakeDigitizer (replay/sintético)
       temp/        TempBackend, Ds18b20Sysfs, SerialLineSource, FakeTemperature
       pulse/       búsqueda de pulsos, histogramas de amplitud, ajuste de ganancia
       io/          escritor ROOT, CSV/JSONL de slow control y su lector a TTree/RDataFrame,
                    SHA256, índice de run, campañas
       apps/        hvmon, daqrun, hvctl, daqnote, daqcampaign
+      tools/legacy/ hv_readall.c, test_sy5527.c, diag_sy5527.sh (heredados, compilados tal cual)
       tests/
-      config/      ejemplos de configuración y mapeos versionados
+      config/      ejemplos de configuración, guiones del fake y mapeos versionados
 
 ### 2.1 Procesos e hilos
 
@@ -486,7 +489,7 @@ existe y contiene `raw_manifest_20261018.sha256`, que no se toca.
   "hv": {
     "system": "SY5527",
     "address": "192.168.1.118",
-    "credentials_file": "/home/xplus/.config/daq/hv_credentials.json",
+    "credentials_file": "~/.config/daqv2/hv_credentials.json",
     "slot": 3,
     "channels": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     "expected_on": [0, 1, 2, 3, 4, 5, 6, 7],
@@ -555,7 +558,7 @@ existe y contiene `raw_manifest_20261018.sha256`, que no se toca.
   "temperature": {"backend": "none", "period_s": 30, "device": ""},
   "notifications": {
     "enabled": false,
-    "config_file": "/home/xplus/.config/daq/notify.json",
+    "config_file": "~/.config/daqv2/notify.json",
     "on_gave_up": true,
     "on_trip": false,
     "curl_timeout_s": 30
@@ -957,7 +960,7 @@ detiene y lo informa (no se copia un framework al repositorio).
 
 | fase | aceptación |
 |---|---|
-| 0 HV lib + `FakeHVBackend` + `hvctl` | tests pasan; `hvctl --fake` y `hvctl` real (solo lectura, tarea autorizada) dan la misma tabla que `hv_readall`; latencia de una lectura completa de 12 canales medida y registrada; el binario de fase 0 no contiene llamadas `Set*` (verificado con `nm`) |
+| 0 HV lib + `FakeHVBackend` + `hvctl` | tests pasan (normal, ASan+UBSan, TSan); `hvctl --fake` y `hvctl` real (solo lectura, tarea autorizada) dan la misma tabla que `hv_readall`; latencia de una lectura completa de 12 canales medida y registrada; el binario de fase 0 no importa `CAENHV_Set*` ni `CAENHV_ExecComm` (verificado con `nm -D --undefined-only`). Resultado DAQ2-2: cumplido salvo la prueba con GECO abierto (GECO estaba cerrado) |
 | 1 `hvmon` + ruta de comandos | 24 h con fake acelerado sin pérdida de líneas; cambios del guion con el origen correcto en el 100 % de los casos; reconexión; lector a TTree/RDataFrame validado; 8 h reales de solo lectura con GECO abierto, cada cambio hecho en GECO aparece como `external`; patrón de GECO confirmado; suscripción evaluada; comandos `pw` probados solo contra el fake (con hardware real recién en fase 2 o 6, con autorización) |
 | 2 auto-retry y notificador | todas las transiciones de 8.2 cubiertas con tiempo acelerado; acción manual siempre manda; un correo por episodio; luego una vez en hardware real con carga resistiva e I0Set bajo, con autorización explícita: trip provocado → WAIT → RETRY → NORMAL, GAVE_UP con correo, y verificación de los bits de `Status` |
 | 3 `daqrun` con digitizador fake | 24 h aceleradas sin perder eventos; apagado limpio por señal en cualquier momento; segmentos e índice con SHA256 correctos; flags del guion correctos (incluidas pruebas de Poisson con agregación); estado sin calibración visible; modo calibración con SW trigger fake; RSS sin deriva > 10 % |
@@ -1034,6 +1037,48 @@ detiene y lo informa (no se copia un framework al repositorio).
     grupos, `hvctl`), con `hv.allow_commands` y autorización registrada por comando.
 18. **Nuevo en DAQ2-1: estadística de Δt header-only**, para que el análisis (Makefile) la
     use sin depender de CMake.
+
+### 15.1 Cambios fijados en la fase 0 (DAQ2-2)
+
+19. **Credenciales y configuración en `~/.config/daqv2/`** (`hv_credentials.json`,
+    `notify.json`, `hvctl.json`), no en `~/.config/daq/`. Modo 600 obligatorio, archivo del
+    usuario actual.
+20. **Estructura de `daq/`**: cada módulo con `include/daq/<módulo>/` y `src/`; la Wrapper se
+    expone como target IMPORTED `caen::hvwrapper` (ruta `/usr/lib64/libcaenhvwrapper.so`,
+    `UNIX` como definición INTERFACE). La biblioteca no tiene SONAME, así que `DT_NEEDED` de
+    `hvctl` es la ruta absoluta [V: readelf -d]. `daq_hv_common` (tipos, Status, credenciales,
+    fake) no depende de la Wrapper; `daq_hv_caen` sí. ROOT se busca en CMake pero ningún target
+    de la fase 0 lo enlaza.
+21. **Nombres**: las primitivas de `daq/core` imitan la biblioteca estándar (`request_stop`,
+    `try_push`, `now_utc_ns`, `sleep_until`); las clases de dominio usan camelCase
+    (`readChannels`, `crateMap`), como pidió la tarea.
+22. **El header de la Wrapper define macros `uchar`, `ushort`, `ulong`** (y `ulong` es
+    `unsigned int`, 4 bytes, no `unsigned long`). Solo se incluye en `caen_hv_backend.cpp` y
+    las macros se anulan después. La propiedad `Type`/`Mode` de `GetChParamProp` se lee como
+    `unsigned int`.
+23. **Unidades de la placa**: el A7030DP informa `Unit` y `Exp` para todos los parámetros
+    numéricos (IMon, I0Set, I1Set en µA, Exp = −6; V0Set, V1Set, SVMax, VMon en V; RUp, RDWn en
+    V/s; Trip en s) [V: hvctl params, canales 0 y 8]; la tabla de respaldo por nombre no se usó.
+    La conversión a SI divide por 10^−Exp (15 µA → 1.5e-05 A exacto) y el float de la Wrapper se
+    pasa a double por su forma decimal de 7 cifras (0.048 y no 0.0480000004).
+24. **Crate**: 4 slots (0-3), solo el 3 ocupado: A7030DP, descripción
+    `" 12 Ch Pos 3KV 1mA (1.5W) "`, SN 58015, FW 1.15. ON/OFF: Pw On/Off, POn En/Dis, PDwn
+    Ramp/Kill, ZCDetect On/Off, ZCAdjust En/Dis. Con PDwn = 0 la placa está en **Kill**; el fake
+    interpreta Kill como caída inmediata al apagar y Ramp como bajada a RDWn [I: a verificar en
+    fase 2]. La secuencia de la prueba de grupos (9.3) no depende de esto: espera VMon < 1 V.
+25. **CH08-11** no tienen los mismos ajustes que CH00-07: I0Set 5 µA, I1Set 101 µA, RUp 5 V/s,
+    Trip 10 s [V: hv_readall 2026-10-18T21:56:18Z].
+26. **Latencia de la Wrapper** (hvctl bench, 100 lecturas de 6 parámetros × 12 canales,
+    2026-10-18T22:10:42Z, HV apagada, GECO cerrado): mediana 1.954 ms, p95 2.772 ms, máximo
+    3.145 ms. Un sondeo de 1 Hz usa ~0.2 % del tiempo; el modo suscripción no hace falta por
+    latencia (se evalúa en la fase 1 solo por detección de cambios).
+27. **Sanitizers**: ASan+UBSan combinados (`DAQ_SANITIZE=address,undefined`) y TSan
+    (`thread`) por separado. TSan de GCC 13 aborta con "unexpected memory mapping" con la
+    entropía ASLR de este kernel; los tests TSan corren con `setarch x86_64 -R` (ASLR apagado
+    solo para ese proceso) mediante `CROSSCOMPILING_EMULATOR`. Los sanitizers reservan
+    terabytes de espacio virtual y no funcionan con `ulimit -v 4194304`: se corren dentro de
+    `systemd-run --user --scope -p MemoryMax=4G -p MemorySwapMax=0`, que limita la memoria real
+    a 4 GiB.
 
 ## 16. Preguntas resueltas por el handoff y la revisión
 
