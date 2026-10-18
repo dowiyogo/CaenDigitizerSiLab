@@ -1,0 +1,11 @@
+{
+  "system": "SY5527",
+  "host": "192.168.1.118",
+  "credentials": "~/.config/daqv2/hv_credentials.json",
+  "slot": 3,
+  "status_bits": {
+    "on": 0, "ramp_up": 1, "ramp_down": 2, "overcurrent": 3, "overvoltage": 4,
+    "undervoltage": 5, "external_trip": 6, "max_v": 7, "external_disable": 8,
+    "internal_trip": 9, "calibration_error": 10, "unplugged": 11
+  }
+}

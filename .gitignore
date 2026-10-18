@@ -21,3 +21,6 @@ attic/hv_tools_bin/
 CAENGECO2020SubscrFail_*.log
 daq/tools/legacy/hv_readall
 daq/tools/legacy/test_sy5527
+# *.txt arriba es para salidas de análisis; los CMakeLists del DAQ v2 sí se versionan
+!daq/**/CMakeLists.txt
+!daq/CMakeLists.txt
