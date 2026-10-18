@@ -1,0 +1,8 @@
+run,start_local,end_local,status,channels,reason
+v7,2026-05-28 08:00,2026-05-28 09:59,EXCLUDE,all,end of run: all channels below 10% of median
+v8,2026-05-28 10:00,2026-05-28 14:59,EXCLUDE,all,start of run: all channels below 10% of median
+v8,2026-05-30 11:00,2026-05-31 00:59,HV_OFF,6 20 46 50 56 59 60 62,HV group 2 off
+v8,2026-05-31 10:00,2026-05-31 10:59,EXCLUDE,all,last partial hour (43 events)
+v10,2026-06-01 09:00,2026-06-02 12:59,HV_OFF,0 6 20 22 31 43 46 47 50 54 56 58 59 60 62 63,HV groups 1+2 off
+v10,2026-06-03 09:00,2026-06-05 15:59,HV_OFF,0 1 6 16 17 20 22 31 34 43 46 47 50 53 54 55 56 57 58 59 60 62 63,HV groups 1+2+6 off
+

@@ -48,6 +48,11 @@ static constexpr HodoMappingConfig kCfg_2026_05 = {
     {53, 61, 54, 62, 55, 63, 52, 60, 51, 59, 50, 58, 49, 57, 48, 56},
     {37, 45, 38, 46, 39, 47, 36, 44, 35, 43, 34, 42, 33, 41, 32, 40}
 };
+// HV-trip check (runs v8, v10): hod2019 faces -> digitizer groups: Delantera 48-55, Trasera 56-63,
+// Frontal 40-47, Opuesta 32-39; within a face, connector channel 1..8 -> offset {0,1,2,3,4,7,6,5}.
+// 15 of 16 predicted dead channels observed (Opuesta 8 -> ch37 not observed dead).
+// hod2018 from HV trips: ch6 = X Canal 7, ch0 = X Canal 13, ch20 = Y Canal 7, {ch22, ch31} = Y Canal {11, 15},
+// {ch1, ch3} = X Canal {0, 2}. Inconsistent with the sheet "Mayo 2026" (ch k = coordinate k) for hod2018.
 
 // Configuration kCfg_2026_10:
 // Cabling of "Disposicion Correcta Hodoscopios", sheet "Octubre 2026":
