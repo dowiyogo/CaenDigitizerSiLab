@@ -1,0 +1,88 @@
+{
+  "allow_commands": false,
+  "backoff_initial_s": 1.0,
+  "backoff_max_s": 60.0,
+  "channels": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11
+  ],
+  "fast_params": [
+    "V0Set",
+    "I0Set",
+    "VMon",
+    "IMon",
+    "Status",
+    "Pw"
+  ],
+  "fast_period_s": 1.0,
+  "fast_tracked": [
+    "V0Set",
+    "I0Set",
+    "Pw",
+    "Status"
+  ],
+  "fsync_period_s": 10.0,
+  "full_period_s": 60.0,
+  "geco_pattern": "bin/CAENGECO2020",
+  "geco_period_s": 10.0,
+  "host": "192.168.1.118",
+  "http": {
+    "bind": "127.0.0.1",
+    "channels": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "enabled": true,
+    "graph_hours": 24.0,
+    "graph_period_s": 10.0,
+    "port": 8081
+  },
+  "log_file": "",
+  "slot": 3,
+  "slowcontrol_dir": "/data/daq/slowcontrol",
+  "stale_after_s": 3.0,
+  "state_dir": "/dev/shm/daqv2",
+  "status_bits": {
+    "calibration_error": 10,
+    "external_disable": 8,
+    "external_trip": 6,
+    "internal_trip": 9,
+    "max_v": 7,
+    "on": 0,
+    "overcurrent": 3,
+    "overvoltage": 4,
+    "ramp_down": 2,
+    "ramp_up": 1,
+    "undervoltage": 5,
+    "unplugged": 11
+  },
+  "system": "SY5527",
+  "temperature": {
+    "backend": "none",
+    "config": {},
+    "period_s": 30.0
+  },
+  "trip_flags": [
+    "internal_trip",
+    "external_trip"
+  ],
+  "verify_margin_s": 15.0,
+  "vmon_off_max_V": 2.0,
+  "vmon_on_tolerance_V": 2.0
+}
