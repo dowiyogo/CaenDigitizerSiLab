@@ -1070,7 +1070,8 @@ detiene y lo informa (no se copia un framework al repositorio).
     Trip 10 s [V: hv_readall 2026-10-18T21:56:18Z].
 26. **Latencia de la Wrapper** (hvctl bench, 100 lecturas de 6 parámetros × 12 canales,
     2026-10-18T22:10:42Z, HV apagada, GECO cerrado): mediana 1.954 ms, p95 2.772 ms, máximo
-    3.145 ms. Un sondeo de 1 Hz usa ~0.2 % del tiempo; el modo suscripción no hace falta por
+    3.145 ms; repetido con el binario final a las 22:21:38Z: mediana 2.063 ms, p95 2.860 ms,
+    máximo 6.208 ms. Un sondeo de 1 Hz usa ~0.2 % del tiempo; el modo suscripción no hace falta por
     latencia (se evalúa en la fase 1 solo por detección de cambios).
 27. **Sanitizers**: ASan+UBSan combinados (`DAQ_SANITIZE=address,undefined`) y TSan
     (`thread`) por separado. TSan de GCC 13 aborta con "unexpected memory mapping" con la
