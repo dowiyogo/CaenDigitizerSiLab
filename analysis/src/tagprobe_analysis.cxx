@@ -40,6 +40,7 @@
 #define TAGPROBE_MUON_OVERRIDE
 #include "hodo_consts.h"
 #include "hodo_mapping.h"
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 
@@ -125,8 +126,9 @@ struct EvData {
 // Carga en RAM
 //==============================================================================
 static std::vector<EvData> load_all(const std::string& fname) {
-    TFile* fin=TFile::Open(fname.c_str(),"READ");
-    if(!fin||fin->IsZombie()){std::cerr<<"ERROR: "<<fname<<'\n';return{};}
+    const std::string resolved = hodo::resolveRawFile(fname);
+    TFile* fin=TFile::Open(resolved.c_str(),"READ");
+    if(!fin||fin->IsZombie()){std::cerr<<"ERROR: "<<resolved<<'\n';return{};}
     TTree* t=static_cast<TTree*>(fin->Get("data_dig"));
     if(!t){fin->Close();return{};}
 

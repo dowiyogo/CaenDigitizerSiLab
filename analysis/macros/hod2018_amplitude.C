@@ -35,6 +35,7 @@ namespace fs = std::filesystem;
 
 #include "../src/hodo_consts.h"
 #include "../src/hodo_mapping.h"
+#include "../src/hodo_paths.h"
 
 constexpr double kPrePulse = 2500.0; // ns
 
@@ -60,9 +61,10 @@ void hod2018_amplitude(const char* input_file = "lectura_vx1740_ext_nim_1M_v8.ro
     std::cout << "Signal window W2:  [" << kSigTlo << ", " << kSigThi << "] ns\n";
     std::cout << "Control window:    [" << (kSigTlo + kCtlShift) << ", " << (kSigThi + kCtlShift) << "] ns\n";
 
-    TFile* fin = TFile::Open(input_file, "READ");
+    const std::string resolved_input = hodo::resolveRawFile(input_file);
+    TFile* fin = TFile::Open(resolved_input.c_str(), "READ");
     if (!fin || fin->IsZombie()) {
-        std::cerr << "ERROR: cannot open input file " << input_file << "\n";
+        std::cerr << "ERROR: cannot open input file " << resolved_input << "\n";
         return;
     }
     TTree* tree = dynamic_cast<TTree*>(fin->Get("data_dig"));

@@ -12,6 +12,7 @@
 #include <numeric>
 #include <string>
 #include <vector>
+#include "hodo_paths.h"
 
 struct ChannelStats {
     int ch = -1;
@@ -70,7 +71,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::string filename = argv[1];
+    std::string filename = hodo::resolveRawFile(argv[1]);
 
     long long max_events = -1;
     if (argc >= 3) max_events = std::atoll(argv[2]);

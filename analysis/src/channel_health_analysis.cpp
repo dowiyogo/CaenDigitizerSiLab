@@ -28,6 +28,7 @@
 #include <string>
 #include <iterator>
 #include <vector>
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 constexpr int NCH = 64;
@@ -191,9 +192,10 @@ static void set_png_300_dpi(const fs::path& path) {
 }
 
 static bool analyze_run(const fs::path& filename, int run_index, RunData& out) {
-    std::unique_ptr<TFile> file(TFile::Open(filename.string().c_str(), "READ"));
+    const std::string resolved = hodo::resolveRawFile(filename.string());
+    std::unique_ptr<TFile> file(TFile::Open(resolved.c_str(), "READ"));
     if (!file || file->IsZombie()) {
-        std::cerr << "ERROR: cannot open " << filename << "\n";
+        std::cerr << "ERROR: cannot open " << resolved << "\n";
         return false;
     }
     auto* tree = dynamic_cast<TTree*>(file->Get("data_dig"));

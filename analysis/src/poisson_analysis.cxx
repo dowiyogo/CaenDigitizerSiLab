@@ -35,6 +35,7 @@
 #include <numeric>
 #include <string>
 #include <vector>
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 
@@ -69,8 +70,9 @@ struct RunData {
 //==============================================================================
 static RunData load_run(const std::string& fname, const std::string& lbl) {
     RunData rd; rd.label = lbl; rd.filename = fname;
-    TFile* f = TFile::Open(fname.c_str(), "READ");
-    if (!f || f->IsZombie()) { std::cerr << "ERROR: no se puede abrir " << fname << '\n'; return rd; }
+    const std::string resolved = hodo::resolveRawFile(fname);
+    TFile* f = TFile::Open(resolved.c_str(), "READ");
+    if (!f || f->IsZombie()) { std::cerr << "ERROR: no se puede abrir " << resolved << '\n'; return rd; }
     TTree* t = static_cast<TTree*>(f->Get("data_dig"));
     if (!t) { std::cerr << "ERROR: no data_dig en " << fname << '\n'; f->Close(); return rd; }
 

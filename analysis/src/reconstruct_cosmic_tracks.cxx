@@ -42,6 +42,7 @@
 #include <vector>
 #include "hodo_consts.h"
 #include "hodo_mapping.h"
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 
@@ -147,8 +148,9 @@ struct EvCache{
 // Carga datos en RAM (pasada única)
 //==============================================================================
 static std::vector<EvCache> load_events(const std::string& fname){
-    TFile* f=TFile::Open(fname.c_str(),"READ");
-    if(!f||f->IsZombie()){std::cerr<<"ERROR: "<<fname<<'\n';return{};}
+    const std::string resolved = hodo::resolveRawFile(fname);
+    TFile* f=TFile::Open(resolved.c_str(),"READ");
+    if(!f||f->IsZombie()){std::cerr<<"ERROR: "<<resolved<<'\n';return{};}
     TTree* t=static_cast<TTree*>(f->Get("data_dig"));
     if(!t){f->Close();return{};}
     std::array<std::vector<float>*,kNCh> cw{};

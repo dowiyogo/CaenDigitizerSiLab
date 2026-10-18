@@ -1,0 +1,85 @@
+Archivo: lectura_vx1740_ext_nim_1M_v8.root
+Eventos en data_dig: 143814
+Eventos a procesar: 143814
+Procesando evento 0 / 143814Procesando evento 1000 / 143814Procesando evento 2000 / 143814Procesando evento 3000 / 143814Procesando evento 4000 / 143814Procesando evento 5000 / 143814Procesando evento 6000 / 143814Procesando evento 7000 / 143814Procesando evento 8000 / 143814Procesando evento 9000 / 143814Procesando evento 10000 / 143814Procesando evento 11000 / 143814Procesando evento 12000 / 143814Procesando evento 13000 / 143814Procesando evento 14000 / 143814Procesando evento 15000 / 143814Procesando evento 16000 / 143814Procesando evento 17000 / 143814Procesando evento 18000 / 143814Procesando evento 19000 / 143814Procesando evento 20000 / 143814Procesando evento 21000 / 143814Procesando evento 22000 / 143814Procesando evento 23000 / 143814Procesando evento 24000 / 143814Procesando evento 25000 / 143814Procesando evento 26000 / 143814Procesando evento 27000 / 143814Procesando evento 28000 / 143814Procesando evento 29000 / 143814Procesando evento 30000 / 143814Procesando evento 31000 / 143814Procesando evento 32000 / 143814Procesando evento 33000 / 143814Procesando evento 34000 / 143814Procesando evento 35000 / 143814Procesando evento 36000 / 143814Procesando evento 37000 / 143814Procesando evento 38000 / 143814Procesando evento 39000 / 143814Procesando evento 40000 / 143814Procesando evento 41000 / 143814Procesando evento 42000 / 143814Procesando evento 43000 / 143814Procesando evento 44000 / 143814Procesando evento 45000 / 143814Procesando evento 46000 / 143814Procesando evento 47000 / 143814Procesando evento 48000 / 143814Procesando evento 49000 / 143814Procesando evento 50000 / 143814Procesando evento 51000 / 143814Procesando evento 52000 / 143814Procesando evento 53000 / 143814Procesando evento 54000 / 143814Procesando evento 55000 / 143814Procesando evento 56000 / 143814Procesando evento 57000 / 143814Procesando evento 58000 / 143814Procesando evento 59000 / 143814Procesando evento 60000 / 143814Procesando evento 61000 / 143814Procesando evento 62000 / 143814Procesando evento 63000 / 143814Procesando evento 64000 / 143814Procesando evento 65000 / 143814Procesando evento 66000 / 143814Procesando evento 67000 / 143814Procesando evento 68000 / 143814Procesando evento 69000 / 143814Procesando evento 70000 / 143814Procesando evento 71000 / 143814Procesando evento 72000 / 143814Procesando evento 73000 / 143814Procesando evento 74000 / 143814Procesando evento 75000 / 143814Procesando evento 76000 / 143814Procesando evento 77000 / 143814Procesando evento 78000 / 143814Procesando evento 79000 / 143814Procesando evento 80000 / 143814Procesando evento 81000 / 143814Procesando evento 82000 / 143814Procesando evento 83000 / 143814Procesando evento 84000 / 143814Procesando evento 85000 / 143814Procesando evento 86000 / 143814Procesando evento 87000 / 143814Procesando evento 88000 / 143814Procesando evento 89000 / 143814Procesando evento 90000 / 143814Procesando evento 91000 / 143814Procesando evento 92000 / 143814Procesando evento 93000 / 143814Procesando evento 94000 / 143814Procesando evento 95000 / 143814Procesando evento 96000 / 143814Procesando evento 97000 / 143814Procesando evento 98000 / 143814Procesando evento 99000 / 143814Procesando evento 100000 / 143814Procesando evento 101000 / 143814Procesando evento 102000 / 143814Procesando evento 103000 / 143814Procesando evento 104000 / 143814Procesando evento 105000 / 143814Procesando evento 106000 / 143814Procesando evento 107000 / 143814Procesando evento 108000 / 143814Procesando evento 109000 / 143814Procesando evento 110000 / 143814Procesando evento 111000 / 143814Procesando evento 112000 / 143814Procesando evento 113000 / 143814Procesando evento 114000 / 143814Procesando evento 115000 / 143814Procesando evento 116000 / 143814Procesando evento 117000 / 143814Procesando evento 118000 / 143814Procesando evento 119000 / 143814Procesando evento 120000 / 143814Procesando evento 121000 / 143814Procesando evento 122000 / 143814Procesando evento 123000 / 143814Procesando evento 124000 / 143814Procesando evento 125000 / 143814Procesando evento 126000 / 143814Procesando evento 127000 / 143814Procesando evento 128000 / 143814Procesando evento 129000 / 143814Procesando evento 130000 / 143814Procesando evento 131000 / 143814Procesando evento 132000 / 143814Procesando evento 133000 / 143814Procesando evento 134000 / 143814Procesando evento 135000 / 143814Procesando evento 136000 / 143814Procesando evento 137000 / 143814Procesando evento 138000 / 143814Procesando evento 139000 / 143814Procesando evento 140000 / 143814Procesando evento 141000 / 143814Procesando evento 142000 / 143814Procesando evento 143000 / 143814
+Procesamiento terminado.
+
+Resumen global:
+  total eventos procesados: 143814
+  hits totales hod2018: 1294390
+  hits totales hod2019: 226584
+  eventos con al menos un hit hod2018: 143797
+  eventos con al menos un hit hod2019: 111744
+  eventos con hits en ambos hodoscopios: 111740
+
+Tabla ordenada por hits_neg:
+ channel  detector     entries    hits_neg     frac_hits     mean_base       sigma      mean_amp       max_amp   mean_tmin
+       2   hod2018      143814       66658       0.46350      27.60976     8.40016      73.62012    1031.02587  5215.42969
+      16   hod2018      143814       63364       0.44060      28.31639     6.65955      59.19671    1032.19866  5204.33735
+       9   hod2018      143814       63312       0.44024      28.87912     6.90596      64.67689    1035.29393  5210.38944
+      15   hod2018      143814       58725       0.40834      33.31590     5.91689      52.78526    1036.27385  5207.54786
+      31   hod2018      143814       57534       0.40006      25.67179     5.93614      51.54548    1030.08951  5209.01811
+      17   hod2018      143814       55236       0.38408      27.96067     5.15347      47.56180    1030.28861  5200.47998
+      18   hod2018      143814       52832       0.36736      24.63059     4.98779      44.75715    1025.59125  5203.51121
+      30   hod2018      143814       51956       0.36127      28.78281     4.77306      46.21311    1030.70857  5203.84048
+       7   hod2018      143814       51337       0.35697      24.12488     4.79937      43.13620    1027.77506  5211.92746
+       1   hod2018      143814       50440       0.35073      26.33607     4.53618      44.26785    1026.79514  5200.62205
+      21   hod2018      143814       49495       0.34416      26.31163     4.56918      42.60743    1029.53890  5209.16004
+       0   hod2018      143814       47339       0.32917      23.64814     4.41011      44.34828    1026.51828  5199.60455
+       6   hod2018      143814       46346       0.32226      24.13580     4.89247      61.63241    1029.45179  5191.54499
+      20   hod2018      143814       42963       0.29874      27.19096     4.33351      49.68300    1030.36327  5199.32556
+      29   hod2018      143814       41041       0.28538      28.08091     4.03929      37.30178    1030.04285  5204.92737
+      10   hod2018      143814       40895       0.28436      23.06335     3.61160      41.52449    1024.85087  5197.33679
+      13   hod2018      143814       40718       0.28313      24.60189     3.69260      39.71083    1025.86189  5199.43887
+      11   hod2018      143814       40310       0.28029      30.18594     3.87719      39.07454    1031.08187  5199.56973
+      28   hod2018      143814       38950       0.27084      29.90742     3.65580      37.83785    1030.50948  5210.68077
+      22   hod2018      143814       38946       0.27081      30.35701     3.78684      39.00269    1032.76483  5195.65676
+      19   hod2018      143814       36417       0.25322      25.78519     3.80299      37.10408    1027.08756  5192.50284
+       8   hod2018      143814       31951       0.22217      26.27678     3.18348      37.13236    1027.02846  5197.35795
+       5   hod2018      143814       31850       0.22147      23.66206     3.22313      36.23336    1024.91620  5201.83611
+      25   hod2018      143814       31301       0.21765      27.95642     3.33652      35.19929    1027.79994  5205.34679
+      27   hod2018      143814       30670       0.21326      26.21615     3.27115      34.92484    1026.93824  5199.72768
+      34   hod2019      143814       27504       0.19125      26.72931     0.72230       5.17573     333.17313  3987.22804
+      23   hod2018      143814       25933       0.18032      24.92335     3.03164      34.65876    1026.08899  5188.41075
+      26   hod2018      143814       25283       0.17580      28.55204     2.88861      33.83753    1028.27279  5197.16996
+       4   hod2018      143814       25220       0.17537      28.33733     2.58044      37.07212    1028.78919  5191.33386
+      46   hod2019      143814       21501       0.14951      12.77056     0.59133       5.35697     438.15434  3976.09860
+      50   hod2019      143814       21181       0.14728      21.75852     0.57975       6.30769     325.93421  3982.02767
+      40   hod2019      143814       19933       0.13860      15.95233     0.59937       5.61821     467.76323  3984.32268
+      14   hod2018      143814       19788       0.13759      26.36682     2.31048      36.61368    1026.88847  5185.53305
+      12   hod2018      143814       19330       0.13441      27.84311     2.45857      33.73158    1027.85283  5194.59493
+      44   hod2019      143814       19093       0.13276      18.27189     0.58440       5.00528     272.00175  3979.46808
+      24   hod2018      143814       18250       0.12690      26.93883     2.35337      33.66277    1027.17778  5176.30422
+      53   hod2019      143814       16325       0.11351      21.49314     0.57433       5.95526     488.17028  3989.65709
+      54   hod2019      143814       13254       0.09216      25.44572     0.53797       6.77539     305.37785  3998.92440
+      36   hod2019      143814       13081       0.09096      18.99070     0.56361       5.54610     188.14929  3998.54690
+      60   hod2019      143814        9218       0.06410      23.75967     0.47671       4.99980     749.53921  3988.57713
+      47   hod2019      143814        7899       0.05493      19.54177     0.48444       5.53526     221.50362  3998.07773
+      42   hod2019      143814        6230       0.04332      17.52293     0.44516       5.87703     179.09055  4004.65618
+      61   hod2019      143814        6108       0.04247      26.54894     0.49364       5.00240     264.37710  4003.08841
+      56   hod2019      143814        5331       0.03707      28.26486     0.43624       4.76930     155.89619  3996.97468
+      59   hod2019      143814        5246       0.03648      26.92095     0.43039       5.03300     214.61002  3998.36218
+      48   hod2019      143814        5178       0.03600      21.77135     0.44054       8.45290     222.49909  4026.51835
+      62   hod2019      143814        3892       0.02706      26.31774     0.40727       4.76623     182.04584  3998.02261
+      32   hod2019      143814        3817       0.02654      24.98901     0.43415       5.65844     142.99868  4008.64763
+      63   hod2019      143814        3279       0.02280      23.88747     0.43361       5.62021     217.74262  4012.64288
+      58   hod2019      143814        3230       0.02246      24.73186     0.45956       5.06444     159.72252  4022.52879
+      57   hod2019      143814        3030       0.02107      26.27031     0.41661       5.48229     397.62020  4009.40990
+      45   hod2019      143814        2359       0.01640      21.68043     0.38930       6.20489     305.45873  4004.40865
+      55   hod2019      143814        2274       0.01581      20.83410     0.38597      10.64233     131.97390  4098.08971
+      37   hod2019      143814        1930       0.01342      26.80127     0.39596       7.83760     196.07569  4059.68912
+      52   hod2019      143814        1889       0.01314      22.36014     0.36875      12.24034     159.66963  4109.69614
+      51   hod2019      143814        1179       0.00820      22.17723     0.32442      13.90372     133.76574  4153.86599
+      38   hod2019      143814         720       0.00501      22.68661     0.31103      12.40625     101.06779  4161.71111
+      33   hod2019      143814         585       0.00407      22.50371     0.29844      11.95964     105.15853  4169.87350
+      35   hod2019      143814         422       0.00293      22.55372     0.26241      10.71183      82.90054  4179.60190
+      49   hod2019      143814         346       0.00241      25.49983     0.22722       7.49489      34.56756  4172.94798
+      41   hod2019      143814         204       0.00142      20.14409     0.24864      10.18122      50.23370  4180.00000
+      39   hod2019      143814         195       0.00136      21.76799     0.23966       6.31867      19.10672  4179.52821
+      43   hod2019      143814         151       0.00105      19.28330     0.20953       8.85602      29.30714  4172.18543
+       3   hod2018      143814           0       0.00000      23.54259     0.22392       0.00000      10.55816     0.00000
+
+Archivos escritos:
+  active_channels_windowed_summary.csv
+  event_multiplicity_windowed.csv
+  candidate_events_windowed.csv

@@ -40,6 +40,7 @@
 #include <vector>
 #include "hodo_consts.h"
 #include "hodo_mapping.h"
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 
@@ -183,8 +184,9 @@ int main(int argc,char**argv){
     gROOT->SetBatch(kTRUE);TH1::AddDirectory(kFALSE);
     gStyle->SetOptStat(0);gStyle->SetPalette(kViridis);
 
-    TFile* fin=TFile::Open(fname.c_str(),"READ");
-    if(!fin||fin->IsZombie()){std::cerr<<"ERROR: "<<fname<<'\n';return 1;}
+    const std::string resolved = hodo::resolveRawFile(fname);
+    TFile* fin=TFile::Open(resolved.c_str(),"READ");
+    if(!fin||fin->IsZombie()){std::cerr<<"ERROR: "<<resolved<<'\n';return 1;}
     TTree* tree=dynamic_cast<TTree*>(fin->Get("data_dig"));
     if(!tree){std::cerr<<"ERROR: no data_dig\n";return 1;}
 

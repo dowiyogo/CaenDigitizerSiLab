@@ -42,6 +42,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 
@@ -282,8 +283,9 @@ struct FileAna {
 // Procesamiento de un archivo
 //==============================================================================
 static void process_file(FileAna& fa, const std::string& fname){
-    TFile* fin=TFile::Open(fname.c_str(),"READ");
-    if(!fin||fin->IsZombie()){std::cerr<<"ERROR: "<<fname<<'\n';return;}
+    const std::string resolved = hodo::resolveRawFile(fname);
+    TFile* fin=TFile::Open(resolved.c_str(),"READ");
+    if(!fin||fin->IsZombie()){std::cerr<<"ERROR: "<<resolved<<'\n';return;}
     TTree* tree=static_cast<TTree*>(fin->Get("data_dig"));
     if(!tree){std::cerr<<"ERROR: no data_dig in "<<fname<<'\n';fin->Close();return;}
 

@@ -23,6 +23,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 
@@ -432,9 +433,10 @@ static RunResult process_run(int run_index, const fs::path& filename) {
 
     std::cout << "\n=== Run " << run.run_index << ": " << run.filename << " ===\n";
 
-    std::unique_ptr<TFile> file(TFile::Open(filename.string().c_str(), "READ"));
+    const std::string resolved = hodo::resolveRawFile(filename.string());
+    std::unique_ptr<TFile> file(TFile::Open(resolved.c_str(), "READ"));
     if (!file || file->IsZombie()) {
-        std::cerr << "ERROR: no pude abrir " << filename << "\n";
+        std::cerr << "ERROR: no pude abrir " << resolved << "\n";
         return run;
     }
 

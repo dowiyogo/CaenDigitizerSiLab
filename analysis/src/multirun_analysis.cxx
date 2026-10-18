@@ -37,6 +37,7 @@
 
 #include "hodo_consts.h"
 #include "hodo_mapping.h"
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 
@@ -146,8 +147,9 @@ static RunResult process_run(const std::string& fname, const std::string& lbl,
                               size_t global_offset) {
     RunResult rr; rr.fname=fname; rr.label=lbl;
 
-    TFile* fin=TFile::Open(fname.c_str(),"READ");
-    if(!fin||fin->IsZombie()){std::cerr<<"WARNING: cannot open "<<fname<<"\n";return rr;}
+    const std::string resolved = hodo::resolveRawFile(fname);
+    TFile* fin=TFile::Open(resolved.c_str(),"READ");
+    if(!fin||fin->IsZombie()){std::cerr<<"WARNING: cannot open "<<resolved<<"\n";return rr;}
     TTree* t=static_cast<TTree*>(fin->Get("data_dig"));
     if(!t){fin->Close();return rr;}
 

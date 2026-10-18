@@ -19,6 +19,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 constexpr int NC = 64, NR = 9;
@@ -122,7 +123,8 @@ int main(int argc,char**argv) {
  std::ofstream runsout(outdir/"dcr_thresholds_v1_v9.csv");
  runsout<<"run,ch,hodoscope,axis,k,entries,sigma4_down,sigma4_up,sigma4_down_Hz,sigma4_up_Hz,cut5_down,cut5_up,cut5_down_Hz,cut5_up_Hz,cut10_down,cut10_up,cut10_down_Hz,cut10_up_Hz,cut20_down,cut20_up,cut20_down_Hz,cut20_up_Hz\n";
  for(int r=0;r<NR;++r){
-  std::unique_ptr<TFile> f(TFile::Open(FILES[r].c_str(),"READ"));if(!f||f->IsZombie()){std::cerr<<"Cannot open "<<FILES[r]<<'\n';return 2;}
+  std::string resolved = hodo::resolveRawFile(FILES[r]);
+  std::unique_ptr<TFile> f(TFile::Open(resolved.c_str(),"READ"));if(!f||f->IsZombie()){std::cerr<<"Cannot open "<<resolved<<'\n';return 2;}
   auto*t=dynamic_cast<TTree*>(f->Get("data_dig"));if(!t){std::cerr<<"Missing data_dig\n";return 2;}entries[r]=t->GetEntries();
   t->SetBranchStatus("*",0);std::array<std::vector<float>*,NC>wf{};std::vector<float>*time=nullptr;
   for(int c=0;c<NC;++c){std::string b="Ch"+std::to_string(c);t->SetBranchStatus(b.c_str(),1);if(t->SetBranchAddress(b.c_str(),&wf[c])<0)return 2;}

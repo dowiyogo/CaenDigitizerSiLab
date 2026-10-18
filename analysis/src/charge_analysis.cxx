@@ -44,6 +44,7 @@
 
 #include "hodo_consts.h"
 #include "hodo_mapping.h"
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 
@@ -238,8 +239,9 @@ struct FileQ {
 //==============================================================================
 static void process_file_Q(FileQ& fq, const std::string& fname,
                              double thr19_hi, bool make_per_channel) {
-    TFile* fin = TFile::Open(fname.c_str(),"READ");
-    if(!fin||fin->IsZombie()){std::cerr<<"ERROR: "<<fname<<'\n';return;}
+    const std::string resolved = hodo::resolveRawFile(fname);
+    TFile* fin = TFile::Open(resolved.c_str(),"READ");
+    if(!fin||fin->IsZombie()){std::cerr<<"ERROR: "<<resolved<<'\n';return;}
     TTree* t = static_cast<TTree*>(fin->Get("data_dig"));
     if(!t){std::cerr<<"ERROR: no data_dig\n";fin->Close();return;}
 

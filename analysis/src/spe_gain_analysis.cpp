@@ -21,6 +21,7 @@
 #include <numeric>
 #include <string>
 #include <vector>
+#include "hodo_paths.h"
 
 namespace fs=std::filesystem;
 constexpr int NC=64,NR=9,NB=800;
@@ -175,7 +176,8 @@ int main(int argc,char**argv){
  }
  std::array<long long,NR> nentries{};std::vector<double> base,dev;
  for(int r=0;r<NR;++r){
-  std::unique_ptr<TFile> file(TFile::Open(FILES[r].c_str(),"READ"));if(!file||file->IsZombie()){std::cerr<<"Cannot open "<<FILES[r]<<"\n";return 2;}
+  std::string resolved = hodo::resolveRawFile(FILES[r]);
+  std::unique_ptr<TFile> file(TFile::Open(resolved.c_str(),"READ"));if(!file||file->IsZombie()){std::cerr<<"Cannot open "<<resolved<<"\n";return 2;}
   auto*t=dynamic_cast<TTree*>(file->Get("data_dig"));if(!t){std::cerr<<"Missing data_dig in "<<FILES[r]<<"\n";return 2;}
   nentries[r]=t->GetEntries();t->SetBranchStatus("*",0);t->SetCacheSize(128LL*1024*1024);
   std::array<std::vector<float>*,NC>wf{};std::vector<float>*time=nullptr;

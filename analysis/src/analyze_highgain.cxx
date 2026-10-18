@@ -41,6 +41,7 @@
 #include <random>
 #include <string>
 #include <vector>
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 
@@ -250,7 +251,8 @@ int main(int argc,char**argv){
     gROOT->SetBatch(kTRUE);TH1::AddDirectory(kFALSE);
     gStyle->SetOptStat(0);gStyle->SetPalette(kViridis);
 
-    TFile* fin=TFile::Open(p.input_file.c_str(),"READ");
+    const std::string resolved = hodo::resolveRawFile(p.input_file);
+    TFile* fin=TFile::Open(resolved.c_str(),"READ");
     if(!fin||fin->IsZombie()){std::cerr<<"ERROR\n";return 1;}
     TTree* tree=dynamic_cast<TTree*>(fin->Get("data_dig"));
     if(!tree){std::cerr<<"ERROR: no data_dig\n";return 1;}

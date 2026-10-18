@@ -22,6 +22,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include "hodo_paths.h"
 
 namespace fs = std::filesystem;
 
@@ -352,9 +353,10 @@ int main(int argc, char** argv) {
 
     fs::create_directories(pngdir);
 
-    std::unique_ptr<TFile> input(TFile::Open(input_path.string().c_str(), "READ"));
+    const std::string resolved = hodo::resolveRawFile(input_path.string());
+    std::unique_ptr<TFile> input(TFile::Open(resolved.c_str(), "READ"));
     if (!input || input->IsZombie()) {
-        std::cerr << "ERROR: no pude abrir " << input_path << "\n";
+        std::cerr << "ERROR: no pude abrir " << resolved << "\n";
         return 2;
     }
 

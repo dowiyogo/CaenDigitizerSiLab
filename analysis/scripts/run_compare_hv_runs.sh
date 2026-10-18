@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+: "${HODO_RAW_DIR:=/home/xplus/digitizer/data/raw}"
+
 cd "$(dirname "$0")/../.."
 
 OUTDIR="outputs/compare_hv_runs"
