@@ -1,0 +1,1143 @@
+{
+ "schema": "daqv2.mapping/1",
+ "mapping_version": "2026_10-r1",
+ "created_utc": "2026-10-19",
+ "description": "Mapeo inicial de la campaña de octubre 2026 (docs/daq_v2_design.md, sección 5.1). confirmed: measurement | cabling_record | derived | assumed | unknown. Solo 'measurement' cuenta como confirmado.",
+ "hv_group_to_sy5527_channel": {
+  "1": 0,
+  "2": 1,
+  "3": 2,
+  "4": 3,
+  "5": 4,
+  "6": 5,
+  "7": 6,
+  "8": 7
+ },
+ "hv_group_to_sy5527_channel_confirmed": "measurement (René, 2026-10-18)",
+ "channels": [
+  {
+   "dig_ch": 0,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 0,
+   "face": null,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "assumed",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron"
+  },
+  {
+   "dig_ch": 1,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 1,
+   "face": null,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "assumed",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron"
+  },
+  {
+   "dig_ch": 2,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 2,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 3,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 3,
+   "face": null,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "assumed",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron"
+  },
+  {
+   "dig_ch": 4,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 4,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 5,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 5,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 6,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 6,
+   "face": null,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "assumed",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron"
+  },
+  {
+   "dig_ch": 7,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 7,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 8,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 8,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 9,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 9,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 10,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 10,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 11,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 11,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 12,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 12,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 13,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 13,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 14,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 14,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 15,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 15,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 16,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 0,
+   "face": null,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "assumed",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron"
+  },
+  {
+   "dig_ch": 17,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 1,
+   "face": null,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "assumed",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron"
+  },
+  {
+   "dig_ch": 18,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 2,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 19,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 3,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 20,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 4,
+   "face": null,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "assumed",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron"
+  },
+  {
+   "dig_ch": 21,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 5,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 22,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 6,
+   "face": null,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "assumed",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron"
+  },
+  {
+   "dig_ch": 23,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 7,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 24,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 8,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 25,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 9,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 26,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 10,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 27,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 11,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 28,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 12,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 29,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 13,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 30,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 14,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido"
+  },
+  {
+   "dig_ch": 31,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 15,
+   "face": null,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "assumed",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron"
+  },
+  {
+   "dig_ch": 32,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 0,
+   "face": "Delantera",
+   "face_connector_ch": 8,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 33,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 1,
+   "face": "Trasera",
+   "face_connector_ch": 8,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 34,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 2,
+   "face": "Delantera",
+   "face_connector_ch": 7,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 35,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 3,
+   "face": "Trasera",
+   "face_connector_ch": 7,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 36,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 4,
+   "face": "Delantera",
+   "face_connector_ch": 6,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 37,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 5,
+   "face": "Trasera",
+   "face_connector_ch": 6,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 38,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 6,
+   "face": "Delantera",
+   "face_connector_ch": 5,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 39,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 7,
+   "face": "Trasera",
+   "face_connector_ch": 5,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 40,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 8,
+   "face": "Delantera",
+   "face_connector_ch": 4,
+   "hv_group": 5,
+   "hv_ch": 4,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 41,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 9,
+   "face": "Trasera",
+   "face_connector_ch": 4,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 42,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 10,
+   "face": "Delantera",
+   "face_connector_ch": 3,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 43,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 11,
+   "face": "Trasera",
+   "face_connector_ch": 3,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 44,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 12,
+   "face": "Delantera",
+   "face_connector_ch": 2,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 45,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 13,
+   "face": "Trasera",
+   "face_connector_ch": 2,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 46,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 14,
+   "face": "Delantera",
+   "face_connector_ch": 1,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 47,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 15,
+   "face": "Trasera",
+   "face_connector_ch": 1,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 48,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 0,
+   "face": "Opuesta",
+   "face_connector_ch": 8,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "measurement"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); ch48 (Opuesta 8, grupo 6) confirmado por HV-DIAG-5"
+  },
+  {
+   "dig_ch": 49,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 1,
+   "face": "Frontal",
+   "face_connector_ch": 8,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 50,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 2,
+   "face": "Opuesta",
+   "face_connector_ch": 7,
+   "hv_group": 4,
+   "hv_ch": 3,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 51,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 3,
+   "face": "Frontal",
+   "face_connector_ch": 7,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 52,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 4,
+   "face": "Opuesta",
+   "face_connector_ch": 6,
+   "hv_group": 5,
+   "hv_ch": 4,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 53,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 5,
+   "face": "Frontal",
+   "face_connector_ch": 6,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 54,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 6,
+   "face": "Opuesta",
+   "face_connector_ch": 5,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 55,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 7,
+   "face": "Frontal",
+   "face_connector_ch": 5,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 56,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 8,
+   "face": "Opuesta",
+   "face_connector_ch": 4,
+   "hv_group": 8,
+   "hv_ch": 7,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 57,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 9,
+   "face": "Frontal",
+   "face_connector_ch": 4,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 58,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 10,
+   "face": "Opuesta",
+   "face_connector_ch": 3,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 59,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 11,
+   "face": "Frontal",
+   "face_connector_ch": 3,
+   "hv_group": 8,
+   "hv_ch": 7,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 60,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 12,
+   "face": "Opuesta",
+   "face_connector_ch": 2,
+   "hv_group": 8,
+   "hv_ch": 7,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 61,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 13,
+   "face": "Frontal",
+   "face_connector_ch": 2,
+   "hv_group": 4,
+   "hv_ch": 3,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 62,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 14,
+   "face": "Opuesta",
+   "face_connector_ch": 1,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  },
+  {
+   "dig_ch": 63,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 15,
+   "face": "Frontal",
+   "face_connector_ch": 1,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "derived",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5)"
+  }
+ ],
+ "hv_groups_by_label": {
+  "1": {
+   "hod2018_X": [
+    13
+   ],
+   "hod2018_Y": [
+    11,
+    15
+   ],
+   "hod2019": [
+    "Delantera 7",
+    "Frontal 4",
+    "Frontal 6",
+    "Trasera 3",
+    "Trasera 6"
+   ]
+  },
+  "2": {
+   "hod2018_X": [
+    7
+   ],
+   "hod2018_Y": [
+    7
+   ],
+   "hod2019": [
+    "Delantera 3",
+    "Frontal 7",
+    "Trasera 1",
+    "Trasera 4",
+    "Trasera 5",
+    "Trasera 7"
+   ]
+  },
+  "3": {
+   "hod2018_X": [
+    3,
+    12,
+    14
+   ],
+   "hod2018_Y": [
+    5,
+    10
+   ],
+   "hod2019": [
+    "Delantera 5",
+    "Frontal 8",
+    "Trasera 8"
+   ]
+  },
+  "4": {
+   "hod2018_X": [
+    1
+   ],
+   "hod2018_Y": [
+    2,
+    4,
+    8,
+    12,
+    13
+   ],
+   "hod2019": [
+    "Frontal 2",
+    "Opuesta 7"
+   ]
+  },
+  "5": {
+   "hod2018_X": [
+    4,
+    5,
+    6,
+    8,
+    9
+   ],
+   "hod2018_Y": [
+    6
+   ],
+   "hod2019": [
+    "Delantera 4",
+    "Opuesta 6"
+   ]
+  },
+  "6": {
+   "hod2018_X": [
+    0,
+    2
+   ],
+   "hod2018_Y": [
+    1
+   ],
+   "hod2019": [
+    "Delantera 6",
+    "Delantera 8",
+    "Opuesta 3",
+    "Opuesta 8",
+    "Trasera 2"
+   ]
+  },
+  "7": {
+   "hod2018_X": [
+    10,
+    11
+   ],
+   "hod2018_Y": [],
+   "hod2019": [
+    "Delantera 1",
+    "Delantera 2",
+    "Frontal 1",
+    "Frontal 5",
+    "Opuesta 1",
+    "Opuesta 5"
+   ]
+  },
+  "8": {
+   "hod2018_X": [
+    15
+   ],
+   "hod2018_Y": [
+    0,
+    3,
+    9,
+    14
+   ],
+   "hod2019": [
+    "Frontal 3",
+    "Opuesta 2",
+    "Opuesta 4"
+   ]
+  }
+ },
+ "known_discrepancies": [
+  "En mayo el grupo 6 contenía ch1, ch16 y ch17 de hod2018 (y ch3, muerto, deducido), con dos MPPC del plano Y; la planilla le asigna un solo MPPC Y (Canal 1). Con las 5 entradas de hod2019, el grupo 6 tendría 9 MPPC."
+ ]
+}
