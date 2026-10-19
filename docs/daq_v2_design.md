@@ -57,6 +57,14 @@ referencia: la del proyecto), y "no medido" si nadie las midió.
   `attic/` y las dos versiones de `test_acquire_sw.cxx` en git (`885795e` y `6acf5ea`, ambas
   del 2026-10-16) son la del 15 de mayo, sin SW trigger. Conclusión: el SW trigger funciona en esta placa con
   CAENDigitizer 2.17.3, pero hay que escribirlo de nuevo.
+- Fuente recuperada (DAQ2-3, solo lectura, nada restaurado al árbol): en el árbol colgante
+  `eccefd4ead41bd8b0fe493ade20467a28a645183` de `.git` está el blob
+  `31394dbdc72a803e98071620766a3b4ac7c9b1f0` (1690 bytes, ruta `test_acquire_sw.cxx`) que imprime
+  "Starting software-trigger acquisition...", lee `config_vx1740_swtrigger.conf` y llama
+  `readEventsTree(nevents, true, 0, timeout, triggerSource)`: el "programa de SW trigger" era
+  el mismo `main` con `automatic = true`, que hace que la biblioteca llame
+  `CAEN_DGTZ_SendSWtrigger` en cada vuelta del bucle (CaenDigitizerSiLab.cxx:581-582). Se ve con
+  `git cat-file -p 31394dbd`.
 
 ### 1.3 Ventana reducida: viabilidad y elección (estudio con v8)
 
@@ -400,27 +408,52 @@ El análisis encadena los segmentos en el orden de `segments`. `first_evt_seq` y
 `last_evt_seq` permiten comprobar que no faltan eventos entre segmentos. Al cerrar el run el
 índice queda sin permiso de escritura y su SHA256 entra en `SHA256SUMS`.
 
-### 4.3 Slow control (`/data/daq/slowcontrol/`)
+### 4.3 Slow control (`/data/daq/slowcontrol/`), implementado en la fase 1
 
-Archivos por día UTC. `fsync` cada `fsync_period_s` (10 s por defecto) y al cerrar, no por
-línea, porque `/data` es un HDD compartido con los datos crudos. Cada CSV tiene una sola
-línea de cabecera con los nombres de columna (unidad en el nombre: `VMon_V`, `IMon_A`), y
-un archivo hermano `<nombre>.schema.json` con la versión del esquema, unidades y
-descripción. Así el CSV se lee directo con `ROOT::RDF::FromCSV` sin líneas de comentario.
+Archivos diarios bajo `/data/daq/slowcontrol/YYYY/`, rotados a medianoche UTC según la marca de
+tiempo de cada dato. Cada línea se escribe con una llamada `write()` (O_APPEND) en cuanto llega;
+`fsync` cada `fsync_period_s` (10 s) sobre los archivos con datos nuevos, al rotar y al
+cerrar (no por línea: `/data` es un HDD compartido con los datos crudos). Cada archivo tiene un
+hermano `<archivo>.schema.json` (`schema`, `format`, `columns`/`fields` con `name`, `type`,
+`unit`, `description`); los CSV tienen una única línea de cabecera, así que se leen directo con
+`ROOT::RDF::FromCSV`.
 
-| archivo | contenido |
+| archivo | esquema | contenido |
+|---|---|---|
+| `YYYY/hv_YYYYMMDD.csv` | `daqv2.hv_fast/1` | una fila por canal por lectura rápida (1 Hz): `t_req_utc_ns,t_resp_utc_ns,read_seq,slot,ch,V0Set_V,I0Set_A,VMon_V,IMon_A,Status,Pw,read_duration_ns` |
+| `YYYY/hv_full_YYYYMMDD.csv` | `daqv2.hv_full/1` | una fila por canal por lectura completa (60 s): los 18 parámetros, numéricos en SI (`RUp_V_per_s`, `Trip_s`, ...) |
+| `YYYY/hv_changes_YYYYMMDD.jsonl` | `daqv2.hv_changes/1` | `type: change` (id, t_utc_ns, t_prev_read_utc_ns, ch, param, unit, old, new, origin, command_id, during_disconnect, read_kind) y `type: command` (command_id, phase, value, reason, requester, detail) |
+| `YYYY/notes_YYYYMMDD.jsonl` | `daqv2.notes/1` | notas del operador: t_utc_ns, user, host, text |
+| `YYYY/temp_YYYYMMDD.csv` | `daqv2.temp/1` | `t_utc_ns,sensor_id,T_degC` (solo si hay backend de temperatura) |
+| `offsets.jsonl` | — | una línea por medida de offsets (fsync inmediato) |
+
+Los eventos de conexión, GECO y comandos rechazados quedan además en el log de `hvmon`
+(stderr / journal de systemd). Notas: `daqrun` copiará a su archivo las notas del intervalo de su
+run (fase 3). Lector a TTree/RDataFrame: pendiente para la fase 3, que es la primera que lo
+necesita; el esquema ya lo permite. Tamaño medido en la validación: sección 15.2.
+
+### 4.5 Estado publicado por `hvmon`
+
+`/dev/shm/daqv2/hvmon_state.json` (directorio 700, archivo 600), reescrito cada segundo con
+temporal + `rename` (un lector nunca ve un archivo parcial; probado con un lector en bucle
+contra 3000 reescrituras). Es el mismo JSON que devuelve el comando `status` del socket.
+Esquema `daqv2.hvmon_state/1`:
+
+| campo | contenido |
 |---|---|
-| `hv_fast_YYYYMMDD.csv` | 1 Hz: `seq,t_req_utc_ns,t_resp_utc_ns,ok` + por canal 0-11 `V0Set_V,I0Set_A,VMon_V,IMon_A,Status,Pw` |
-| `hv_slow_YYYYMMDD.csv` | 1/min: todos los parámetros de canal (lista de `GetChParamInfo`) y de la placa |
-| `hv_changes_YYYYMMDD.jsonl` | un cambio por línea: id, tiempos, canal, parámetro, viejo, nuevo, origen |
-| `hvmon_events_YYYYMMDD.jsonl` | transiciones de auto-retry, comandos y su resultado, pasos de la prueba de grupos, pérdidas de conexión, GECO detectado, correos |
-| `hv_offsets.jsonl` | offsets de IMon/VMon medidos con Pw = 0 |
-| `temperature_YYYYMMDD.csv` | `t_utc_ns,sensor_id,T_degC` |
-| `notes_YYYYMMDD.jsonl` | notas de `daqnote` |
+| `schema`, `seq`, `t_utc_ns`, `t_utc`, `final`, `pid`, `started_utc_ns` | identificación; `seq` crece con cada publicación; `final: true` en el último estado al apagar |
+| `system`, `slot`, `allow_commands` | configuración relevante |
+| `connection` | `connected`, `ever_connected`, `stale` (sin conexión o última lectura buena hace más de `stale_after_s` = 3 s), `last_good_read_utc_ns`, `age_s`, `last_error`, `last_error_utc_ns`, `next_connect_in_s` |
+| `read_seq`, `poller_seq` | número de lectura y de publicación del hilo de sondeo |
+| `stats` | `fast_reads`, `full_reads`, `read_errors`, `connect_attempts`, `connect_failures`, `reconnections`, `fast_read_mean_ms`, `fast_read_max_ms`, `full_read_mean_ms`, `full_read_max_ms` |
+| `channels[]` | por canal: `ch`, `values` (numéricos en SI con la unidad en la clave: `V0Set_V`, `IMon_A`, ...; enteros: `Status`, `Pw`, ...), `status_flags` (bits decodificados), `auto_retry` (siempre `"NORMAL"` en la fase 1) |
+| `changes[]` | anillo de los últimos 50 cambios (mismo formato que el JSONL) |
+| `geco_running` | GECO2020 detectado (sondeo cada 10 s) |
+| `writer` | `ok`, `last_error`, `last_error_utc_ns`, `errors`, `fsyncs`, `bytes`, `lines`, `open_files`, `dropped` |
+| `active_command`, `active_offsets`, `last_offsets` | comando de Pw en verificación, medida de offsets en curso, última medida |
+| `temperature` | `null` sin backend; si hay: `backend` y `sensors[]` (`id`, `T_degC`, `t_utc_ns`) o `error` |
 
-Lector en la biblioteca común: `daq::slowcontrol::loadDay(path)` → `TTree` (columnas
-tipadas según el `.schema.json`) y `daq::slowcontrol::dataFrame(paths)` → `RDataFrame`
-sobre varios días. Tamaño estimado de `hv_fast`: ~60 MB/día [I].
+Ningún campo contiene secretos.
 
 ### 4.4 Manifiestos de campaña
 
@@ -842,22 +875,57 @@ Por canal HV, deshabilitado por defecto. Mientras está deshabilitado `hvmon` so
 
 ## 9. Coexistencia, seguridad y comandos HV
 
-### 9.1 Locks y GECO
+### 9.1 Locks y GECO (implementado en la fase 1)
 
-- `hvmon` toma `flock` exclusivo de `/run/user/1000/hv_wrapper.lock`; `hvctl` en modo
-  directo también, y si no lo obtiene habla con `hvmon`. `daqrun` toma
-  `/run/user/1000/digitizer.lock`.
-- `geco_policy` = `warn` (por defecto) o `refuse` (no arrancar `hvmon`).
+- `hvmon` toma `flock` exclusivo de `$XDG_RUNTIME_DIR/daqv2/hvmon.lock` (directorio 700, archivo
+  600): un segundo `hvmon` sale con código 3. `hvctl` en modo directo toma el mismo lock mientras
+  usa la Wrapper; si lo tiene `hvmon`, `hvctl read/status/changes/note/measure-offsets/pw` van
+  por el socket y `map/params/bench` se rechazan. `daqrun` tomará
+  `$XDG_RUNTIME_DIR/daqv2/digitizer.lock`.
+- GECO2020: cada 10 s se busca el patrón `bin/CAENGECO2020` (ejecutable ELF del snap) en
+  `/proc/<pid>/exe` o en `argv[0]` de cada proceso; el estado publica `geco_running` y el log
+  cada transición. GECO abierto no inhibe nada en la fase 1. (Hasta `6eb49b2` se buscaba en toda
+  la línea de comandos, lo que dio un falso positivo: sección 15.2.)
+- Coexistencia medida (2026-10-18, sección 15.2): con `hvmon` leyendo cada 1 s, GECO conectado
+  al SY5527 unos 17 min no produjo errores ni reconexiones en `hvmon`, ni cambios en el registro;
+  GECO mostró CONNECTED y los mismos valores (René). Al conectar, GECO escribe
+  `~/CAENGECO2020SubscrFail_SY5527.log` (240 B, 23:32:13Z) con dos parámetros de sistema que no
+  pudo suscribir (`CMDExecMode`, `DHCPDStatus`); el contenido es idéntico al de la copia de la raíz
+  del repositorio (11:11 −03, antes de que existiera `hvmon`) y `~/CAENGECO2020SubscrFail_System.log`
+  es de 2026-05-11: el aviso no tiene relación con `hvmon`.
 
-### 9.2 Ruta de comandos `hvctl` → `hvmon` (fase 1)
+### 9.2 Ruta de comandos `hvctl` → `hvmon` (implementada en la fase 1)
 
-- Socket Unix `/run/user/1000/hvmon.sock`, modo 0600, protocolo JSON por líneas. Lecturas:
-  `status`, `history`, `timing`. Escrituras: `pw` (un canal, 0/1) y `group-test`; ningún
-  comando para V0Set, I0Set, Trip, RUp, RDWn o parámetros de placa.
-- Toda escritura exige `--authorization "<texto>"` (referencia a la autorización escrita
-  del operador), que queda en `hvmon_events` junto con el usuario, la hora UTC y el estado
-  antes y después. `hvmon` rechaza escrituras si su configuración no tiene
-  `hv.allow_commands = true` (por defecto false).
+- Socket Unix `$XDG_RUNTIME_DIR/daqv2/hvmon.sock`, modo 600. Una petición JSON por línea (máximo
+  64 KiB, 5 s para llegar completa), una respuesta JSON por línea, una petición por conexión. Un
+  cliente que corta a mitad de la petición o que no lee la respuesta no afecta al servidor.
+  Las peticiones largas (`pw`, `measure-offsets`) se atienden en un hilo propio.
+
+| petición | respuesta |
+|---|---|
+| `{"cmd":"ping"}` | `{"ok":true,"pid":N}` |
+| `{"cmd":"status"}` | `{"ok":true,"state":{...}}` (esquema de 4.5) |
+| `{"cmd":"read"}` | `{"ok":true,"reading":{...}}` (formato de `readingToJson`: `params` es un arreglo ordenado) |
+| `{"cmd":"changes","n":20}` | `{"ok":true,"changes":[...]}` (últimos n del anillo de 50) |
+| `{"cmd":"note","text":"..."}` | `{"ok":true,"t_utc_ns":...}`; va a `notes_YYYYMMDD.jsonl` |
+| `{"cmd":"measure-offsets","seconds":N,"channels":[...]}` | `{"ok":true,"offsets":{...}}`; rechaza los canales con Pw = 1 (`refused_pw_on`) |
+| `{"cmd":"pw","ch":N,"on":true,"authorize":"motivo"}` | `{"ok":...,"command_id":...,"result":"rejected|aborted|noop|write_failed|verified|verify_failed","detail":...}` |
+
+  Error: `{"ok":false,"error":"..."}`. El usuario del cliente sale de `SO_PEERCRED`.
+- Única escritura del código base: `HVBackend::setChannelPw()` (Pw de un canal a 0 o 1, en la
+  Wrapper `CAENHV_SetChParam("Pw")`). No hay escritura de V0Set, I0Set, Trip ni otro parámetro.
+- Secuencia en el hilo de sondeo: (1) rechazo si `allow_commands = false`, canal fuera de la
+  configuración, sin conexión, otro comando en curso, o petición interna con un canal en rampa;
+  (2) relectura inmediata del canal y aborto si Pw, Status o V0Set difieren de la última lectura
+  publicada (carrera con GECO o con un trip; la ventana es una llamada de la Wrapper, ~2-3 ms);
+  (3) `noop` si ya está en el estado pedido; (4) escritura; (5) verificación en las lecturas
+  rápidas siguientes: encendido = Pw 1, bit `on`, sin `ramp_up` y \|VMon − V0Set\| ≤ 2 V;
+  apagado = Pw 0, sin `ramp_down`, VMon ≤ 2 V (con HV apagada el A7030DP lee VMon de 0 a
+  1.47 V, por eso el margen); timeout V0Set/RUp (o V0Set/RDWn) + 15 s.
+- Cada fase queda en `hv_changes` como `type: command` (`request`, `rejected`, `aborted`,
+  `noop`, `written`, `write_failed`, `verified`, `verify_failed`) con el motivo (`--authorize`) y
+  el usuario; los cambios de Pw y Status de ese canal desde la escritura hasta 5 s después de
+  terminar llevan `origin: hvmon_command` y `command_id`.
 - HTTP sigue siendo de solo lectura: ningún comando HV por HTTP.
 
 ### 9.3 Prueba de grupos (fase 6)
@@ -961,7 +1029,7 @@ detiene y lo informa (no se copia un framework al repositorio).
 | fase | aceptación |
 |---|---|
 | 0 HV lib + `FakeHVBackend` + `hvctl` | tests pasan (normal, ASan+UBSan, TSan); `hvctl --fake` y `hvctl` real (solo lectura, tarea autorizada) dan la misma tabla que `hv_readall`; latencia de una lectura completa de 12 canales medida y registrada; el binario de fase 0 no importa `CAENHV_Set*` ni `CAENHV_ExecComm` (verificado con `nm -D --undefined-only`). Resultado DAQ2-2: cumplido salvo la prueba con GECO abierto (GECO estaba cerrado) |
-| 1 `hvmon` + ruta de comandos | 24 h con fake acelerado sin pérdida de líneas; cambios del guion con el origen correcto en el 100 % de los casos; reconexión; lector a TTree/RDataFrame validado; 8 h reales de solo lectura con GECO abierto, cada cambio hecho en GECO aparece como `external`; patrón de GECO confirmado; suscripción evaluada; comandos `pw` probados solo contra el fake (con hardware real recién en fase 2 o 6, con autorización) |
+| 1 `hvmon` + ruta de comandos | Resultado DAQ2-3: 2 h 30 min reales de solo lectura sin errores ni pérdidas (15.2), tests de todos los puntos con fake y tiempo acelerado; pendiente la confirmación de la detección de GECO por ejecutable y la evaluación de la suscripción. Criterios originales: 24 h con fake acelerado sin pérdida de líneas; cambios del guion con el origen correcto en el 100 % de los casos; reconexión; lector a TTree/RDataFrame validado; 8 h reales de solo lectura con GECO abierto, cada cambio hecho en GECO aparece como `external`; patrón de GECO confirmado; suscripción evaluada; comandos `pw` probados solo contra el fake (con hardware real recién en fase 2 o 6, con autorización) |
 | 2 auto-retry y notificador | todas las transiciones de 8.2 cubiertas con tiempo acelerado; acción manual siempre manda; un correo por episodio; luego una vez en hardware real con carga resistiva e I0Set bajo, con autorización explícita: trip provocado → WAIT → RETRY → NORMAL, GAVE_UP con correo, y verificación de los bits de `Status` |
 | 3 `daqrun` con digitizador fake | 24 h aceleradas sin perder eventos; apagado limpio por señal en cualquier momento; segmentos e índice con SHA256 correctos; flags del guion correctos (incluidas pruebas de Poisson con agregación); estado sin calibración visible; modo calibración con SW trigger fake; RSS sin deriva > 10 % |
 | 4 digitizador real | autorizado por el operador; `GetRecordLength` = 144; pico de muón en la muestra esperada ±1; paso del TTT medido; SW trigger a 100 Hz sin pérdidas; `DT_NEEDED` con la ruta de `/usr/lib`; 1 h de datos comparables con v8 |
@@ -1080,6 +1148,84 @@ detiene y lo informa (no se copia un framework al repositorio).
     terabytes de espacio virtual y no funcionan con `ulimit -v 4194304`: se corren dentro de
     `systemd-run --user --scope -p MemoryMax=4G -p MemorySwapMax=0`, que limita la memoria real
     a 4 GiB.
+
+### 15.2 Fase 1 (DAQ2-3): decisiones fijadas y validación
+
+Decisiones fijadas por la implementación:
+
+28. **Secretos** en `~/.config/daqv2/secrets.env` (o el entorno; `EnvironmentFile=` en la unidad
+    de systemd); el JSON heredado `hv_credentials.json` solo como respaldo con aviso. Ningún
+    secreto en argv, logs, estado, HTTP ni salida de tests (test de redacción de `*PASSWORD*`).
+    `hvmon` y `hvctl` ponen `RLIMIT_CORE = 0` (sin volcados de memoria); la unidad, `LimitCORE=0`.
+29. **Rutas**: lock y socket en `$XDG_RUNTIME_DIR/daqv2/` (`hvmon.lock`, `hvmon.sock`), estado en
+    `/dev/shm/daqv2/hvmon_state.json`; el anillo de cambios es de 50 (antes se proponían 256).
+30. **Archivos de control lento** con subdirectorio por año y nombres `hv_`, `hv_full_`,
+    `hv_changes_`, `notes_`, `temp_` (sección 4.3). Los eventos de conexión y GECO van al log de
+    `hvmon`, no a un `hvmon_events` separado (se agregará con el auto-retry de la fase 2).
+31. **Orígenes** `trip`, `hvmon_command`, `external` (antes `daq_auto`/`daq_command`). `trip` solo
+    para cambios de Pw o Status con bit de trip en el Status nuevo; los cambios de Status por
+    sobrecorriente o rampa sin comando quedan como `external`. En las lecturas completas se siguen
+    todos los parámetros no monitores (superconjunto de RUp, RDWn, Trip, I1Set, V1Set).
+32. **Verificación de Pw** por Status (bit `on`, sin bits de rampa) con VMon como control grueso
+    (2 V): con HV apagada la placa lee VMon de 0 a 1.47 V. La tolerancia de 0.5 V del borrador
+    nunca habría verificado con el offset de CH03 (0.78 V); lo mostró el test con el fake.
+33. **JSON de lecturas** con `params` como arreglo ordenado (en la fase 0 era un objeto, que en
+    nlohmann pierde el orden); `hvctl read --json` cambia en consecuencia.
+34. **Parámetros de placa** (pedido de René): en cada lectura completa, `GetBdParamInfo` +
+    `GetBdParamProp` + `GetBdParam` (solo lectura). La placa informa 5: `BdStatus` (bdstatus),
+    `HVMax` 3127 V, `HIMax` 1111 µA (Exp −6), `Temp` 25.000 degC (unidad 4) y `ClrAlarm` (on/off,
+    lectura-escritura) [V: hvctl board, 2026-10-19T01:53:50Z]. La lista de nombres no trae cantidad:
+    bloques de `MAX_PARAM_NAME` terminados en un nombre vacío (comprobado: 5 nombres). `ClrAlarm` es
+    el comando de borrado de alarmas: queda excluido de las lecturas periódicas
+    (`board_params_exclude`) y es relevante para la pregunta de cómo rehabilitar tras un trip (fase
+    2). Columnas `bd_BdStatus, bd_HVMax_V, bd_HIMax_A, bd_Temp_degC` en `hv_full` (esquema
+    `daqv2.hv_full/2`); `board` y `board_temperature_degC` en el estado, con la nota de que es la
+    temperatura de la placa A7030DP (sigue la del rack), no la del detector; gráfico de 24 h en
+    `/board/BoardTemp_degC` y línea en la tabla de la página; `hvctl board` en modo directo.
+35. **Versión de la Wrapper**: `CAENHVLibSwRel()` devuelve "6.5" aunque el archivo es
+    `libcaenhvwrapper.so.6.6` [V: log de hvmon].
+36. **Fuente del SW trigger** recuperada de un árbol colgante de git (sección 1.2).
+37. **Lector a TTree/RDataFrame** de los archivos de control lento: pospuesto a la fase 3.
+
+Validación contra el SY5527 real (solo lectura, `allow_commands: false`, HV con Pw = 0 en todos
+los canales; `hvmon` del commit `163abcd`, binario normal; números copiados de su estado final y
+del muestreo cada 60 s):
+
+| magnitud | valor |
+|---|---|
+| duración | 8999.96 s (2026-10-18T23:22:08.49Z a 2026-10-19T01:52:08.46Z, SIGTERM por `timeout`) |
+| lecturas rápidas / completas | 9000 / 150 |
+| errores de lectura / intentos de conexión / reconexiones | 0 / 1 / 0 |
+| duración de lectura rápida (12 canales × 6 parámetros) | media 3.080 ms, máximo 7.198 ms |
+| duración de lectura completa (12 × 18) | media 8.591 ms, máximo 9.362 ms |
+| CPU (`ps -o %cpu`, promedio desde el arranque) | 1.1 % a los 44 s; 0.7 % al final |
+| RSS | 249176 kB al inicio, 256088 kB a los 15 min, 256728 kB al final (+640 kB en las últimas 2 h, en pasos de 128 kB) |
+| escritor | 109807 líneas, 9581534 bytes, 1045 fsync, 0 errores, 0 descartes |
+| archivos | `hv_20261018.csv` 2355361 B (27265 líneas), `hv_20261019.csv` 7009223 B (80737), `hv_full_20261018.csv` 54313 B (457), `hv_full_20261019.csv` 160328 B (1345), `notes_20261018.jsonl` 373 B (2), `offsets.jsonl` 1936 B (1) |
+| filas | 108002 = 9000 × 12 + 2 cabeceras; 1802 = 150 × 12 + 2 |
+| rotación | a 00:00:00Z: el primer dato del 19 fue a `hv_20261019.csv` |
+| cambios | 0 (no se creó `hv_changes_*.jsonl`) |
+| estado | `stale` = 0 en las 140 muestras; estado final con `final: true` |
+| segundo `hvmon` | rechazado por el lock, código de salida 3 |
+| `hvctl read` / `status` por socket | misma tabla que `hv_readall`; `map` rechazado mientras corre `hvmon` |
+| offsets (60 s, 62 lecturas, ningún canal rechazado) | IMon CH00-11 = −0.0480, −0.0360, −0.0460, −0.0360, −0.0440, −0.0460, −0.0460, −0.0740, −0.1180, −0.0940, −0.0740, −0.0840 µA, desviación 0.0000; igual a la lectura de la fase 0. VMon 0.014 a 1.476 V |
+| HTTP | 16 `TGraph` (VMon, IMon de CH00-07), `/status/table`, `/status/state_json`; solo 127.0.0.1:8081; `exe.json` responde 404 |
+
+GECO (René abrió GECO, notas 23:29:14Z "GECO abierto" y 23:49:12Z "GECO cerrado"; conectado al
+SY5527 desde ~23:32Z, sin operar nada):
+
+- `hvmon`: "GECO2020 detectado en ejecución" 23:30:59Z, "ya no está en ejecución" 23:49:10Z; entre
+  23:27 y 23:52 ninguna muestra con errores, reconexiones ni `stale`; la duración máxima de lectura
+  pasó de 3.339 a 3.423 ms. Ningún cambio en el registro.
+- Falso positivo: una segunda detección de 23:55:50Z a 23:57:01Z con GECO cerrado. Causa [I]: el
+  detector de entonces buscaba el patrón en toda la línea de comandos, y un proceso `bash -c` del
+  agente, cuyo texto contenía `bin/CAENGECO2020`, compiló y corrió los tests de `build-dev` en esos
+  ~71 s (la compilación siguiente empezó a las 23:57:12Z); GECO no reescribió su log de suscripción
+  (sigue con 23:32:13Z). El bucle de muestreo, cuya línea contiene `geco_running` pero no el
+  patrón, no coincidió (el indicador volvió a 0 con el bucle corriendo). Corregido en `6eb49b2`:
+  solo `/proc/<pid>/exe` o `argv[0]`. **Pendiente**: confirmar la detección nueva con GECO abierto
+  (corrida corta que René autoriza por separado).
+- Escribir por HTTP o con GECO no se probó (fuera del alcance de la fase 1).
 
 ## 16. Preguntas resueltas por el handoff y la revisión
 
