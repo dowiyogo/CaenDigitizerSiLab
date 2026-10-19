@@ -97,5 +97,9 @@ Los tiempos muertos de trigger de v7-v10 se atribuyeron al cable; pueden venir t
 cambio) de estos apagados. Sugerencia: listar los huecos de trigger de v7-v10 (Δt mayores que el
 umbral de `trigger_interval_stats.h`, ojo con que `timestamp` es por lectura y en hora UTC-4) y ver
 si se agrupan en las horas más calurosas del día o con sol directo, y si su duración se parece a la
-de un enfriamiento de la fuente (no a un corte de cable intermitente). Desde DAQ2-6 daqrun avisa por
+de un enfriamiento de la fuente (no a un corte de cable intermitente). Ojo: las dos causas
+existen. Ese mismo día, a las 16:35Z, el trigger se perdió otra vez por una falla de un cable de la
+cadena (confirmada y reparada por el laboratorio), con triggers sueltos cada pocos minutos en vez
+de silencio total; un corte de cable intermitente y un apagado térmico pueden dejar huecos de
+forma distinta (triggers sueltos frente a silencio completo hasta que la fuente se enfría). Desde DAQ2-6 daqrun avisa por
 correo tras 5 min sin triggers en runs con trigger externo, con la temperatura de la placa HV.

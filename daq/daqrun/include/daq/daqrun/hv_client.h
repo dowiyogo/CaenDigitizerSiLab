@@ -158,7 +158,7 @@ class FlagEngine {
 
 // Vigilante de triggers (runs con trigger externo). Episodio "sin triggers" si (a) no llega ningún
 // trigger durante thresholdS, o (b) la tasa en la ventana de windowS cae bajo minRateHz (triggers
-// sueltos cada pocos minutos, como con el crate NIM fallando, DAQ2-6). Devuelve "no_triggers" (hora
+// sueltos cada pocos minutos, como con el cable de trigger fallando en el run005, DAQ2-6). Devuelve "no_triggers" (hora
 // del último trigger, tasa de la ventana, run, campaña, temperatura de la placa HV) y, cuando
 // vuelve la normalidad, "triggers_resumed" con la duración del episodio. Uno de cada por episodio.
 // Lógica pura: la hora la pone quien llama (hora de lectura de los bloques y del reloj).

@@ -1564,6 +1564,12 @@ VX1740 (serie 21, ROC 04.29 build 8716, AMC 00.13 build 8A15; CAENDigitizer 2.17
     leerlo. Hasta que se agregue un termopar en el disipador de su fuente al backend de temperatura
     (sección 12), el aviso "sin triggers" de la decisión 73 es la única detección automática de un
     apagado térmico.
+75. **Dos pérdidas de trigger distintas el 2026-10-19**: por la mañana (run003, 0 eventos) fue el
+    apagado térmico de la fuente del crate NIM8302 (decisión 73); a las 16:35Z (run005, HV
+    encendida) fue una falla de un cable de la cadena de trigger, confirmada por el personal del
+    laboratorio y reparada. La segunda dejó triggers sueltos cada pocos minutos y no disparó el aviso
+    de 5 min de silencio: `TriggerWatchdog` abre ahora también un episodio si la tasa en
+    `notifier.trigger_rate_window_min` (10 min) cae bajo `notifier.min_trigger_rate_Hz` (0.1 Hz).
 
 ## 16. Preguntas resueltas por el handoff y la revisión
 

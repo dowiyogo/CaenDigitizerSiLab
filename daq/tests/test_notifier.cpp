@@ -284,7 +284,7 @@ TEST(Notifier, OutboxSurvivesRestartAndAbandonsAfter48h) {
   const std::string box = freshOutbox();
   {
     NRig a({{"enabled", true}, {"outbox_dir", box}});
-    a.spawner.exitCodes = {7};
+    a.spawner.exitCodes.assign(1, 7);
     ASSERT_TRUE(a.n->submit(gaveUp(3, 1)));
     a.n->processDue();  // falla
     EXPECT_EQ(filesIn(box), 1);

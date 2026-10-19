@@ -435,7 +435,7 @@ TEST(TriggerWatchdog, NoTriggersAndResumedWithFakeDigitizerGap) {
 }
 
 TEST(TriggerWatchdog, SparseTriggersCountAsLowRate) {
-  // Como en el run005 de DAQ2-6: tras 5 min normales, un trigger suelto cada ~3 min (nunca 5 min de
+  // Como en el run005 de DAQ2-6 (cable de trigger fallando): tras 5 min normales, un trigger suelto cada ~3 min (nunca 5 min de
   // silencio): el criterio de tasa (< 0.1 Hz en 10 min) avisa; vuelve cuando la tasa se recupera.
   const UtcNs t0 = kT0;
   TriggerWatchdog wd(300.0, "run 5", t0, 0.1, 600.0);
