@@ -84,19 +84,20 @@ TEST(Gzip, MissingSourceFails) { EXPECT_FALSE(daq::gzipFileVerified("/no/existe.
 TEST(Compressor, SelectsOnlyClosedDailyFilesAndKeepsSchemas) {
   const std::string base = dir();
   ::mkdir((base + "/2026").c_str(), 0700);
-  for (const char* n : {"hv_20261018.csv", "hv_full_20261018.csv", "notes_20261018.jsonl", "hv_20261019.csv",
-                        "hv_20261018.csv.schema.json", "hv_20261017.csv.gz", "offsets.jsonl"}) {
+  for (const char* n : {"hv_20261018.csv", "hv_full_20261018.csv", "hv_full_20261018.2.csv", "notes_20261018.jsonl",
+                        "hv_20261019.csv", "hv_full_20261019.2.csv", "hv_20261018.csv.schema.json",
+                        "hv_full_20261018.2.csv.schema.json", "hv_20261017.csv.gz", "offsets.jsonl"}) {
     std::ofstream o(base + "/2026/" + n);
     o << "x\n";
   }
   const auto files = daq::hvmon::Compressor::closedDailyFiles(base, "20261019");
-  EXPECT_EQ(files, (std::vector<std::string>{base + "/2026/hv_20261018.csv", base + "/2026/hv_full_20261018.csv",
-                                             base + "/2026/notes_20261018.jsonl"}));
+  EXPECT_EQ(files, (std::vector<std::string>{base + "/2026/hv_20261018.csv", base + "/2026/hv_full_20261018.2.csv",
+                                             base + "/2026/hv_full_20261018.csv", base + "/2026/notes_20261018.jsonl"}));
   daq::hvmon::StateHub hub;
   daq::hvmon::Compressor c(hub);
   for (const auto& f : files) ASSERT_TRUE(c.compressOne(f).ok());
   EXPECT_TRUE(exists(base + "/2026/hv_20261018.csv.gz"));
   EXPECT_TRUE(exists(base + "/2026/hv_20261018.csv.schema.json"));  // el esquema queda plano
   EXPECT_TRUE(exists(base + "/2026/hv_20261019.csv"));              // el día de hoy no se toca
-  EXPECT_EQ(hub.compressor.read().first["compressed"], 3);
+  EXPECT_EQ(hub.compressor.read().first["compressed"], 4);
 }

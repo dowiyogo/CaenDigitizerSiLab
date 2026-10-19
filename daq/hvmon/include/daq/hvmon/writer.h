@@ -19,6 +19,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <variant>
 #include <vector>
@@ -85,10 +86,15 @@ class SlowControlWriter {
   struct Stream {
     std::string path;
     std::string date;
+    std::string header;                // encabezado CSV del archivo abierto ("" en JSONL)
+    std::set<std::string> dayPaths;    // partes usadas en la fecha actual (para comprimirlas al rotar)
     std::unique_ptr<WritableFile> file;
     bool dirty = false;
     std::uint64_t bytes = 0;
   };
+  // Ruta del archivo diario para `header`: base si no existe, está vacío o tiene ese mismo
+  // encabezado; si no, <tipo>_<fecha>.2.<ext>, .3, ... (nunca se mezclan columnas en un archivo).
+  std::string pathForHeader(const std::string& base, const std::string& ext, const std::string& header);
   // Escribe una línea en el archivo diario `kind` para la fecha de t; header/schema al crearlo.
   void writeDaily(const std::string& kind, const std::string& ext, UtcNs t, const std::string& header,
                   const nlohmann::json& schema, const std::string& line);

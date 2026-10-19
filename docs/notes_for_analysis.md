@@ -54,3 +54,12 @@ En v8, para canales de hod2018 con pulso en tiempo > 10 p.e., la mediana de las 
 311-365 (≥ 624 ns después del fin de la ventana de señal) queda +3.907 mV sobre la línea
 base de referencia (mediana sobre canales), por el sobreimpulso. Cualquier pedestal que
 mezcle muestras posteriores a la señal está sesgado en esos eventos.
+
+## 6. Control lento: `hv_full_20261019.csv` mezcla dos formatos (DAQ2-4, 2026-10-19)
+
+`/data/daq/slowcontrol/2026/hv_full_20261019.csv` tiene el encabezado de 24 columnas (corrida de
+DAQ2-3, filas 2-1345, última `t_req_utc_ns` = 1792374668848097448), pero desde la fila 1346
+(2026-10-19T08:32:37Z, `hvmon` con las columnas de la placa) las filas tienen 28 columnas: al final
+`bd_BdStatus,bd_HVMax_V,bd_HIMax_A,bd_Temp_degC`. El `.schema.json` describe solo las 24. Para
+leerlo, separar por número de campos. Desde DAQ2-4 el escritor ya no mezcla: abre
+`hv_full_YYYYMMDD.2.csv` (diseño 4.3). El archivo no se reescribió.

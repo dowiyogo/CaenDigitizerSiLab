@@ -124,6 +124,27 @@ Result<std::string> PosixFileSystem::readFile(const std::string& path) {
   return out;
 }
 
+Result<std::string> PosixFileSystem::readHead(const std::string& path, std::size_t maxBytes) {
+  const int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return Result<std::string>(sysError("open", path));
+  std::string out(maxBytes, '\0');
+  std::size_t got = 0;
+  while (got < maxBytes) {
+    const ssize_t n = ::read(fd, &out[got], maxBytes - got);
+    if (n < 0) {
+      if (errno == EINTR) continue;
+      const Error e = sysError("read", path);
+      ::close(fd);
+      return Result<std::string>(e);
+    }
+    if (n == 0) break;
+    got += static_cast<std::size_t>(n);
+  }
+  ::close(fd);
+  out.resize(got);
+  return out;
+}
+
 bool PosixFileSystem::exists(const std::string& path) {
   struct stat st {};
   return ::stat(path.c_str(), &st) == 0;
@@ -182,6 +203,13 @@ Result<std::string> MemoryFileSystem::readFile(const std::string& path) {
   auto it = data_.find(path);
   if (it == data_.end()) return Result<std::string>::failure(2, "no existe " + path);
   return it->second;
+}
+
+Result<std::string> MemoryFileSystem::readHead(const std::string& path, std::size_t maxBytes) {
+  std::lock_guard<std::mutex> lk(m_);
+  auto it = data_.find(path);
+  if (it == data_.end()) return Result<std::string>::failure(2, "no existe " + path);
+  return it->second.substr(0, maxBytes);
 }
 
 std::string MemoryFileSystem::content(const std::string& path) const {

@@ -19,12 +19,19 @@ bool endsWith(const std::string& s, const std::string& suf) {
   return s.size() >= suf.size() && s.compare(s.size() - suf.size(), suf.size(), suf) == 0;
 }
 
-// "hv_20261018.csv" -> "20261018"; "" si no tiene la forma <tipo>_YYYYMMDD.<csv|jsonl>.
+// "hv_20261018.csv" o "hv_full_20261018.2.csv" (parte con otras columnas) -> "20261018";
+// "" si no tiene la forma <tipo>_YYYYMMDD[.N].<csv|jsonl>.
 std::string dateOf(const std::string& name) {
-  const auto dot = name.rfind('.');
+  auto dot = name.rfind('.');
   if (dot == std::string::npos || dot < 9) return "";
   const std::string ext = name.substr(dot);
   if (ext != ".csv" && ext != ".jsonl") return "";
+  const auto prev = name.rfind('.', dot - 1);
+  if (prev != std::string::npos && prev + 1 < dot &&
+      std::all_of(name.begin() + static_cast<std::ptrdiff_t>(prev) + 1, name.begin() + static_cast<std::ptrdiff_t>(dot),
+                  [](unsigned char c) { return std::isdigit(c); }))
+    dot = prev;  // parte .N
+  if (dot < 9) return "";
   const std::string d = name.substr(dot - 8, 8);
   if (name[dot - 9] != '_' || !std::all_of(d.begin(), d.end(), [](unsigned char c) { return std::isdigit(c); }))
     return "";

@@ -421,11 +421,20 @@ hermano `<archivo>.schema.json` (`schema`, `format`, `columns`/`fields` con `nam
 | archivo | esquema | contenido |
 |---|---|---|
 | `YYYY/hv_YYYYMMDD.csv` | `daqv2.hv_fast/1` | una fila por canal por lectura rápida (1 Hz): `t_req_utc_ns,t_resp_utc_ns,read_seq,slot,ch,V0Set_V,I0Set_A,VMon_V,IMon_A,Status,Pw,read_duration_ns` |
-| `YYYY/hv_full_YYYYMMDD.csv` | `daqv2.hv_full/1` | una fila por canal por lectura completa (60 s): los 18 parámetros, numéricos en SI (`RUp_V_per_s`, `Trip_s`, ...) |
+| `YYYY/hv_full_YYYYMMDD.csv` | `daqv2.hv_full/2` (`/1` sin placa) | una fila por canal por lectura completa (60 s): los 18 parámetros, numéricos en SI (`RUp_V_per_s`, `Trip_s`, ...), y desde `d9bcfda` los de la placa `bd_BdStatus,bd_HVMax_V,bd_HIMax_A,bd_Temp_degC` |
 | `YYYY/hv_changes_YYYYMMDD.jsonl` | `daqv2.hv_changes/1` | `type: change` (id, t_utc_ns, t_prev_read_utc_ns, ch, param, unit, old, new, origin, command_id, during_disconnect, read_kind) y `type: command` (command_id, phase, value, reason, requester, detail) |
 | `YYYY/notes_YYYYMMDD.jsonl` | `daqv2.notes/1` | notas del operador: t_utc_ns, user, host, text |
 | `YYYY/temp_YYYYMMDD.csv` | `daqv2.temp/1` | `t_utc_ns,sensor_id,T_degC` (solo si hay backend de temperatura) |
 | `offsets.jsonl` | — | una línea por medida de offsets (fsync inmediato) |
+
+**Partes** (DAQ2-4): un CSV nunca mezcla columnas. Si al abrir el archivo del día ya existe con
+otro encabezado (otra versión de `hvmon`), o si cambian las columnas durante la corrida (falla la
+lectura de la placa en un ciclo y la fila sale sin `bd_*`), las filas van a
+`<tipo>_YYYYMMDD.2.csv` (`.3`, ...), cada una con su `.schema.json`; se vuelve a la primera parte
+cuyo encabezado coincide. Los lectores deben tomar todas las partes del día (`<tipo>_YYYYMMDD*.csv*`)
+y ordenar por `t_resp_utc_ns`. Excepción: `hv_full_20261019.csv`, escrito antes de la corrección,
+mezcla 24 columnas (filas 2-1345, corrida de DAQ2-3) y 28 (desde la fila 1346, 08:32:37Z); no se
+reescribe (`docs/notes_for_analysis.md`, ítem 6).
 
 Los eventos de conexión, GECO y comandos rechazados quedan además en el log de `hvmon`
 (stderr / journal de systemd). Notas: `daqrun` copiará a su archivo las notas del intervalo de su
@@ -932,8 +941,8 @@ Hilo propio en `hvmon` (`daq/hvmon/src/notifier.cpp`). Eventos: `trip`, `recover
 
 - `compress_closed_days` (true por omisión). Al rotar, el escritor pasa la ruta del día
   cerrado a un hilo compresor (nice 19); al arrancar se buscan días cerrados sin comprimir
-  (`hv_*`, `hv_full_*`, `hv_changes_*`, `notes_*` con fecha < hoy; los `.schema.json` y
-  `offsets.jsonl` quedan planos).
+  (`hv_*`, `hv_full_*`, `hv_changes_*`, `notes_*`, incluidas las partes `.N`, con fecha < hoy;
+  los `.schema.json` y `offsets.jsonl` quedan planos). Al rotar se encolan todas las partes del día.
 - `gzipFileVerified` (zlib, nivel 6): escribe `.gz`, lo relee y compara bytes, líneas y CRC32
   con el original; solo entonces borra el plano. Si falla, el plano queda y el `.gz` pasa a
   `.gz.failed`.
@@ -1325,8 +1334,11 @@ Decisiones fijadas por la implementación:
 
 Validación (DAQ2-4):
 
-- Tests: 130/130 en las tres builds (normal, ASan+UBSan, TSan), sin reportes de sanitizers
+- Tests: 132/132 en las tres builds (normal, ASan+UBSan, TSan), sin reportes de sanitizers
   (tabla en el informe de DAQ2-4).
+- Defecto encontrado en la corrida real y corregido: el escritor agregaba filas de 28 columnas a un
+  `hv_full` del mismo día con encabezado de 24 (4.3, "Partes"); tests
+  `HvmonWriter.ExistingFileWithOtherHeaderStartsNewPart` y `MissingBoardReadingNeverMixesColumns`.
 - Compresión de copias de `/data/daq/slowcontrol/2026` con `sctool`: total 11628312 → 789041
   bytes (0.0679); `hv_*.csv` 0.0686/0.0680, `hv_full_*.csv` 0.0598/0.0552, `notes` 0.6059.
   Luego los originales del día cerrado 20261018 con la misma herramienta: 2410047 → 165164

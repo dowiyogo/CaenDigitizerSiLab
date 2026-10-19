@@ -1,7 +1,9 @@
 // Tests del escritor de hvmon: rotación a medianoche UTC, esquemas, período de fsync, errores.
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <chrono>
+#include <set>
 
 #include "daq/core/clock.h"
 #include "daq/core/file_system.h"
@@ -184,4 +186,74 @@ TEST(HvmonWriter, RotationQueuesClosedDayForCompression) {
   ASSERT_TRUE(p.has_value());
   EXPECT_EQ(*p, "/sc/2026/hv_20261018.csv");
   EXPECT_FALSE(q.try_pop().has_value());
+}
+
+TEST(HvmonWriter, ExistingFileWithOtherHeaderStartsNewPart) {
+  // Un archivo del mismo día escrito por una versión anterior (sin columnas de la placa) no se
+  // mezcla: las filas nuevas van a hv_full_<fecha>.2.csv con su encabezado y su esquema.
+  WRig r;
+  r.clock.advance(5s);
+  const std::string old = "t_req_utc_ns,t_resp_utc_ns,read_seq,slot,ch,V0Set_V,Status,read_duration_ns\n1,2,3,3,0,65.75,0,9\n";
+  ASSERT_TRUE(r.fs.writeAtomic("/sc/2026/hv_full_20261019.csv", old, 0644).ok());
+  ASSERT_TRUE(r.fs.writeAtomic("/sc/2026/hv_full_20261019.csv.schema.json", "{}\n", 0644).ok());
+  hv::FakeHVBackend be(hv::FakeHVBackend::defaultScenario(), r.clock);
+  ASSERT_TRUE(be.connect().ok());
+  auto rd = be.readChannels(3, {0, 1}, {"V0Set", "Status"}).value();
+  auto bd = be.readBoard(3, {"BdStatus", "HVMax", "HIMax", "Temp"}).value();
+  r.w.handle(FullRows{rd, 1, bd});
+  EXPECT_EQ(r.fs.content("/sc/2026/hv_full_20261019.csv"), old);  // intacto
+  const std::string c = r.fs.content("/sc/2026/hv_full_20261019.2.csv");
+  EXPECT_EQ(c.substr(0, c.find('\n')),
+            "t_req_utc_ns,t_resp_utc_ns,read_seq,slot,ch,V0Set_V,Status,read_duration_ns,bd_BdStatus,bd_HVMax_V,"
+            "bd_HIMax_A,bd_Temp_degC");
+  EXPECT_EQ(std::count(c.begin(), c.end(), '\n'), 3);
+  const auto schema = nlohmann::json::parse(r.fs.content("/sc/2026/hv_full_20261019.2.csv.schema.json"));
+  EXPECT_EQ(schema["file"], "hv_full_20261019.2.csv");
+  EXPECT_EQ(schema["columns"].back()["name"], "bd_Temp_degC");
+  // Un archivo vacío o con el mismo encabezado se reutiliza.
+  WRig r2;
+  r2.clock.advance(5s);
+  ASSERT_TRUE(r2.fs.writeAtomic("/sc/2026/hv_full_20261019.csv", c.substr(0, c.find('\n') + 1), 0644).ok());
+  r2.w.handle(FullRows{rd, 1, bd});
+  EXPECT_FALSE(r2.fs.exists("/sc/2026/hv_full_20261019.2.csv"));
+  const std::string c2 = r2.fs.content("/sc/2026/hv_full_20261019.csv");
+  EXPECT_EQ(std::count(c2.begin(), c2.end(), '\n'), 3);  // un solo encabezado + 2 filas
+}
+
+TEST(HvmonWriter, MissingBoardReadingNeverMixesColumns) {
+  // Si falla la lectura de la placa en un ciclo, la fila sin columnas bd_ va a otra parte; al
+  // volver la placa se sigue en la primera. Al rotar se comprimen todas las partes del día.
+  WRig r;
+  BoundedQueue<std::string> q(10);
+  r.w.setCompressionQueue(&q);
+  hv::FakeHVBackend be(hv::FakeHVBackend::defaultScenario(), r.clock);
+  ASSERT_TRUE(be.connect().ok());
+  auto rd = be.readChannels(3, {0, 1}, {"V0Set", "Status"}).value();  // 23:59:58Z del 18
+  auto bd = be.readBoard(3, {"BdStatus", "HVMax", "HIMax", "Temp"}).value();
+  r.w.handle(FullRows{rd, 1, bd});
+  r.w.handle(FullRows{rd, 2, std::nullopt});
+  r.w.handle(FullRows{rd, 3, bd});
+  const std::string p1 = r.fs.content("/sc/2026/hv_full_20261018.csv");
+  const std::string p2 = r.fs.content("/sc/2026/hv_full_20261018.2.csv");
+  EXPECT_EQ(std::count(p1.begin(), p1.end(), '\n'), 5);  // encabezado + 2 × 2 filas
+  EXPECT_EQ(std::count(p2.begin(), p2.end(), '\n'), 3);
+  EXPECT_EQ(p2.substr(0, p2.find('\n')), "t_req_utc_ns,t_resp_utc_ns,read_seq,slot,ch,V0Set_V,Status,read_duration_ns");
+  auto columns = [](const std::string& s) {
+    std::set<long> n;
+    std::size_t a = 0;
+    while (a < s.size()) {
+      const auto b = s.find('\n', a);
+      n.insert(std::count(s.begin() + static_cast<long>(a), s.begin() + static_cast<long>(b), ','));
+      a = b + 1;
+    }
+    return n;
+  };
+  EXPECT_EQ(columns(p1).size(), 1u);
+  EXPECT_EQ(columns(p2).size(), 1u);
+  r.clock.advance(3s);
+  auto rd2 = be.readChannels(3, {0, 1}, {"V0Set", "Status"}).value();  // 00:00:01Z del 19
+  r.w.handle(FullRows{rd2, 4, bd});
+  std::set<std::string> queued;
+  while (auto p = q.try_pop()) queued.insert(*p);
+  EXPECT_EQ(queued, (std::set<std::string>{"/sc/2026/hv_full_20261018.csv", "/sc/2026/hv_full_20261018.2.csv"}));
 }

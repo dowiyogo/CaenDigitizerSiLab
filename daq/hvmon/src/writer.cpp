@@ -207,22 +207,44 @@ void SlowControlWriter::syncStream(Stream& s) {
   ++health_.fsyncs;
 }
 
+std::string SlowControlWriter::pathForHeader(const std::string& base, const std::string& ext, const std::string& header) {
+  if (header.empty()) return base;
+  const std::string stem = base.substr(0, base.size() - ext.size() - 1);
+  for (int n = 1;; ++n) {
+    const std::string p = n == 1 ? base : stem + "." + std::to_string(n) + "." + ext;
+    if (!fs_.exists(p)) return p;
+    auto head = fs_.readHead(p, header.size() + 1);
+    if (!head || head.value().empty() || head.value() == header + "\n") return p;  // un error lo informa openAppend
+  }
+}
+
 void SlowControlWriter::writeDaily(const std::string& kind, const std::string& ext, UtcNs t, const std::string& header,
                                    const nlohmann::json& schema, const std::string& line) {
   const std::string date = dateKey(t);
   Stream& s = streams_[kind];
-  if (s.file && s.date != date) {  // rotación a medianoche UTC
+  if (!s.date.empty() && s.date != date) {  // rotación a medianoche UTC
+    if (s.file) syncStream(s);
+    health_.openFiles.erase(s.path);
+    s.file.reset();
+    for (const auto& p : s.dayPaths)
+      if (compressQ_ && !compressQ_->try_push(p, DropPolicy::DropNewest))
+        logWarn("cola de compresión llena: ", p, " queda sin comprimir");
+    s.dayPaths.clear();
+  } else if (s.file && s.header != header) {  // cambiaron las columnas (p. ej. falló la lectura de la placa)
     syncStream(s);
     health_.openFiles.erase(s.path);
     s.file.reset();
-    if (compressQ_ && !compressQ_->try_push(s.path, DropPolicy::DropNewest))
-      logWarn("cola de compresión llena: ", s.path, " queda sin comprimir");
   }
   if (!s.file) {
-    const std::string path = baseDir_ + "/" + date.substr(0, 4) + "/" + kind + "_" + date + "." + ext;
+    const std::string base = baseDir_ + "/" + date.substr(0, 4) + "/" + kind + "_" + date + "." + ext;
+    const std::string path = pathForHeader(base, ext, header);
+    if (path != base && !s.dayPaths.count(path))
+      logWarn("escritor: ", base, " tiene otras columnas; se escribe en ", path);
     if (s.path != path) s.bytes = 0;
     s.date = date;
+    s.header = header;
     if (!openStream(s, path, header, schema)) return;
+    s.dayPaths.insert(path);
   }
   writeTo(s, line);
 }
