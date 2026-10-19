@@ -114,8 +114,9 @@ Analysis (Makefile, C++17, run everything from the repository root):
     make -C analysis                      # binaries in analysis/bin/
     analysis/scripts/run_*.sh             # pipeline scripts, cd to the root themselves
 
-New DAQ (CMake, `daq/`; phases 0-3 exist: core, HV library, `hvctl`, `hvmon` with auto-retry,
-notifier and compression, `sctool`, `daqrun` and `daqcampaign` with fake/replay digitizer only).
+New DAQ (CMake, `daq/`; phases 0-4 exist: core, HV library, `hvctl`, `hvmon` with auto-retry,
+notifier and compression, `sctool`, `daqrun` and `daqcampaign` with fake, replay or the real
+VX1740 (`digitizer.backend = "caen"`, phase 4), `digprobe`).
 Tests (`daq_tests`, and `daq_root_tests` for the parts that need ROOT) use
 GoogleTest from apt (`libgtest-dev` 1.14) through `gtest_discover_tests`. If GoogleTest is
 missing, stop and say so; do not vendor a test framework. Details for René: `daq/README.md`.
@@ -181,11 +182,18 @@ Secrets: `DAQ_HV_HOST`, `DAQ_HV_USER`, `DAQ_HV_PASSWORD` (and `DAQ_SMTP_*`, `DAQ
 the environment or `~/.config/daqv2/secrets.env`; template `daq/config/secrets.env.example`.
 `~/.config/daqv2/hv_credentials.json` is a deprecated fallback (warning); René removes it.
 
-DAQ runs (phase 3: no digitizer access; `digitizer.backend` is `fake` or `replay` only). A
-simulated run refuses `raw_root`/`manifests_dir` inside `/data/daq/raw`/`/data/daq/manifests`
-and defaults to `/data/daq/sim/raw`, `/data/daq/sim/manifests`. A run needs an open campaign.
+DAQ runs. A simulated run (`fake`/`replay`) refuses `raw_root`/`manifests_dir` inside
+`/data/daq/raw`/`/data/daq/manifests` and defaults to `/data/daq/sim/...`. A run needs an open
+campaign. Real runs (`caen`, VX1740 via A4818) only in tasks that authorize the digitizer (rule 1);
+check first that nothing else holds the A4818 (`fuser /dev/bus/usb/002/002`, no old DAQ process).
+Real configs live in `/data/daq/config/<campaign>/`, logs in `/data/daq/logs/`; runs are started
+detached from the installed binaries (`~/.local/opt/daqv2/bin/daqrun`, rule 11). Board facts
+(design 15.5): record 625 -> 624, 0x8114 read back, memory full = bit 4 of 0x8104 (1024 events;
+lost triggers do not advance the counter), TTT 8 ns / 31 bit (bit 31 = rollover flag), the
+external trigger depends on the NIM8302 crate (trips on temperature) and its cables.
 
     daq/build/apps/daqcampaign/daqcampaign --sim open|close|status <name>   # real: --authorize "<reason>"
+    ~/.local/opt/daqv2/bin/digprobe info | memfull --config <cfg>   # board info/registers (needs authorization)
     daq/build/apps/daqrun/daqrun --config <cfg.json> [--campaign N] [--max-duration S] [--no-http]
     # example config daq/config/daqrun.example.json, synthetic scenario daq/config/fake/
     # page http://127.0.0.1:8080/ ; SIGINT/SIGTERM closes the segment and the index cleanly

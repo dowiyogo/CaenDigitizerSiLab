@@ -120,7 +120,7 @@ $S cat /data/daq/slowcontrol/2026/hv_20261018.csv.gz | head       # lee plano o 
 $S digest /data/daq/slowcontrol/2026/hv_20261018.csv.gz           # bytes, líneas, crc32
 ```
 
-## daqrun (runs de adquisición; fase 3: solo digitizador simulado)
+## daqrun (runs de adquisición)
 
 Un run necesita una campaña abierta. Con el digitizador simulado (`fake` o `replay`) todo va a
 `/data/daq/sim/` (nunca a `/data/daq/raw`):
@@ -145,6 +145,21 @@ $C --sim close prueba_1         # después del último run: la campaña queda de
   "first_entry": 30000, "max_entries": 5000, "speed": 1}}`.
 - Para leer los archivos de control lento desde ROOT: `analysis/macros/plot_hv_imon_day.C`.
 
+Con el VX1740 real (fase 4, `"backend": "caen"`; campaña real en `/data/daq/raw`, se abre con
+`daqcampaign open NOMBRE --authorize "motivo"`): configuraciones de ejemplo en
+`/data/daq/config/commissioning_2026_10/`. Los runs se arrancan desacoplados de la terminal:
+
+```bash
+systemd-run --user --unit=mi-run --collect --property=RuntimeMaxSec=2400 \
+  --property=StandardOutput=append:/data/daq/logs/mi-run.log --property=StandardError=append:/data/daq/logs/mi-run.log \
+  --setenv=LD_LIBRARY_PATH=$HOME/root6/lib ~/.local/opt/daqv2/bin/daqrun --config CONFIG.json
+systemctl --user status mi-run          # o: journalctl --user -u mi-run
+```
+
+`digprobe info` muestra el modelo, serie, firmware y los registros de la placa sin configurarla.
+Si el trigger externo falta (crate NIM8302 apagado por temperatura, o un cable), daqrun avisa por
+correo tras 5 min sin triggers o con tasa < 0.1 Hz en 10 min (si el notificador está habilitado).
+
 
 ```
 daq/
@@ -162,8 +177,9 @@ daq/
   apps/sctool/   compresión y lectura de archivos de control lento (plano o .gz)
   apps/daqrun/   un run de adquisición (THttpServer :8080)
   apps/daqcampaign/  abrir, cerrar y ver campañas
+  apps/digprobe/ información, registros y prueba de memoria llena del VX1740
+  systemd/       unidad de hvmon e install.sh (binarios a ~/.local/opt/daqv2)
   tools/validation/  macros de validación de DAQ2-5 (solo lectura)
-  systemd/       unidad de usuario de hvmon (no instalada)
   tools/legacy/  hv_readall.c, test_sy5527.c, diag_sy5527.sh (heredados)
   tests/         GoogleTest, solo con fakes
   config/        ejemplos de configuración y guiones del fake
