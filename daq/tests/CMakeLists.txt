@@ -20,7 +20,8 @@ add_executable(daq_tests
   test_gzip.cpp
   test_analysis_shared.cpp
   test_dig.cpp
-  test_daqrun.cpp)
+  test_daqrun.cpp
+  test_x740.cpp)
 target_compile_definitions(daq_tests PRIVATE DAQ_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_link_libraries(daq_tests PRIVATE daq_daqrun daq_dig daq_hvmon daq_temp daq_hv_common daq_core GTest::gtest
                       GTest::gtest_main daq_warnings)

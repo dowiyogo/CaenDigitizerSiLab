@@ -99,24 +99,38 @@ int main(int argc, char** argv) {
   out["while_not_reading"] = samples;
   out["triggers_sent"] = sent;
   out["send_errors"] = sendErrors;
-  // Vaciado: se leen todos los eventos.
-  dig.stop();
+  // Vaciado con la adquisición en marcha; luego 5 SW triggers más: si el contador del primero
+  // salta, los triggers perdidos con la memoria llena se cuentan.
   std::uint64_t events = 0, jumps = 0;
   std::uint32_t first = 0, last = 0;
   bool have = false, full = false;
-  for (int k = 0; k < 100000; ++k) {
-    EventBlock b;
-    auto r = dig.readBlock(b, 1000);
-    if (!r || r.value() == 0) break;
-    full = full || b.boardFull;
-    for (const auto& e : b.events) {
-      if (!have) first = e.counterHw;
-      else if (((e.counterHw - last) & 0xFFFFFF) != 1) ++jumps;
-      last = e.counterHw;
-      have = true;
-      ++events;
+  nlohmann::json afterCounters = nlohmann::json::array();
+  auto drain = [&](bool record) {
+    for (int k = 0; k < 100000; ++k) {
+      EventBlock b;
+      auto r = dig.readBlock(b, 1000);
+      if (!r || r.value() == 0) break;
+      full = full || b.boardFull;
+      for (const auto& e : b.events) {
+        if (record) afterCounters.push_back(e.counterHw);
+        if (!have) first = e.counterHw;
+        else if (((e.counterHw - last) & 0xFFFFFF) != 1) ++jumps;
+        last = e.counterHw;
+        have = true;
+        ++events;
+      }
     }
+  };
+  drain(false);
+  out["events_read_before_extra"] = events;
+  for (int i = 0; i < 5; ++i) {
+    dig.sendSoftwareTrigger();
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  drain(true);
+  out["counters_after_5_extra_triggers"] = afterCounters;
+  dig.stop();
   auto st = dig.readRegister(0x8104);
   out["after_drain_status_0x8104"] = st ? st.value() : 0u;
   out["events_read"] = events;

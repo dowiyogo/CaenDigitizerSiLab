@@ -171,7 +171,8 @@ class EventFlagger {
 };
 
 // Desenrolla el TTT con la hora del PC de cada lectura: elige el número de vueltas que deja
-// origen + ttt_ns más cerca de t_read, sin retroceder respecto del evento anterior.
+// origen + ttt_ns más cerca de t_read, sin retroceder respecto del evento anterior. Solo se usan los
+// wrap_bits bits bajos (VX1740: 31 bit de 8 ns; el bit 31 es una marca de vuelta, DAQ2-6).
 class TttUnwrapper {
  public:
   TttUnwrapper(UtcNs originUtc, double tickNs, int wrapBits);
@@ -180,6 +181,7 @@ class TttUnwrapper {
  private:
   UtcNs origin_;
   double tick_;
+  std::uint32_t mask_;  // bits del contador (los demás se ignoran)
   std::int64_t period_;
   std::int64_t last_ = -1;
 };

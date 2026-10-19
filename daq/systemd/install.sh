@@ -7,7 +7,7 @@ set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 prefix="$HOME/.local/opt/daqv2"
 mkdir -p "$prefix/bin" "$prefix/share/mapping" "$HOME/.config/systemd/user"
-for b in apps/hvmon/hvmon apps/hvctl/hvctl apps/sctool/sctool apps/daqrun/daqrun apps/daqcampaign/daqcampaign; do
+for b in apps/hvmon/hvmon apps/hvctl/hvctl apps/sctool/sctool apps/daqrun/daqrun apps/daqcampaign/daqcampaign apps/digprobe/digprobe; do
   src="$repo/daq/build/$b"
   [ -x "$src" ] || { echo "falta $src (compilar daq/build primero)" >&2; exit 1; }
   dst="$prefix/bin/$(basename "$b")"

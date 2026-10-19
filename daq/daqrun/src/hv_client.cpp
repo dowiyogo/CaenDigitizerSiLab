@@ -358,9 +358,13 @@ std::uint32_t EventFlagger::flags(UtcNs tUtc, UtcNs tRead, std::uint32_t counter
 TttUnwrapper::TttUnwrapper(UtcNs originUtc, double tickNs, int wrapBits)
     : origin_(originUtc),
       tick_(tickNs),
+      mask_(wrapBits >= 32 ? 0u : static_cast<std::uint32_t>((1ull << wrapBits) - 1)),
       period_(static_cast<std::int64_t>(std::llround(static_cast<double>(wrapBits >= 32 ? (1ull << 32) : (1ull << wrapBits)) * tickNs))) {}
 
-std::int64_t TttUnwrapper::tttNs(std::uint32_t raw, UtcNs tReadUtc) {
+std::int64_t TttUnwrapper::tttNs(std::uint32_t rawIn, UtcNs tReadUtc) {
+  // VX1740 (DAQ2-6): contador de 31 bit; el bit 31 es una marca (queda en 1 tras la primera
+  // vuelta) y no forma parte del valor.
+  const std::uint32_t raw = mask_ ? (rawIn & mask_) : rawIn;
   const auto base = static_cast<std::int64_t>(std::llround(static_cast<double>(raw) * tick_));
   const std::int64_t elapsed = tReadUtc - origin_;
   std::int64_t k = static_cast<std::int64_t>(std::floor(static_cast<double>(elapsed - base) / static_cast<double>(period_) + 0.5));
