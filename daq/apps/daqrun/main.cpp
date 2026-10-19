@@ -28,6 +28,7 @@
 #include "daq/core/bounded_queue.h"
 #include "daq/core/clock.h"
 #include "daq/core/file_system.h"
+#include "daq/core/instance_lock.h"
 #include "daq/core/jthread.h"
 #include "daq/core/logger.h"
 #include "daq/core/sha256.h"
@@ -38,7 +39,12 @@
 #include "daq/dig/fake_digitizer.h"
 #include "daq/dig/readout.h"
 #include "daq/dig/replay_digitizer.h"
+#include "daq/core/secrets.h"
+#include "daq/core/spawn.h"
+#include "daq/core/time.h"
 #include "daq/hvmon/mapping.h"
+#include "daq/hvmon/notifier.h"
+#include "daq/hvmon/state.h"
 #include "daq/hvmon/system_probe.h"
 #include "daq/io/run_writer.h"
 #include "daq_build_info.h"
@@ -177,6 +183,8 @@ int main(int argc, char** argv) {
     mappingText.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
   }
 
+  if (auto st = setProcessTimeZone(cfg.notifier.value("local_timezone", "America/Santiago")); !st)
+    logWarn("zona horaria de los correos: ", st.error().message);
   SystemClock clock;
   const CampaignLocation loc{cfg.rawRoot, cfg.manifestsDir, cfg.campaign};
   auto res = RunReservation::reserve(loc, clock.now_utc_ns());
@@ -289,8 +297,46 @@ int main(int argc, char** argv) {
     logInfo("página de solo lectura en ", page->url());
   }
 
+  // Aviso por correo si hvmon deja de responder durante el run (notificador de hvmon, outbox propio).
+  BoundedQueue<hvmon::NotifyEvent> notifyQ(64);
+  hvmon::StateHub notifyHub;  // el notificador de daqrun no mira escritor ni conexión de hvmon
+  PosixSpawner spawner;
+  std::unique_ptr<hvmon::Notifier> notifier;
+  nlohmann::json ncfgJson = cfg.notifier;
+  if (!ncfgJson.contains("outbox_dir")) ncfgJson["outbox_dir"] = hvmon::defaultOutboxDir() + "-daqrun";
+  ncfgJson.erase("hvmon_stale_alert_min");
+  auto ncfg = hvmon::NotifierConfig::fromJson(ncfgJson);
+  if (!ncfg) {
+    logError("notifier: ", ncfg.error().message);
+    return 2;
+  }
+  if (ncfg.value().enabled) {
+    Secrets secrets;
+    auto smtp = hvmon::SmtpSettings::fromSecrets(secrets);
+    if (!smtp) {
+      logWarn("notificador de daqrun habilitado pero sin SMTP (", smtp.error().message, "): sin avisos por correo");
+    } else {
+      const std::string tmp = std::string(std::getenv("XDG_RUNTIME_DIR") ? std::getenv("XDG_RUNTIME_DIR") : "/tmp") + "/daqv2-daqrun";
+      ensurePrivateDirectory(tmp, 0700);
+      notifier = std::make_unique<hvmon::Notifier>(ncfg.value(), smtp.value(), mapping.value(), spawner, clock, tmp, notifyHub);
+      notifier->setSimulatedBackend(cfg.simulated());
+      logInfo("notificador de daqrun: aviso si hvmon no responde más de ", cfg.hvmonStaleAlertMin, " min");
+    }
+  }
+  HvmonWatchdog watchdog(cfg.hvmonStaleAlertMin * 60.0,
+                         "daqrun campaña " + cfg.campaign + " run " + std::to_string(run.run()) + " (" + run.baseName() + ")");
+  if (notifier)
+    hvClient.setOnSample([&](const HvSample& s) {
+      if (auto e = watchdog.feed(s)) {
+        logWarn("hvmon no responde desde hace más de ", cfg.hvmonStaleAlertMin, " min: aviso por correo");
+        notifyQ.try_push(std::move(*e), DropPolicy::DropNewest);
+      }
+    });
+
   installSignals();
   std::atomic<bool> writerDone{false}, writerOk{true};
+  JThread notifyThread;
+  if (notifier) notifyThread = JThread([&](StopToken st) { notifier->run(notifyQ, st); });
   JThread hvThread([&](StopToken st) { hvClient.run(st); });
   JThread monitorThread([&] {
     Logger::setThreadName("monitor");
@@ -398,6 +444,11 @@ int main(int argc, char** argv) {
   hvThread.request_stop();
   hvQ.close();
   hvThread.join();
+  if (notifyThread.joinable()) {
+    notifyQ.close();
+    notifyThread.request_stop();
+    notifyThread.join();
+  }
   page.reset();
   logInfo("daqrun termina: ", wstats.eventsWritten.load(), " eventos, ", wstats.segmentsClosed.load(), " segmentos, ",
           wstats.bytesClosed.load(), " bytes; lectura: ", rstats.toJson().dump());

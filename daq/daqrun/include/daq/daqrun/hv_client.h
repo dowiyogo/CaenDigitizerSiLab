@@ -20,6 +20,8 @@
 #include <array>
 #include <cstdint>
 #include <deque>
+#include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -31,6 +33,7 @@
 #include "daq/core/snapshot.h"
 #include "daq/daqrun/config.h"
 #include "daq/hvmon/mapping.h"
+#include "daq/hvmon/notifier.h"
 
 namespace daq::daqrun {
 
@@ -76,6 +79,8 @@ HvSample parseHvState(const nlohmann::json& state, UtcNs now, double staleAfterS
 class HvClient {
  public:
   HvClient(const DaqrunConfig& cfg, Clock& clock, BoundedQueue<HvSample>& toWriter);
+  // Se llama en el hilo del cliente con cada muestra (p. ej. el vigilante de hvmon).
+  void setOnSample(std::function<void(const HvSample&)> f) { onSample_ = std::move(f); }
   void run(const StopToken& st);
   HvSample pollOnce();  // lee y parsea una vez (también la usa main para la cabecera)
   std::pair<HvSample, std::uint64_t> latest() const { return latest_.read(); }
@@ -88,6 +93,25 @@ class HvClient {
   Snapshot<HvSample> latest_;
   std::int64_t lastChangeId_ = -1;
   std::uint64_t pushed_ = 0;
+  std::function<void(const HvSample&)> onSample_;
+};
+
+// Vigilante de hvmon durante un run: si el estado no está vivo o está stale más de thresholdS
+// seguidos, devuelve una vez (por episodio) un evento "hvmon_stale" para el notificador; el run
+// sigue con el bit 4. Lógica pura, reloj de las muestras.
+class HvmonWatchdog {
+ public:
+  HvmonWatchdog(double thresholdS, std::string origin) : thresholdS_(thresholdS), origin_(std::move(origin)) {}
+  std::optional<hvmon::NotifyEvent> feed(const HvSample& s);
+  bool alerted() const { return alerted_; }
+
+ private:
+  double thresholdS_;
+  std::string origin_;
+  UtcNs badSince_ = 0;
+  bool alerted_ = false;
+  std::string lastError_;
+  std::uint64_t episode_ = 0;
 };
 
 struct ChannelFlags {

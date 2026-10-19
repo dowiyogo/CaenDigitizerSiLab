@@ -55,5 +55,5 @@
     "process_requests_hz": 15,
     "monitor_queue_capacity": 64
   },
-  "queues": {"writer_capacity": 256, "hv_capacity": 4096, "writer_shutdown_timeout_s": 120}
+  "queues": {"writer_capacity": 1024, "hv_capacity": 4096, "writer_shutdown_timeout_s": 120}
 }

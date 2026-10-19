@@ -140,6 +140,7 @@ void HvClient::run(const StopToken& st) {
     HvSample forPage = s;
     forPage.raw = nlohmann::json();  // la página no necesita el estado completo
     latest_.publish(forPage);
+    if (onSample_) onSample_(forPage);
     s.raw = nlohmann::json();
     if (!out_.push(std::move(s))) break;  // cola cerrada: el escritor terminó
     ++pushed_;
@@ -147,6 +148,34 @@ void HvClient::run(const StopToken& st) {
     if (next < clock_.now_steady()) next = clock_.now_steady() + period;
     clock_.sleep_until(next, st);
   }
+}
+
+std::optional<hvmon::NotifyEvent> HvmonWatchdog::feed(const HvSample& s) {
+  const bool bad = !s.fileOk || !s.alive || s.stale;
+  if (!bad) {
+    badSince_ = 0;
+    alerted_ = false;
+    return std::nullopt;
+  }
+  if (badSince_ == 0) {
+    badSince_ = s.receivedUtcNs;
+    ++episode_;
+  }
+  if (!s.error.empty()) lastError_ = s.error;
+  if (alerted_ || static_cast<double>(s.receivedUtcNs - badSince_) / kNs < thresholdS_) return std::nullopt;
+  alerted_ = true;
+  hvmon::NotifyEvent e;
+  e.kind = "hvmon_stale";
+  e.ch = -1;
+  e.episode = episode_;
+  e.tUtcNs = badSince_;
+  e.origin = origin_;
+  char m[64];
+  std::snprintf(m, sizeof m, "%.1f", static_cast<double>(s.receivedUtcNs - badSince_) / 60e9);
+  e.reason = "el estado de hvmon no está vivo o está viejo desde " + formatUtcIso(badSince_) + " (" + m +
+             " min); el run sigue con el bit 4 (HV_UNKNOWN) en todos los canales. Último motivo: " +
+             (lastError_.empty() ? std::string("stale") : lastError_);
+  return e;
 }
 
 // ---------------------------------------------------------------------------------------------

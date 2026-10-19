@@ -15,7 +15,11 @@
 #include "daq/daqrun/config.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/daqrun/notes.h"
+#include "daq/core/spawn.h"
 #include "daq/hvmon/mapping.h"
+#include "daq/hvmon/notifier.h"
+#include "daq/hvmon/state.h"
+#include <iterator>
 
 using namespace daq;
 using namespace daq::daqrun;
@@ -303,4 +307,59 @@ TEST(Notes, IntervalFromPlainAndGzDays) {
   EXPECT_EQ(n[1].text, "c");
   EXPECT_EQ(n[1].user, "rene");
   EXPECT_TRUE(readNotes(d + "/nada", kT0, kT0 + kS).empty());
+}
+
+namespace {
+struct NoSpawn : Spawner {
+  std::vector<std::string> bodies;
+  Result<SpawnResult> run(const std::vector<std::string>&, const std::string& stdinData, std::chrono::seconds) override {
+    const auto p = stdinData.find("upload-file = \"");
+    const std::string path = stdinData.substr(p + 15, stdinData.find('"', p + 15) - p - 15);
+    std::ifstream in(path);
+    bodies.emplace_back((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    return SpawnResult{};
+  }
+};
+}  // namespace
+
+TEST(HvmonWatchdog, OneMailPerStaleEpisodeAfterFiveMinutesMarkedWithRun) {
+  HvmonWatchdog wd(300.0, "daqrun campaña commissioning_2026_10 run 3");
+  std::vector<hvmon::NotifyEvent> events;
+  // Vivo hasta 100 s; muerto (pid inexistente) de 101 a 1000 s; vivo 1001-1099; viejo desde 1100 s.
+  for (int k = 0; k <= 1600; ++k) {
+    const bool alive = k <= 100 || (k > 1000 && k < 1100);
+    HvSample s;
+    if (k < 1100 || k > 1500) s = parseHvState(state(k), kT0 + k * kS + 20000000, 3.0, alive);
+    else s = parseHvState(state(1099), kT0 + k * kS, 3.0, true);  // archivo que ya no cambia
+    if (auto e = wd.feed(s)) events.push_back(*e);
+  }
+  ASSERT_EQ(events.size(), 2u);
+  EXPECT_EQ(events[0].kind, "hvmon_stale");
+  EXPECT_EQ(events[0].tUtcNs, kT0 + 101 * kS + 20000000);  // inicio del episodio
+  EXPECT_NE(events[0].reason.find("bit 4"), std::string::npos);
+  EXPECT_NE(events[0].reason.find("el proceso de hvmon no existe"), std::string::npos);
+  EXPECT_EQ(events[0].origin, "daqrun campaña commissioning_2026_10 run 3");
+  EXPECT_NE(events[1].episode, events[0].episode);
+  // El correo lleva el run y la campaña en el asunto y el cuerpo; un segundo aviso del mismo tipo
+  // dentro de problem_interval_min (30 min) se descarta.
+  ManualClock clock(kT0 + 401 * kS);
+  hvmon::StateHub hub;
+  NoSpawn sp;
+  hvmon::SmtpSettings smtp;
+  smtp.url = "smtps://x";
+  smtp.from = "a@x";
+  smtp.to = {"b@x"};
+  auto nc = hvmon::NotifierConfig::fromJson({{"enabled", true}, {"outbox_dir", tmpDir("wdbox")}});
+  hvmon::Notifier n(nc.value(), smtp, std::nullopt, sp, clock, ::testing::TempDir(), hub, "h");
+  EXPECT_TRUE(n.submit(events[0]));
+  EXPECT_FALSE(n.submit(events[0]));
+  n.processDue();
+  ASSERT_EQ(sp.bodies.size(), 1u);
+  // El asunto tiene caracteres no ASCII: viaja codificado (RFC 2047); se mira el asunto sin codificar.
+  std::string subj;
+  n.composeMessage(events[0], &subj);
+  EXPECT_EQ(subj, "[DAQ hodoscopio] hvmon_stale — daqrun campaña commissioning_2026_10 run 3");
+  EXPECT_NE(sp.bodies[0].find("Subject: =?UTF-8?"), std::string::npos);
+  EXPECT_NE(sp.bodies[0].find("Origen: daqrun campaña commissioning_2026_10 run 3"), std::string::npos) << sp.bodies[0];
+  EXPECT_NE(sp.bodies[0].find("Retraso de entrega: 300 s"), std::string::npos) << sp.bodies[0];
 }

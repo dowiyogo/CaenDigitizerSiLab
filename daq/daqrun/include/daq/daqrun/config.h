@@ -81,9 +81,13 @@ struct DaqrunConfig {
   int httpPort = 8080;
   double processRequestsHz = 15;
   std::size_t monitorQueueCapacity = 64;
-  std::size_t writerQueueCapacity = 256;
+  std::size_t writerQueueCapacity = 1024;  // bloques; ver 15.5 para la memoria que implica
   std::size_t hvQueueCapacity = 4096;
   double writerShutdownTimeoutS = 120;
+  // Aviso por correo si el estado de hvmon está viejo/no vivo más de hvmon_stale_alert_min durante
+  // un run (biblioteca del notificador de hvmon; outbox propio).
+  nlohmann::json notifier = nlohmann::json::object();  // claves de NotifierConfig
+  double hvmonStaleAlertMin = 5.0;
 
   bool simulated() const { return digitizer.backend != "caen"; }
   std::string campaignDir() const { return rawRoot + "/" + campaign; }
