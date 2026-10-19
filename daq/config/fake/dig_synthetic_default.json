@@ -1,0 +1,19 @@
+{
+  "seed": 1,
+  "trigger_rate_Hz": 0.6,
+  "signal_sample": 51,
+  "baseline_adc": {"hod2018": 2091, "hod2019": 2081},
+  "baseline_spread_adc": 4,
+  "noise_mV": {"hod2018": 1.9, "hod2019": 0.25},
+  "dark_rate_Hz": {"hod2018": 2.3e6, "hod2019": 2.4e4},
+  "gain_mV_per_pe": {"hod2018": [4.0, 5.5], "hod2019": 4.0},
+  "crosstalk_prob": {"hod2018": 0.2, "hod2019": 0.05},
+  "decay_samples": 2.0,
+  "muon_pe_mean": {"hod2018": 20, "hod2019": 12},
+  "muon_efficiency": 0.95,
+  "slope_sigma_strips": 1.0,
+  "ttt_wrap_bits": 31,
+  "counter_bits": 24,
+  "board_memory_events": 1024,
+  "events": []
+}
