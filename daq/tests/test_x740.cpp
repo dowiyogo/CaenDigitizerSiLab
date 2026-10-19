@@ -100,7 +100,8 @@ TEST(TttUnwrapper, RealVx1740SequenceAcrossTwoWraps) {
   }
   EXPECT_LT(maxLag, 5e6);  // < 5 ms entre el TTT desenrollado y la lectura del PC
   EXPECT_NEAR(static_cast<double>(prev) / 1e9, 37.0, 0.5);
-  // Sin la máscara (32 bit) el desenrollado se rompe: lo que DAQ2-6 corrigió.
+  // Con un contador supuesto de 32 bit (vuelta de 2^32 ticks) el desenrollado se rompe: el contador
+  // real es de 31 bit.
   daqrun::TttUnwrapper u32(origin, 8.0, 32);
   double maxLag32 = 0;
   for (const auto& e : ev) maxLag32 = std::max(maxLag32, std::fabs(static_cast<double>(e.second - (origin + u32.tttNs(e.first, e.second)))));

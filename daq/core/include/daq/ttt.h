@@ -6,8 +6,10 @@
 // Algoritmo: con la hora del PC de la lectura (t_read) y el origen del run (UTC antes del start),
 // se elige el número de vueltas k que deja origen + ttt más cerca de t_read; nunca retrocede
 // respecto del evento anterior.
-// recompute(): corrección de los runs 1 y 2 de commissioning_2026_10, escritos antes de la
-// máscara de 31 bit (ttt_ns y t_utc_ns guardados son incorrectos; ttt_raw y t_read_utc_ns no).
+// recompute(): recalcula ttt_ns y t_utc_ns desde ttt_raw y t_read_utc_ns. Con él se revisaron los
+// runs 1 y 2 de commissioning_2026_10, escritos antes de la máscara de 31 bit: sus valores guardados
+// son correctos (0 de 12000 distintos en cada run), porque el bit 31 vale exactamente una vuelta y
+// la elección de vueltas por la hora del PC lo absorbió.
 // Funciones puras: seguras entre hilos.
 #pragma once
 
