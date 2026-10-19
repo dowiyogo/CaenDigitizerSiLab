@@ -78,6 +78,11 @@ Acquisition and analysis for two scintillator hodoscopes read by MPPCs:
    does not mention it, stop and ask. Files the task prompt names explicitly are
    authorized. This replaces the AGENTS.md rule "do not write if any file changed in the
    last hour".
+   The Antigravity editor extension (`agy`, Gemini) may be running: it starts with the editor
+   and René keeps it idle on this repository. Its presence is not a reason to stop. Instead,
+   before EVERY commit run `git status` and compare it with the files you changed in the task;
+   if any other file changed (besides the known ones, e.g. `analysis/scripts/hv_diag6_shape.py`),
+   stop and report instead of committing.
 8. Copy every reported number verbatim from command output. If something was not
    measured, say so. Do not run `make` in the repository root (DAQ binaries used for data
    taking live there); use `make -n`.
