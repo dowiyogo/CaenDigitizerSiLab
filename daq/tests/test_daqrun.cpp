@@ -15,6 +15,7 @@
 #include "daq/daqrun/config.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/daqrun/notes.h"
+#include "daq/dig/fake_digitizer.h"
 #include "daq/core/spawn.h"
 #include "daq/hvmon/mapping.h"
 #include "daq/hvmon/notifier.h"
@@ -369,4 +370,66 @@ TEST(HvmonWatchdog, OneMailPerStaleEpisodeAfterFiveMinutesMarkedWithRun) {
   EXPECT_NE(sp.bodies[0].find("Subject: =?UTF-8?"), std::string::npos);
   EXPECT_NE(sp.bodies[0].find("Origen: daqrun campaña commissioning_2026_10 run 3"), std::string::npos) << sp.bodies[0];
   EXPECT_NE(sp.bodies[0].find("Retraso de entrega: 300 s"), std::string::npos) << sp.bodies[0];
+}
+
+TEST(TriggerWatchdog, NoTriggersAndResumedWithFakeDigitizerGap) {
+  // FakeDigitizer a 0.6 Hz con un hueco de triggers de 12 min desde t = 600 s (como el crate NIM
+  // apagado por temperatura): un correo "no_triggers" a los 5 min sin triggers y uno
+  // "triggers_resumed" con la duración del hueco cuando vuelven.
+  ManualClock clock;
+  auto sp = dig::SyntheticParams::fromJson(
+      {{"seed", 9}, {"trigger_rate_Hz", 0.6}, {"events", {{{"t_s", 600}, {"type", "trigger_gap"}, {"duration_s", 720}}}}});
+  ASSERT_TRUE(sp.ok());
+  dig::FakeDigitizer fd(sp.value(), clock);
+  dig::DigitizerConfig dc;
+  ASSERT_TRUE(fd.configure(dc).ok());
+  const UtcNs t0 = fd.start().value().utcBeforeStart;
+  TriggerWatchdog wd(300.0, "daqrun campaña commissioning_2026_10 run 4", t0);
+  std::vector<hvmon::NotifyEvent> ev;
+  UtcNs lastBeforeGap = 0;
+  for (int s = 0; s < 2400; ++s) {
+    clock.advance(std::chrono::seconds(1));
+    dig::EventBlock b;
+    ASSERT_TRUE(fd.readBlock(b, 100).ok());
+    if (!b.events.empty() && s < 600) lastBeforeGap = b.tReadUtcNs;
+    if (auto e = wd.onTriggers(b.tReadUtcNs, b.events.size(), 25.0)) ev.push_back(*e);
+    if (auto e = wd.tick(clock.now_utc_ns(), 25.0)) ev.push_back(*e);
+  }
+  ASSERT_EQ(ev.size(), 2u);
+  EXPECT_EQ(ev[0].kind, "no_triggers");
+  EXPECT_EQ(ev[0].tUtcNs, lastBeforeGap);  // hora del último trigger
+  EXPECT_NE(ev[0].reason.find("último trigger a las"), std::string::npos);
+  EXPECT_EQ(ev[0].context["board_temperature_degC"], 25.0);
+  EXPECT_EQ(ev[0].context["last_trigger_utc_ns"], lastBeforeGap);
+  EXPECT_EQ(ev[1].kind, "triggers_resumed");
+  const double gap = ev[1].context["gap_s"].get<double>();
+  EXPECT_GT(gap, 720.0);   // el hueco del guion más los intervalos de Poisson a ambos lados
+  EXPECT_LT(gap, 760.0);
+  EXPECT_NE(ev[1].reason.find("tras un hueco de"), std::string::npos);
+  EXPECT_EQ(ev[1].origin, "daqrun campaña commissioning_2026_10 run 4");
+  // Sin triggers desde el inicio del run: el aviso lo dice; un solo aviso por episodio.
+  TriggerWatchdog wd2(300.0, "x", t0);
+  EXPECT_FALSE(wd2.tick(t0 + 299 * kS, std::nullopt));
+  auto e = wd2.tick(t0 + 301 * kS, std::nullopt);
+  ASSERT_TRUE(e);
+  EXPECT_NE(e->reason.find("ningún trigger desde el inicio"), std::string::npos);
+  EXPECT_TRUE(e->context["board_temperature_degC"].is_null());
+  EXPECT_FALSE(wd2.tick(t0 + 900 * kS, std::nullopt));
+  // El correo lleva el texto, la temperatura de la placa HV y la hora del último trigger.
+  ManualClock nclock(lastBeforeGap + 300 * kS);
+  hvmon::StateHub hub;
+  NoSpawn spn;
+  hvmon::SmtpSettings smtp;
+  smtp.url = "smtps://x";
+  smtp.from = "a@x";
+  smtp.to = {"b@x"};
+  hvmon::Notifier n(hvmon::NotifierConfig::fromJson({{"enabled", true}, {"outbox_dir", tmpDir("trigbox")}}).value(), smtp,
+                    std::nullopt, spn, nclock, ::testing::TempDir(), hub, "h");
+  ASSERT_TRUE(n.submit(ev[0]));
+  ASSERT_TRUE(n.submit(ev[1]));
+  n.processDue();
+  ASSERT_EQ(spn.bodies.size(), 2u);
+  EXPECT_NE(spn.bodies[0].find("SIN TRIGGERS externos"), std::string::npos);
+  EXPECT_NE(spn.bodies[0].find("Temperatura de la placa A7030DP (no del detector): 25.0 degC"), std::string::npos);
+  EXPECT_NE(spn.bodies[1].find("VOLVIERON"), std::string::npos);
 }

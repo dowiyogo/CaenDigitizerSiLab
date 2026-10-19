@@ -87,6 +87,8 @@ std::string describeEvent(const std::string& kind) {
   if (kind == "writer_error") return "ERROR de escritura de los archivos de control lento";
   if (kind == "connection_lost") return "CONEXIÓN PERDIDA con el SY5527";
   if (kind == "hvmon_stale") return "hvmon NO RESPONDE durante un run de daqrun (bit 4 en todos los canales)";
+  if (kind == "no_triggers") return "SIN TRIGGERS externos durante un run de daqrun";
+  if (kind == "triggers_resumed") return "Los triggers externos VOLVIERON";
   return kind;
 }
 

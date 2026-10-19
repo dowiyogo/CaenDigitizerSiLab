@@ -322,6 +322,7 @@ int main(int argc, char** argv) {
   nlohmann::json ncfgJson = cfg.notifier;
   if (!ncfgJson.contains("outbox_dir")) ncfgJson["outbox_dir"] = hvmon::defaultOutboxDir() + "-daqrun";
   ncfgJson.erase("hvmon_stale_alert_min");
+  ncfgJson.erase("no_trigger_alert_min");
   auto ncfg = hvmon::NotifierConfig::fromJson(ncfgJson);
   if (!ncfg) {
     logError("notifier: ", ncfg.error().message);
@@ -355,12 +356,27 @@ int main(int argc, char** argv) {
   JThread notifyThread;
   if (notifier) notifyThread = JThread([&](StopToken st) { notifier->run(notifyQ, st); });
   JThread hvThread([&](StopToken st) { hvClient.run(st); });
+  // Aviso "sin triggers" (solo con trigger externo): en el hilo monitor, que ve cada bloque.
+  const bool watchTriggers = cfg.digitizer.externalTrigger && !cfg.digitizer.softwareTrigger;
+  TriggerWatchdog trigWatch(cfg.noTriggerAlertMin * 60.0,
+                            "daqrun campaña " + cfg.campaign + " run " + std::to_string(run.run()) + " (" + run.baseName() + ")",
+                            rs.origin.utcBeforeStart);
+  auto trigEvent = [&](std::optional<hvmon::NotifyEvent> e) {
+    if (!e) return;
+    logWarn(e->kind == "no_triggers" ? "sin triggers externos: " : "triggers de vuelta: ", e->reason);
+    if (notifier) notifyQ.try_push(std::move(*e), DropPolicy::DropNewest);
+  };
   JThread monitorThread([&] {
     Logger::setThreadName("monitor");
     SteadyTime nextView = clock.now_steady();
     for (;;) {
       auto b = monitorQ.pop_until(std::chrono::steady_clock::now() + std::chrono::seconds(1));
       if (b) monitor.process(**b);
+      if (watchTriggers) {
+        const auto temp = hvClient.latest().first.boardTempDegC;
+        if (b) trigEvent(trigWatch.onTriggers((*b)->tReadUtcNs, (*b)->events.size(), temp));
+        trigEvent(trigWatch.tick(clock.now_utc_ns(), temp));
+      }
       MonitorSummary s;
       if (monitor.takeSummary(clock.now_utc_ns(), s, rstats.monitorDropped.load())) sumQ.try_push(std::move(s), DropPolicy::DropOldest);
       if (clock.now_steady() >= nextView) {

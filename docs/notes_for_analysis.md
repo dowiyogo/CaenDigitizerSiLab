@@ -87,3 +87,15 @@ por `t_resp_utc_ns`.
   el método de DAQ2-1 sobre los mismos eventos; hod2019 > 3 mV 29.67 / 29.26 kHz. El estudio de
   DAQ2-1 (otros 9057 eventos repartidos en el run) dio 331.4 y 24.27 kHz: las tasas cambian a lo
   largo de v8. No se analizó por qué.
+
+## 8. Tiempos muertos de trigger en v7-v10: posible apagado térmico del crate NIM (DAQ2-6, 2026-10-19)
+
+El 2026-10-19 el trigger externo no llegaba al VX1740: la fuente del crate NIM (CAEN) se había
+apagado por sobretemperatura (la sala cerrada se calienta de noche o con el sol), dejando sin
+alimentación el discriminador N845 y el AND N405. Al volver a encenderla, los triggers volvieron.
+Los tiempos muertos de trigger de v7-v10 se atribuyeron al cable; pueden venir también (o en
+cambio) de estos apagados. Sugerencia: listar los huecos de trigger de v7-v10 (Δt mayores que el
+umbral de `trigger_interval_stats.h`, ojo con que `timestamp` es por lectura y en hora UTC-4) y ver
+si se agrupan en las horas más calurosas del día o con sol directo, y si su duración se parece a la
+de un enfriamiento de la fuente (no a un corte de cable intermitente). desde DAQ2-6 daqrun avisa por
+correo tras 5 min sin triggers en runs con trigger externo, con la temperatura de la placa HV.

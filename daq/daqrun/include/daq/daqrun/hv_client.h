@@ -69,6 +69,7 @@ struct HvSample {
   std::uint64_t stateSeq = 0, readSeq = 0;
   UtcNs stateUtcNs = 0, tReqUtcNs = 0, tRespUtcNs = 0;
   long pid = 0;
+  std::optional<double> boardTempDegC;  // temperatura de la placa A7030DP (no del detector)
   std::array<HvChannelSample, kHvChannels> ch{};
   nlohmann::json newChanges = nlohmann::json::array();  // cambios con id > el último visto
   nlohmann::json raw;  // estado completo (solo en la primera muestra: cabecera del run)
@@ -153,6 +154,30 @@ class FlagEngine {
   std::deque<Read> reads_;
   std::deque<Liveness> live_;
   std::array<std::deque<std::pair<UtcNs, double>>, kHvChannels> imonHist_;
+};
+
+// Vigilante de triggers (runs con trigger externo): si no llega ningún trigger durante thresholdS
+// devuelve un evento "no_triggers" (hora del último trigger, run, campaña, temperatura de la placa
+// HV); cuando vuelven, "triggers_resumed" con la duración del hueco. Uno de cada por episodio.
+// Lógica pura: la hora la pone quien llama (hora de lectura de los bloques y del reloj).
+class TriggerWatchdog {
+ public:
+  TriggerWatchdog(double thresholdS, std::string origin, UtcNs runStartUtc)
+      : thresholdS_(thresholdS), origin_(std::move(origin)), last_(runStartUtc), runStart_(runStartUtc) {}
+  // Un bloque con eventos leído a tReadUtc.
+  std::optional<hvmon::NotifyEvent> onTriggers(UtcNs tReadUtc, std::uint64_t nEvents, std::optional<double> boardTempDegC);
+  // Llamar periódicamente (p. ej. cada segundo).
+  std::optional<hvmon::NotifyEvent> tick(UtcNs now, std::optional<double> boardTempDegC);
+  bool alerted() const { return alerted_; }
+  UtcNs lastTriggerUtc() const { return last_; }
+
+ private:
+  hvmon::NotifyEvent make(const std::string& kind, UtcNs t, std::optional<double> temp) const;
+  double thresholdS_;
+  std::string origin_;
+  UtcNs last_, runStart_;
+  bool any_ = false, alerted_ = false;
+  std::uint64_t episode_ = 0;
 };
 
 // Flags de evento que no dependen de HV: contador de la placa, memoria llena, TTT contra PC,

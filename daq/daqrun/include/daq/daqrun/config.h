@@ -88,6 +88,7 @@ struct DaqrunConfig {
   // un run (biblioteca del notificador de hvmon; outbox propio).
   nlohmann::json notifier = nlohmann::json::object();  // claves de NotifierConfig
   double hvmonStaleAlertMin = 5.0;
+  double noTriggerAlertMin = 5.0;  // runs con trigger externo: aviso "sin triggers"
 
   bool simulated() const { return digitizer.backend != "caen"; }
   std::string campaignDir() const { return rawRoot + "/" + campaign; }

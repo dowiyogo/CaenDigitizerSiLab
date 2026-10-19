@@ -81,6 +81,8 @@ HvSample parseHvState(const nlohmann::json& s, UtcNs now, double staleAfterS, bo
       else if (c.contains("auto_retry") && c["auto_retry"].is_string()) x.retryState = c["auto_retry"].get<std::string>();
     }
     h.newChanges = s.value("changes", nlohmann::json::array());
+    if (s.contains("board_temperature_degC") && s["board_temperature_degC"].is_number())
+      h.boardTempDegC = s["board_temperature_degC"].get<double>();
   } catch (const std::exception& e) {
     h.fileOk = false;
     h.alive = false;
@@ -176,6 +178,52 @@ std::optional<hvmon::NotifyEvent> HvmonWatchdog::feed(const HvSample& s) {
   e.reason = "el estado de hvmon no está vivo o está viejo desde " + formatUtcIso(badSince_) + " (" + m +
              " min); el run sigue con el bit 4 (HV_UNKNOWN) en todos los canales. Último motivo: " +
              (lastError_.empty() ? std::string("stale") : lastError_);
+  return e;
+}
+
+hvmon::NotifyEvent TriggerWatchdog::make(const std::string& kind, UtcNs t, std::optional<double> temp) const {
+  hvmon::NotifyEvent e;
+  e.kind = kind;
+  e.ch = -1;
+  e.episode = episode_;
+  e.tUtcNs = t;
+  e.origin = origin_;
+  e.context = nlohmann::json::object();
+  e.context["board_temperature_degC"] = temp ? nlohmann::json(*temp) : nlohmann::json();
+  return e;
+}
+
+std::optional<hvmon::NotifyEvent> TriggerWatchdog::onTriggers(UtcNs tReadUtc, std::uint64_t nEvents, std::optional<double> temp) {
+  if (nEvents == 0) return std::nullopt;
+  std::optional<hvmon::NotifyEvent> out;
+  if (alerted_) {
+    const double gap = static_cast<double>(tReadUtc - last_) / kNs;
+    auto e = make("triggers_resumed", tReadUtc, temp);
+    char g[96];
+    std::snprintf(g, sizeof g, "%.0f s (%.1f min)", gap, gap / 60.0);
+    e.reason = "los triggers volvieron a las " + formatUtcIso(tReadUtc) + " tras un hueco de " + g + " (último trigger antes del hueco: " +
+               formatUtcIso(last_) + ")";
+    e.context["gap_s"] = gap;
+    e.context["last_trigger_before_gap_utc_ns"] = last_;
+    out = e;
+    alerted_ = false;
+  }
+  last_ = tReadUtc;
+  any_ = true;
+  return out;
+}
+
+std::optional<hvmon::NotifyEvent> TriggerWatchdog::tick(UtcNs now, std::optional<double> temp) {
+  if (alerted_ || static_cast<double>(now - last_) / kNs < thresholdS_) return std::nullopt;
+  alerted_ = true;
+  ++episode_;
+  auto e = make("no_triggers", last_, temp);
+  char m[64];
+  std::snprintf(m, sizeof m, "%.1f", static_cast<double>(now - last_) / 60e9);
+  e.reason = std::string("sin triggers externos desde hace ") + m + " min; " +
+             (any_ ? "último trigger a las " + formatUtcIso(last_) : "ningún trigger desde el inicio del run (" + formatUtcIso(runStart_) + ")") +
+             ". Revisar la cadena de trigger (fuente del crate NIM: se apaga por sobretemperatura).";
+  e.context["last_trigger_utc_ns"] = any_ ? nlohmann::json(last_) : nlohmann::json();
   return e;
 }
 
