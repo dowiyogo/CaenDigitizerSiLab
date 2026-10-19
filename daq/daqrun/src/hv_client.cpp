@@ -193,37 +193,61 @@ hvmon::NotifyEvent TriggerWatchdog::make(const std::string& kind, UtcNs t, std::
   return e;
 }
 
+double TriggerWatchdog::windowRateHz(UtcNs now) const {
+  std::uint64_t n = 0;
+  for (const auto& r : recent_)
+    if (r.first > now - static_cast<UtcNs>(windowS_ * kNs)) n += r.second;
+  return static_cast<double>(n) / windowS_;
+}
+
+bool TriggerWatchdog::lowRate(UtcNs now) const {
+  if (minRate_ <= 0) return false;
+  if (static_cast<double>(now - runStart_) / kNs < windowS_) return false;  // ventana aún incompleta
+  return windowRateHz(now) < minRate_;
+}
+
 std::optional<hvmon::NotifyEvent> TriggerWatchdog::onTriggers(UtcNs tReadUtc, std::uint64_t nEvents, std::optional<double> temp) {
   if (nEvents == 0) return std::nullopt;
-  std::optional<hvmon::NotifyEvent> out;
-  if (alerted_) {
-    const double gap = static_cast<double>(tReadUtc - last_) / kNs;
-    auto e = make("triggers_resumed", tReadUtc, temp);
-    char g[96];
-    std::snprintf(g, sizeof g, "%.0f s (%.1f min)", gap, gap / 60.0);
-    e.reason = "los triggers volvieron a las " + formatUtcIso(tReadUtc) + " tras un hueco de " + g + " (último trigger antes del hueco: " +
-               formatUtcIso(last_) + ")";
-    e.context["gap_s"] = gap;
-    e.context["last_trigger_before_gap_utc_ns"] = last_;
-    out = e;
-    alerted_ = false;
-  }
+  recent_.emplace_back(tReadUtc, nEvents);
+  while (!recent_.empty() && recent_.front().first < tReadUtc - static_cast<UtcNs>(windowS_ * kNs)) recent_.pop_front();
+  const UtcNs prevLast = last_;
   last_ = tReadUtc;
   any_ = true;
-  return out;
+  if (!alerted_ || lowRate(tReadUtc)) return std::nullopt;  // sigue el episodio si la tasa no se recuperó
+  const double gap = static_cast<double>(tReadUtc - episodeStart_) / kNs;
+  auto e = make("triggers_resumed", tReadUtc, temp);
+  char g[160];
+  std::snprintf(g, sizeof g, "%.0f s (%.1f min); tasa en los últimos %.0f min: %.3f Hz", gap, gap / 60.0, windowS_ / 60.0,
+                windowRateHz(tReadUtc));
+  e.reason = "los triggers volvieron a las " + formatUtcIso(tReadUtc) + " tras un episodio de " + g +
+             " (último trigger antes de esta lectura: " + formatUtcIso(prevLast) + ")";
+  e.context["gap_s"] = gap;
+  e.context["episode_start_utc_ns"] = episodeStart_;
+  alerted_ = false;
+  return e;
 }
 
 std::optional<hvmon::NotifyEvent> TriggerWatchdog::tick(UtcNs now, std::optional<double> temp) {
-  if (alerted_ || static_cast<double>(now - last_) / kNs < thresholdS_) return std::nullopt;
+  if (alerted_) return std::nullopt;
+  const bool silent = static_cast<double>(now - last_) / kNs >= thresholdS_;
+  const bool low = lowRate(now);
+  if (!silent && !low) return std::nullopt;
   alerted_ = true;
   ++episode_;
+  episodeStart_ = silent ? last_ : now - static_cast<UtcNs>(windowS_ * kNs);
   auto e = make("no_triggers", last_, temp);
-  char m[64];
-  std::snprintf(m, sizeof m, "%.1f", static_cast<double>(now - last_) / 60e9);
-  e.reason = std::string("sin triggers externos desde hace ") + m + " min; " +
+  char m[160];
+  if (silent)
+    std::snprintf(m, sizeof m, "sin triggers externos desde hace %.1f min", static_cast<double>(now - last_) / 60e9);
+  else
+    std::snprintf(m, sizeof m, "tasa de triggers externos %.4f Hz en los últimos %.0f min (mínimo configurado %.3f Hz)",
+                  windowRateHz(now), windowS_ / 60.0, minRate_);
+  e.reason = std::string(m) + "; " +
              (any_ ? "último trigger a las " + formatUtcIso(last_) : "ningún trigger desde el inicio del run (" + formatUtcIso(runStart_) + ")") +
              ". Revisar la cadena de trigger (fuente del crate NIM: se apaga por sobretemperatura).";
   e.context["last_trigger_utc_ns"] = any_ ? nlohmann::json(last_) : nlohmann::json();
+  e.context["window_rate_Hz"] = windowRateHz(now);
+  e.context["condition"] = silent ? "silencio" : "tasa baja";
   return e;
 }
 

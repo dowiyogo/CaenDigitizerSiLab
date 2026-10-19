@@ -121,6 +121,8 @@ Result<DaqrunConfig> DaqrunConfig::fromJson(const nlohmann::json& jIn) {
     c.notifier = j.value("notifier", nlohmann::json::object());
     c.hvmonStaleAlertMin = c.notifier.value("hvmon_stale_alert_min", c.hvmonStaleAlertMin);
     c.noTriggerAlertMin = c.notifier.value("no_trigger_alert_min", c.noTriggerAlertMin);
+    c.minTriggerRateHz = c.notifier.value("min_trigger_rate_Hz", c.minTriggerRateHz);
+    c.triggerRateWindowMin = c.notifier.value("trigger_rate_window_min", c.triggerRateWindowMin);
   } catch (const std::exception& e) {
     return R::failure(-1, std::string("configuración de daqrun inválida: ") + e.what());
   }
@@ -137,7 +139,7 @@ Result<DaqrunConfig> DaqrunConfig::fromJson(const nlohmann::json& jIn) {
   if (c.mode != "physics" && c.mode != "calibration") return R::failure(-1, "run.mode debe ser physics o calibration");
   if (c.writerQueueCapacity == 0 || c.monitorQueueCapacity == 0 || c.hvQueueCapacity == 0)
     return R::failure(-1, "queues: las capacidades deben ser > 0");
-  if (c.hvmonStaleAlertMin <= 0 || c.noTriggerAlertMin <= 0)
+  if (c.hvmonStaleAlertMin <= 0 || c.noTriggerAlertMin <= 0 || c.minTriggerRateHz < 0 || c.triggerRateWindowMin <= 0)
     return R::failure(-1, "notifier.hvmon_stale_alert_min y no_trigger_alert_min deben ser > 0");
   if (c.segmentMaxS <= 0 || c.autosaveS <= 0 || c.flagDelayS < 0 || c.hvPollPeriodS <= 0 || c.hvStaleAfterS <= 0 ||
       c.hvSnapshotPeriodS <= 0 || c.summaryPeriodS <= 0)
@@ -224,6 +226,8 @@ nlohmann::json DaqrunConfig::toJson() const {
              nlohmann::json n = notifier;
              n["hvmon_stale_alert_min"] = hvmonStaleAlertMin;
              n["no_trigger_alert_min"] = noTriggerAlertMin;
+             n["min_trigger_rate_Hz"] = minTriggerRateHz;
+             n["trigger_rate_window_min"] = triggerRateWindowMin;
              return n;
            }()}};
 }

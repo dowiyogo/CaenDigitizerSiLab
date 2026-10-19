@@ -156,14 +156,17 @@ class FlagEngine {
   std::array<std::deque<std::pair<UtcNs, double>>, kHvChannels> imonHist_;
 };
 
-// Vigilante de triggers (runs con trigger externo): si no llega ningún trigger durante thresholdS
-// devuelve un evento "no_triggers" (hora del último trigger, run, campaña, temperatura de la placa
-// HV); cuando vuelven, "triggers_resumed" con la duración del hueco. Uno de cada por episodio.
+// Vigilante de triggers (runs con trigger externo). Episodio "sin triggers" si (a) no llega ningún
+// trigger durante thresholdS, o (b) la tasa en la ventana de windowS cae bajo minRateHz (triggers
+// sueltos cada pocos minutos, como con el crate NIM fallando, DAQ2-6). Devuelve "no_triggers" (hora
+// del último trigger, tasa de la ventana, run, campaña, temperatura de la placa HV) y, cuando
+// vuelve la normalidad, "triggers_resumed" con la duración del episodio. Uno de cada por episodio.
 // Lógica pura: la hora la pone quien llama (hora de lectura de los bloques y del reloj).
 class TriggerWatchdog {
  public:
-  TriggerWatchdog(double thresholdS, std::string origin, UtcNs runStartUtc)
-      : thresholdS_(thresholdS), origin_(std::move(origin)), last_(runStartUtc), runStart_(runStartUtc) {}
+  TriggerWatchdog(double thresholdS, std::string origin, UtcNs runStartUtc, double minRateHz = 0.0, double windowS = 600.0)
+      : thresholdS_(thresholdS), origin_(std::move(origin)), last_(runStartUtc), runStart_(runStartUtc), minRate_(minRateHz),
+        windowS_(windowS) {}
   // Un bloque con eventos leído a tReadUtc.
   std::optional<hvmon::NotifyEvent> onTriggers(UtcNs tReadUtc, std::uint64_t nEvents, std::optional<double> boardTempDegC);
   // Llamar periódicamente (p. ej. cada segundo).
@@ -173,10 +176,15 @@ class TriggerWatchdog {
 
  private:
   hvmon::NotifyEvent make(const std::string& kind, UtcNs t, std::optional<double> temp) const;
+  double windowRateHz(UtcNs now) const;
+  bool lowRate(UtcNs now) const;
   double thresholdS_;
   std::string origin_;
   UtcNs last_, runStart_;
+  double minRate_, windowS_;
+  std::deque<std::pair<UtcNs, std::uint64_t>> recent_;  // (hora de lectura, eventos) en la ventana
   bool any_ = false, alerted_ = false;
+  UtcNs episodeStart_ = 0;
   std::uint64_t episode_ = 0;
 };
 

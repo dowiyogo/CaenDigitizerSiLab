@@ -323,6 +323,8 @@ int main(int argc, char** argv) {
   if (!ncfgJson.contains("outbox_dir")) ncfgJson["outbox_dir"] = hvmon::defaultOutboxDir() + "-daqrun";
   ncfgJson.erase("hvmon_stale_alert_min");
   ncfgJson.erase("no_trigger_alert_min");
+  ncfgJson.erase("min_trigger_rate_Hz");
+  ncfgJson.erase("trigger_rate_window_min");
   auto ncfg = hvmon::NotifierConfig::fromJson(ncfgJson);
   if (!ncfg) {
     logError("notifier: ", ncfg.error().message);
@@ -360,7 +362,7 @@ int main(int argc, char** argv) {
   const bool watchTriggers = cfg.digitizer.externalTrigger && !cfg.digitizer.softwareTrigger;
   TriggerWatchdog trigWatch(cfg.noTriggerAlertMin * 60.0,
                             "daqrun campaña " + cfg.campaign + " run " + std::to_string(run.run()) + " (" + run.baseName() + ")",
-                            rs.origin.utcBeforeStart);
+                            rs.origin.utcBeforeStart, cfg.minTriggerRateHz, cfg.triggerRateWindowMin * 60.0);
   auto trigEvent = [&](std::optional<hvmon::NotifyEvent> e) {
     if (!e) return;
     logWarn(e->kind == "no_triggers" ? "sin triggers externos: " : "triggers de vuelta: ", e->reason);

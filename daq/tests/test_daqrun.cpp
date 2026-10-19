@@ -405,7 +405,7 @@ TEST(TriggerWatchdog, NoTriggersAndResumedWithFakeDigitizerGap) {
   const double gap = ev[1].context["gap_s"].get<double>();
   EXPECT_GT(gap, 720.0);   // el hueco del guion más los intervalos de Poisson a ambos lados
   EXPECT_LT(gap, 760.0);
-  EXPECT_NE(ev[1].reason.find("tras un hueco de"), std::string::npos);
+  EXPECT_NE(ev[1].reason.find("tras un episodio de"), std::string::npos);
   EXPECT_EQ(ev[1].origin, "daqrun campaña commissioning_2026_10 run 4");
   // Sin triggers desde el inicio del run: el aviso lo dice; un solo aviso por episodio.
   TriggerWatchdog wd2(300.0, "x", t0);
@@ -432,4 +432,37 @@ TEST(TriggerWatchdog, NoTriggersAndResumedWithFakeDigitizerGap) {
   EXPECT_NE(spn.bodies[0].find("SIN TRIGGERS externos"), std::string::npos);
   EXPECT_NE(spn.bodies[0].find("Temperatura de la placa A7030DP (no del detector): 25.0 degC"), std::string::npos);
   EXPECT_NE(spn.bodies[1].find("VOLVIERON"), std::string::npos);
+}
+
+TEST(TriggerWatchdog, SparseTriggersCountAsLowRate) {
+  // Como en el run005 de DAQ2-6: tras 5 min normales, un trigger suelto cada ~3 min (nunca 5 min de
+  // silencio): el criterio de tasa (< 0.1 Hz en 10 min) avisa; vuelve cuando la tasa se recupera.
+  const UtcNs t0 = kT0;
+  TriggerWatchdog wd(300.0, "run 5", t0, 0.1, 600.0);
+  std::vector<hvmon::NotifyEvent> ev;
+  for (int s = 1; s <= 3600; ++s) {
+    const UtcNs now = t0 + s * kS;
+    std::uint64_t n = 0;
+    if (s < 300 || s > 2400) n = (s % 2 == 0) ? 1 : 0;  // 0.5 Hz normal
+    else if (s % 180 == 0) n = 1;                      // suelto
+    if (auto e = wd.onTriggers(now, n, 30.0)) ev.push_back(*e);
+    if (auto e = wd.tick(now, 30.0)) ev.push_back(*e);
+  }
+  ASSERT_EQ(ev.size(), 2u);
+  EXPECT_EQ(ev[0].kind, "no_triggers");
+  EXPECT_EQ(ev[0].context["condition"], "tasa baja");
+  EXPECT_LT(ev[0].context["window_rate_Hz"].get<double>(), 0.1);
+  EXPECT_NE(ev[0].reason.find("tasa de triggers externos"), std::string::npos);
+  EXPECT_EQ(ev[1].kind, "triggers_resumed");
+  EXPECT_GT(ev[1].tUtcNs, t0 + 2400 * kS);
+  // Sin criterio de tasa (min 0) los triggers sueltos no avisan: el comportamiento anterior.
+  TriggerWatchdog old(300.0, "run 5", t0, 0.0, 600.0);
+  int n = 0;
+  for (int s = 1; s <= 3600; ++s) {
+    const UtcNs now = t0 + s * kS;
+    std::uint64_t k = (s < 300 || s > 2400) ? ((s % 2 == 0) ? 1 : 0) : (s % 180 == 0 ? 1 : 0);
+    n += old.onTriggers(now, k, std::nullopt).has_value();
+    n += old.tick(now, std::nullopt).has_value();
+  }
+  EXPECT_EQ(n, 0);
 }

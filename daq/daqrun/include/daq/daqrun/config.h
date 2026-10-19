@@ -89,6 +89,8 @@ struct DaqrunConfig {
   nlohmann::json notifier = nlohmann::json::object();  // claves de NotifierConfig
   double hvmonStaleAlertMin = 5.0;
   double noTriggerAlertMin = 5.0;  // runs con trigger externo: aviso "sin triggers"
+  double minTriggerRateHz = 0.1;   // ... o tasa bajo este valor en la ventana
+  double triggerRateWindowMin = 10.0;
 
   bool simulated() const { return digitizer.backend != "caen"; }
   std::string campaignDir() const { return rawRoot + "/" + campaign; }
