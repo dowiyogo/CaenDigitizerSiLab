@@ -27,6 +27,7 @@
 #include "daq/core/jthread.h"
 #include "daq/core/logger.h"
 #include "daq/core/secrets.h"
+#include "daq/core/time.h"
 #include "daq/core/unix_socket.h"
 #include "daq/hv/caen_hv_backend.h"
 #include "daq/hv/credentials.h"
@@ -96,7 +97,9 @@ int main(int argc, char** argv) {
     const std::string def = hv::expandHome("~/.config/daqv2/hvmon.json");
     if (PosixFileSystem().exists(def)) configPath = def;
   }
-  auto cfgR = configPath.empty() ? HvmonConfig::fromJson(nlohmann::json::object()) : HvmonConfig::fromFile(configPath);
+  const bool fakeBackend = !fake.empty();
+  auto cfgR = configPath.empty() ? HvmonConfig::fromJson(nlohmann::json::object(), fakeBackend)
+                                 : HvmonConfig::fromFile(configPath, fakeBackend);
   if (!cfgR) {
     std::fprintf(stderr, "hvmon: %s\n", cfgR.error().message.c_str());
     return 2;
@@ -108,6 +111,11 @@ int main(int argc, char** argv) {
   }
   if (!cfg.logFile.empty()) {
     if (auto st = Logger::instance().openFile(cfg.logFile); !st) std::fprintf(stderr, "hvmon: %s\n", st.error().message.c_str());
+  }
+  // Hora local de los correos: TZ del proceso, fijada antes de crear hilos.
+  if (auto st = setProcessTimeZone(cfg.notifier.localTimezone); !st) {
+    std::fprintf(stderr, "hvmon: notifier.local_timezone: %s\n", st.error().message.c_str());
+    return 2;
   }
   logInfo("hvmon arranca (pid ", ::getpid(), "), configuración ", configPath.empty() ? "por defecto" : configPath, ": ",
           redactSecrets(cfg.toJson()).dump());
@@ -194,6 +202,7 @@ int main(int argc, char** argv) {
       if (m) mapping = m.value();
       else logWarn("notificador sin mapeo: ", m.error().message);
       notifier = std::make_unique<Notifier>(cfg.notifier, smtp.value(), mapping, spawner, clock, cfg.runtimeDir, hub);
+      notifier->setSimulatedBackend(fakeBackend);
       poller.setNotifyQueue(&notifyQ);
       handler.setNotifyQueue(&notifyQ);
       logInfo("notificador: ", cfg.notifier.enabled ? "habilitado" : "deshabilitado (solo notify-test)", ", ",

@@ -83,6 +83,12 @@ std::string describeEvent(const std::string& kind) {
   return kind;
 }
 
+// "2026-10-19T09:27:13.740Z (2026-10-19 06:27:13 -03)": UTC con ms y hora local del proceso.
+std::string utcAndLocal(UtcNs t) {
+  const std::string iso = formatUtcIso(t);  // YYYY-MM-DDThh:mm:ss.nnnnnnnnnZ
+  return iso.substr(0, 23) + "Z (" + formatLocalShort(t) + ")";
+}
+
 }  // namespace
 
 Result<NotifierConfig> NotifierConfig::fromJson(const nlohmann::json& j) {
@@ -100,6 +106,9 @@ Result<NotifierConfig> NotifierConfig::fromJson(const nlohmann::json& j) {
     c.curlPath = j.value("curl", c.curlPath);
     c.maxTimeS = j.value("max_time_s", c.maxTimeS);
     c.mappingFile = j.value("mapping_file", c.mappingFile);
+    c.localTimezone = j.value("local_timezone", c.localTimezone);
+    c.pageSshUser = j.value("page_ssh_user", c.pageSshUser);
+    c.pageSshHost = j.value("page_ssh_host", c.pageSshHost);
   } catch (const std::exception& e) {
     return R::failure(-1, std::string("notifier inválido: ") + e.what());
   }
@@ -114,7 +123,8 @@ nlohmann::json NotifierConfig::toJson() const {
                         {"notify_connection_lost", notifyConnectionLost}, {"connection_lost_min", connectionLostMin},
                         {"problem_interval_min", problemIntervalMin}, {"retry_delays_min", retryDelaysMin},
                         {"curl", curlPath},             {"max_time_s", maxTimeS},
-                        {"mapping_file", mappingFile}};
+                        {"mapping_file", mappingFile}, {"local_timezone", localTimezone},
+                        {"page_ssh_user", pageSshUser}, {"page_ssh_host", pageSshHost}};
 }
 
 Result<SmtpSettings> SmtpSettings::fromSecrets(Secrets& s) {
@@ -208,9 +218,15 @@ std::string Notifier::groupText(int hvCh) const {
 }
 
 std::string Notifier::composeMessage(const NotifyEvent& e, std::string* subjectOut) const {
-  const std::string prueba = e.test ? "PRUEBA " : "";
+  // Marca de simulación: [PRUEBA] (hvctl notify-test) o [SIMULADO] (FakeHVBackend o canal en
+  // test_mode) al inicio del asunto y en la primera línea del cuerpo.
+  const bool simulated = e.simulated || simulatedBackend_;
   std::ostringstream subj;
-  subj << "[DAQ hodoscopio] " << prueba;
+  if (e.test)
+    subj << "[PRUEBA] ";
+  else if (simulated)
+    subj << "[SIMULADO] ";
+  subj << "[DAQ hodoscopio] ";
   int group = -1;  // -1: canal sin grupo de MPPC o sin mapeo
   if (mapping_ && e.ch >= 0)
     if (auto g = mapping_->groupOfHvChannel(e.ch)) group = *g;
@@ -224,12 +240,20 @@ std::string Notifier::composeMessage(const NotifyEvent& e, std::string* subjectO
   if (subjectOut) *subjectOut = subject;
 
   std::ostringstream body;
-  if (e.test)
-    body << "*** PRUEBA *** Este correo es una prueba del notificador de hvmon (hvctl notify-test).\n"
-         << "Los datos del evento son sintéticos; no hubo ningún trip.\n\n";
+  if (e.test) {
+    body << "*** PRUEBA *** Correo de prueba del notificador (hvctl notify-test): datos sintéticos, "
+            "ningún canal real estuvo involucrado.\n";
+    if (simulatedBackend_) body << "Fuente HV simulada (FakeHVBackend).\n";
+    body << "\n";
+  } else if (simulated) {
+    body << "*** SIMULADO *** Evento simulado ("
+         << (simulatedBackend_ ? std::string("FakeHVBackend")
+                               : "test_mode del canal CH" + std::string(e.ch < 10 ? "0" : "") + std::to_string(e.ch))
+         << "): ningún canal real estuvo involucrado.\n\n";
+  }
   body << "Evento: " << describeEvent(e.kind) << "\n";
-  body << "Hora del evento (UTC): " << formatUtcIso(e.tUtcNs) << "\n";
-  body << "Hora de envío (UTC): " << formatUtcIso(clock_.now_utc_ns()) << "\n";
+  body << "Hora del evento: " << utcAndLocal(e.tUtcNs) << "\n";
+  body << "Hora de envío: " << utcAndLocal(clock_.now_utc_ns()) << "\n";
   body << "Host: " << host_ << "\n";
   if (e.ch >= 0) {
     body << "Canal HV: CH" << (e.ch < 10 ? "0" : "") << e.ch << " del slot " << e.slot;
@@ -241,13 +265,29 @@ std::string Notifier::composeMessage(const NotifyEvent& e, std::string* subjectO
   if (!e.reason.empty()) body << "\nMotivo: " << e.reason << "\n";
   if (e.timeline.is_array() && !e.timeline.empty()) {
     body << "\nSecuencia del episodio:\n";
-    for (const auto& t : e.timeline)
-      body << "  " << t.value("t_utc", "") << "  " << t.value("event", "") << " (k = " << t.value("k", 0) << ")\n";
+    for (const auto& t : e.timeline) {
+      const UtcNs tn = t.value("t_utc_ns", static_cast<UtcNs>(0));
+      body << "  " << (tn != 0 ? utcAndLocal(tn) : t.value("t_utc", "")) << "  " << t.value("event", "")
+           << " (k = " << t.value("k", 0) << ")";
+      if (t.contains("wait_min") && t["wait_min"].is_number()) {
+        char w[32];
+        std::snprintf(w, sizeof w, "%g", t["wait_min"].get<double>());
+        body << ", espera aplicada " << w << " min";
+      }
+      body << "\n";
+    }
   }
   const auto& c = e.context;
   body << "\nÚltimo estado leído:\n";
-  if (c.contains("VMon_V")) body << "  VMon = " << c["VMon_V"].dump() << " V\n";
-  if (c.contains("IMon_A")) body << "  IMon = " << c["IMon_A"].dump() << " A\n";
+  char num[64];
+  if (c.contains("VMon_V") && c["VMon_V"].is_number()) {
+    std::snprintf(num, sizeof num, "%.2f", c["VMon_V"].get<double>());
+    body << "  VMon = " << num << " V\n";
+  }
+  if (c.contains("IMon_A") && c["IMon_A"].is_number()) {
+    std::snprintf(num, sizeof num, "%.3f", c["IMon_A"].get<double>() * 1e6);
+    body << "  IMon = " << num << " µA\n";
+  }
   if (c.contains("Status")) {
     char hex[16];
     std::snprintf(hex, sizeof hex, "0x%04X", c["Status"].get<unsigned>());
@@ -259,6 +299,13 @@ std::string Notifier::composeMessage(const NotifyEvent& e, std::string* subjectO
                : "sin dato")
        << "\n";
   body << "  GECO2020 en ejecución: " << (c.value("geco_running", false) ? "sí" : "no") << "\n";
+  const std::string port = std::to_string(cfg_.pagePort);
+  body << "\nPágina de estado (solo lectura): ";
+  if (cfg_.pageSshHost.empty())
+    body << "notifier.page_ssh_host sin configurar en hvmon.json.\n";
+  else
+    body << "ssh -N -L " << port << ":127.0.0.1:" << port << " " << cfg_.pageSshUser << "@" << cfg_.pageSshHost
+         << " y abrir http://localhost:" << port << "\n";
   body << "\n-- \nhvmon (DAQ v2, hodoscopio). Mensaje automático; no responder.\n";
 
   // Encabezados y cuerpo con CRLF (SMTP).

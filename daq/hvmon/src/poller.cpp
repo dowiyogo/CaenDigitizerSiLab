@@ -561,6 +561,7 @@ void Poller::applyRetry(RetryOutput out, SteadyTime now) {
     n.timeline = e.timeline;
     n.tUtcNs = e.tUtcNs;
     n.context = channelContext(e.ch);
+    n.simulated = cfg_.retry.inTestMode(e.ch);
     if (notifyQ_ && !notifyQ_->try_push(std::move(n), DropPolicy::DropNewest)) logError("cola del notificador llena");
   }
   if (out.persist && fs_) {

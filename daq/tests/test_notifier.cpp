@@ -9,6 +9,7 @@
 
 #include "daq/core/clock.h"
 #include "daq/core/logger.h"
+#include "daq/core/time.h"
 #include "daq/hvmon/notifier.h"
 #include "daq/hvmon/state.h"
 
@@ -62,6 +63,13 @@ std::optional<Mapping> mapping() {
   auto m = Mapping::fromFile(DAQ_SOURCE_DIR "/config/mapping/hodo_mapping_2026_10.json");
   EXPECT_TRUE(m.ok()) << (m.ok() ? "" : m.error().message);
   return m.ok() ? std::optional<Mapping>(m.value()) : std::nullopt;
+}
+
+// Primera línea del cuerpo (tras los encabezados).
+std::string firstBodyLine(const std::string& msg) {
+  const auto p = msg.find("\r\n\r\n");
+  if (p == std::string::npos) return "";
+  return msg.substr(p + 4, msg.find("\r\n", p + 4) - p - 4);
 }
 
 NotifyEvent gaveUp(int ch, std::uint64_t episode) {
@@ -246,8 +254,9 @@ TEST(Notifier, TestEventIsMarkedAndRepliesWithExitCode) {
   EXPECT_TRUE(j["ok"].get<bool>());
   EXPECT_EQ(j["curl_exit"], 0);
   ASSERT_EQ(r.spawner.calls.size(), 1u);
-  EXPECT_NE(r.spawner.calls[0].body.find("Subject: [DAQ hodoscopio] PRUEBA gave_up CH11"), std::string::npos);
-  EXPECT_NE(r.spawner.calls[0].body.find("*** PRUEBA ***"), std::string::npos);
+  EXPECT_NE(r.spawner.calls[0].body.find("Subject: [PRUEBA] [DAQ hodoscopio] gave_up CH11\r\n"), std::string::npos)
+      << r.spawner.calls[0].body;
+  EXPECT_EQ(firstBodyLine(r.spawner.calls[0].body).rfind("*** PRUEBA ***", 0), 0u);
   EXPECT_NE(r.spawner.calls[0].body.find("canal libre"), std::string::npos);  // CH11 no tiene MPPC
   // Un evento normal con el notificador deshabilitado se descarta.
   EXPECT_FALSE(r.n->submit(gaveUp(3, 9)));
@@ -267,4 +276,92 @@ TEST(Notifier, SmtpSettingsFromSecretsSplitsRecipients) {
   ASSERT_TRUE(r.ok()) << r.error().message;
   EXPECT_EQ(r.value().to, (std::vector<std::string>{"a@x", "b@x", "c@x"}));
   std::remove(path.c_str());
+}
+
+TEST(Notifier, SimulatedSourcesAreMarkedInSubjectAndFirstLine) {
+  // Real: el asunto empieza con [DAQ hodoscopio] y no hay marca de simulación.
+  {
+    NRig r;
+    ASSERT_TRUE(r.n->submit(gaveUp(3, 1)));
+    r.n->processDue();
+    ASSERT_EQ(r.spawner.calls.size(), 1u);
+    EXPECT_NE(r.spawner.calls[0].body.find("Subject: [DAQ hodoscopio] gave_up CH03"), std::string::npos);
+    EXPECT_EQ(r.spawner.calls[0].body.find("SIMULADO"), std::string::npos);
+  }
+  // FakeHVBackend: [SIMULADO] al inicio del asunto y primera línea del cuerpo.
+  {
+    NRig r;
+    r.n->setSimulatedBackend(true);
+    ASSERT_TRUE(r.n->submit(gaveUp(8, 1)));
+    r.n->processDue();
+    ASSERT_EQ(r.spawner.calls.size(), 1u);
+    const auto& b = r.spawner.calls[0].body;
+    EXPECT_NE(b.find("Subject: [SIMULADO] [DAQ hodoscopio] gave_up CH08\r\n"), std::string::npos) << b;
+    EXPECT_EQ(firstBodyLine(b),
+              "*** SIMULADO *** Evento simulado (FakeHVBackend): ningún canal real estuvo involucrado.");
+  }
+  // Canal en test_mode con la fuente real: también [SIMULADO].
+  {
+    NRig r;
+    auto e = gaveUp(9, 1);
+    e.simulated = true;
+    ASSERT_TRUE(r.n->submit(std::move(e)));
+    r.n->processDue();
+    ASSERT_EQ(r.spawner.calls.size(), 1u);
+    const auto& b = r.spawner.calls[0].body;
+    EXPECT_NE(b.find("Subject: [SIMULADO] [DAQ hodoscopio] gave_up CH09\r\n"), std::string::npos) << b;
+    EXPECT_EQ(firstBodyLine(b), "*** SIMULADO *** Evento simulado (test_mode del canal CH09): ningún canal real estuvo "
+                                "involucrado.");
+  }
+  // notify-test con fuente simulada: [PRUEBA] manda en el asunto; el cuerpo lo dice igual.
+  {
+    NRig r({{"enabled", false}});
+    r.n->setSimulatedBackend(true);
+    auto e = gaveUp(11, 0);
+    e.test = true;
+    ASSERT_TRUE(r.n->submit(std::move(e)));
+    r.n->processDue();
+    ASSERT_EQ(r.spawner.calls.size(), 1u);
+    const auto& b = r.spawner.calls[0].body;
+    EXPECT_NE(b.find("Subject: [PRUEBA] [DAQ hodoscopio] gave_up CH11\r\n"), std::string::npos);
+    EXPECT_EQ(firstBodyLine(b).rfind("*** PRUEBA ***", 0), 0u);
+    EXPECT_NE(b.find("Fuente HV simulada (FakeHVBackend)."), std::string::npos);
+  }
+}
+
+TEST(Notifier, BodyUnitsLocalTimeWaitsAndPageLine) {
+  ASSERT_TRUE(setProcessTimeZone("America/Santiago").ok());
+  EXPECT_FALSE(setProcessTimeZone("Marte/Olympus").ok());
+  NRig r({{"enabled", true}, {"page_ssh_host", "tailnet-host"}});
+  auto e = gaveUp(3, 1);
+  const UtcNs t0 = 1792281600LL * 1000000000LL;  // 2026-10-18T00:00:00Z = 21:00 -03 del 17
+  e.timeline = nlohmann::json::array(
+      {{{"t_utc_ns", t0}, {"event", "trip"}, {"k", 0}},
+       {{"t_utc_ns", t0 + 300LL * 1000000000LL}, {"event", "retry"}, {"k", 1}, {"wait_min", 5.0}},
+       {{"t_utc_ns", t0 + 302LL * 1000000000LL + 5000000LL}, {"event", "ramp_done"}, {"k", 1}}});
+  e.context["IMon_A"] = -1.22e-7;
+  e.context["VMon_V"] = 65.7468;
+  ASSERT_TRUE(r.n->submit(std::move(e)));
+  r.n->processDue();
+  ASSERT_EQ(r.spawner.calls.size(), 1u);
+  const auto& b = r.spawner.calls[0].body;
+  EXPECT_NE(b.find("IMon = -0.122 µA\r\n"), std::string::npos) << b;
+  EXPECT_NE(b.find("VMon = 65.75 V\r\n"), std::string::npos);
+  EXPECT_NE(b.find("Hora del evento: 2026-10-18T00:00:00.000Z (2026-10-17 21:00:00 -03)"), std::string::npos);
+  EXPECT_NE(b.find("2026-10-18T00:05:00.000Z (2026-10-17 21:05:00 -03)  retry (k = 1), espera aplicada 5 min"),
+            std::string::npos);
+  EXPECT_NE(b.find("2026-10-18T00:05:02.005Z (2026-10-17 21:05:02 -03)  ramp_done (k = 1)\r\n"), std::string::npos);
+  EXPECT_NE(b.find("ssh -N -L 8081:127.0.0.1:8081 xplus@tailnet-host y abrir http://localhost:8081"), std::string::npos);
+  // Sin host configurado la línea lo dice; el puerto viene de http.port de hvmon.
+  NotifierConfig c2 = NotifierConfig::fromJson({{"enabled", true}}).value();
+  c2.pagePort = 8091;
+  c2.pageSshHost = "otro";
+  FakeSpawner sp;
+  Notifier n2(c2, smtp(), mapping(), sp, r.clock, ::testing::TempDir(), r.hub, "h");
+  std::string subj;
+  EXPECT_NE(n2.composeMessage(gaveUp(3, 1), &subj).find("ssh -N -L 8091:127.0.0.1:8091 xplus@otro y abrir http://localhost:8091"),
+            std::string::npos);
+  NotifierConfig c3 = NotifierConfig::fromJson({{"enabled", true}}).value();
+  Notifier n3(c3, smtp(), mapping(), sp, r.clock, ::testing::TempDir(), r.hub, "h");
+  EXPECT_NE(n3.composeMessage(gaveUp(3, 1)).find("notifier.page_ssh_host sin configurar"), std::string::npos);
 }

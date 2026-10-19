@@ -84,5 +84,11 @@
   ],
   "verify_margin_s": 15.0,
   "vmon_off_max_V": 2.0,
-  "vmon_on_tolerance_V": 2.0
+  "vmon_on_tolerance_V": 2.0,
+  "notifier": {
+    "enabled": false,
+    "local_timezone": "America/Santiago",
+    "page_ssh_user": "xplus",
+    "page_ssh_host": "100.114.138.29"
+  }
 }

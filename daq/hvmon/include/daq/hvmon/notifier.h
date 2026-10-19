@@ -49,6 +49,10 @@ struct NotifierConfig {
   std::string curlPath = "curl";
   int maxTimeS = 30;
   std::string mappingFile = "daq/config/mapping/hodo_mapping_2026_10.json";
+  std::string localTimezone = "America/Santiago";  // hora local entre paréntesis en los correos
+  std::string pageSshUser = "xplus";                // línea "ssh -N -L ..." del correo
+  std::string pageSshHost;                          // host Tailscale; vacío: la línea lo indica
+  int pagePort = 8081;                              // = http.port de hvmon (no es clave de notifier)
   static Result<NotifierConfig> fromJson(const nlohmann::json& j);
   nlohmann::json toJson() const;
 };
@@ -70,7 +74,8 @@ struct NotifyEvent {
   nlohmann::json timeline = nlohmann::json::array();
   nlohmann::json context = nlohmann::json::object();  // VMon_V, IMon_A, Status, status_flags, board_temperature_degC, geco_running
   UtcNs tUtcNs = 0;
-  bool test = false;  // PRUEBA: sin límite por episodio y sin reintentos
+  bool test = false;       // PRUEBA: sin límite por episodio y sin reintentos
+  bool simulated = false;  // canal en test_mode (la fuente simulada se marca con setSimulatedBackend)
   std::shared_ptr<std::promise<nlohmann::json>> reply;  // opcional (notify-test)
 };
 
@@ -80,6 +85,8 @@ class Notifier {
            std::string tmpDir, StateHub& hub, std::string hostName = "");
 
   void run(BoundedQueue<NotifyEvent>& queue, const StopToken& st);
+  // hvmon con FakeHVBackend: todo correo sale marcado [SIMULADO] (o [PRUEBA]).
+  void setSimulatedBackend(bool v) { simulatedBackend_ = v; }
 
   // Para tests (y usados por run()).
   bool submit(NotifyEvent e);  // aplica habilitación y límites; false si se descarta
@@ -119,6 +126,7 @@ class Notifier {
   std::uint64_t sent_ = 0, failed_ = 0, suppressed_ = 0;
   nlohmann::json lastResult_;
   std::uint64_t seq_ = 0;
+  bool simulatedBackend_ = false;
 };
 
 }  // namespace daq::hvmon

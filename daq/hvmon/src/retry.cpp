@@ -360,7 +360,11 @@ RetryOutput RetryMachine::update(const RetryInput& in) {
         a.token = c.token = nextToken_++;
         a.k = c.k;
         out.actions.push_back(a);
-        c.timeline.push_back({{"t_utc_ns", now}, {"t_utc", formatUtcIso(now)}, {"event", "retry"}, {"k", c.k}});
+        c.timeline.push_back({{"t_utc_ns", now},
+                              {"t_utc", formatUtcIso(now)},
+                              {"event", "retry"},
+                              {"k", c.k},
+                              {"wait_min", waits[static_cast<std::size_t>(c.k - 1)]}});
         go(c, ch, RetryState::Retry, "reintento " + std::to_string(c.k) + (a.clearAlarmFirst ? " (ClrAlarm y Pw = 1)" : " (Pw = 1)"),
            now, out);
         break;

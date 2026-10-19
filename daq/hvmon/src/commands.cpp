@@ -161,7 +161,8 @@ nlohmann::json CommandHandler::dispatch(const nlohmann::json& req, const PeerCre
     const UtcNs now = clock_.now_utc_ns();
     e.tUtcNs = now;
     for (int i = 0; i < 4; ++i)
-      e.timeline.push_back({{"t_utc", formatUtcIso(now)}, {"event", i < 3 ? "trip (PRUEBA)" : "GAVE_UP (PRUEBA)"}, {"k", i}});
+      e.timeline.push_back(
+          {{"t_utc_ns", now}, {"t_utc", formatUtcIso(now)}, {"event", i < 3 ? "trip (PRUEBA)" : "GAVE_UP (PRUEBA)"}, {"k", i}});
     const auto state = hub_.compose(cfg_, now, ++statusSeq_, false);
     for (const auto& c : state["channels"])
       if (c.value("ch", -1) == e.ch) {
