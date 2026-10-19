@@ -1,6 +1,7 @@
 // gzip.cpp
 #include "daq/core/gzip.h"
 
+#include <sys/stat.h>
 #include <unistd.h>
 #include <zlib.h>
 
@@ -8,6 +9,8 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+
+#include "daq/core/logger.h"
 
 namespace daq {
 
@@ -88,6 +91,16 @@ Result<GzipResult> gzipFileVerified(const std::string& src, const std::string& d
   if (!ok) {
     std::rename(tmp.c_str(), (dst + ".failed").c_str());
     return R::failure(-1, why);
+  }
+  // El .gz conserva el modo (y, si se puede, el dueño) del original; gzopen crea con 0666 & umask.
+  struct stat st {};
+  if (::stat(src.c_str(), &st) == 0) {
+    if (::chmod(tmp.c_str(), st.st_mode & 07777) != 0) {
+      std::rename(tmp.c_str(), (dst + ".failed").c_str());
+      return R::failure(errno, "chmod " + tmp + ": " + std::strerror(errno));
+    }
+    if (::chown(tmp.c_str(), st.st_uid, st.st_gid) != 0 && errno != EPERM)
+      logWarn("gzip: no se pudo copiar el dueño de ", src, " a ", tmp, ": ", std::strerror(errno));
   }
   if (std::rename(tmp.c_str(), dst.c_str()) != 0) return R::failure(errno, "rename " + tmp + ": " + std::strerror(errno));
   if (beforeVerify) beforeVerify(dst);

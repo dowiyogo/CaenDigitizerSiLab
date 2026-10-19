@@ -101,3 +101,23 @@ TEST(Compressor, SelectsOnlyClosedDailyFilesAndKeepsSchemas) {
   EXPECT_TRUE(exists(base + "/2026/hv_20261019.csv"));              // el día de hoy no se toca
   EXPECT_EQ(hub.compressor.read().first["compressed"], 4);
 }
+
+TEST(Gzip, CompressedFileKeepsSourceMode) {
+  const std::string d = dir();
+  const mode_t old = ::umask(002);  // como la sesión interactiva que dejó los .gz en 664
+  for (mode_t m : {mode_t(0644), mode_t(0640), mode_t(0444)}) {
+    const std::string f = d + "/m" + std::to_string(m) + ".csv";
+    writeLines(f, 10);
+    ASSERT_EQ(::chmod(f.c_str(), m), 0);
+    struct stat src {};
+    ASSERT_EQ(::stat(f.c_str(), &src), 0);
+    auto r = daq::gzipFileVerified(f, f + ".gz", true);
+    ASSERT_TRUE(r.ok()) << r.error().message;
+    struct stat st {};
+    ASSERT_EQ(::stat((f + ".gz").c_str(), &st), 0);
+    EXPECT_EQ(st.st_mode & 07777, m) << f;
+    EXPECT_EQ(st.st_uid, src.st_uid);
+    EXPECT_EQ(st.st_gid, src.st_gid);
+  }
+  ::umask(old);
+}
