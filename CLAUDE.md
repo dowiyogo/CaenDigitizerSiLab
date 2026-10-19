@@ -99,7 +99,8 @@ Analysis (Makefile, C++17, run everything from the repository root):
     make -C analysis                      # binaries in analysis/bin/
     analysis/scripts/run_*.sh             # pipeline scripts, cd to the root themselves
 
-New DAQ (CMake, `daq/`; phase 0 exists: core, read-only HV library, `hvctl`). Tests use
+New DAQ (CMake, `daq/`; phases 0-2 exist: core, HV library, `hvctl`, `hvmon` with auto-retry,
+notifier and compression, `sctool`). Tests use
 GoogleTest from apt (`libgtest-dev` 1.14) through `gtest_discover_tests`. If GoogleTest is
 missing, stop and say so; do not vendor a test framework. Details for René: `daq/README.md`.
 
@@ -134,6 +135,8 @@ runs, `hvctl` talks to it through `$XDG_RUNTIME_DIR/daqv2/hvmon.sock` and never 
     daq/build/apps/hvctl/hvctl status | read | changes --n 20 | note "<text>"
     daq/build/apps/hvctl/hvctl measure-offsets --seconds 60          # only channels with Pw = 0
     daq/build/apps/hvctl/hvctl pw --ch N on|off --authorize "<reason>"  # needs allow_commands=true
+    daq/build/apps/hvctl/hvctl notify-test [--ch N]   # sends ONE real e-mail: only if the task authorizes it
+    daq/build/apps/sctool/sctool compress [--keep] FILE... | cat FILE | digest FILE   # plain or .gz
     # without hvmon (direct, read-only):
     daq/build/apps/hvctl/hvctl map | params --slot 3 | read --slot 3 | bench --slot 3 --n 100
     daq/build/apps/hvctl/hvctl --fake default read --slot 3
@@ -141,8 +144,17 @@ runs, `hvctl` talks to it through `$XDG_RUNTIME_DIR/daqv2/hvmon.sock` and never 
 Output: `/data/daq/slowcontrol/YYYY/` (daily CSV/JSONL with `.schema.json`), state
 `/dev/shm/daqv2/hvmon_state.json`, read-only page `http://127.0.0.1:8081/` (remote: SSH tunnel
 over Tailscale). Unit file `daq/systemd/hvmon.service` (not installed; René enables it).
-Writes: the only write in the code base is `HVBackend::setChannelPw()`; `hvmon` refuses it unless
-its config has `allow_commands: true`, which needs explicit authorization in the task prompt.
+Writes: the only writes in the code base are `HVBackend::setChannelPw()` and `clearBoardAlarm()`
+(`ClrAlarm`); `hvmon` refuses both unless its config has `allow_commands: true`, which needs
+explicit authorization in the task prompt. Auto-retry (`auto_retry.enabled_channels`, design 8)
+requires `allow_commands: true`; `test_mode` with CH00-07 also needs
+`test_mode_allow_detector_channels`. Retry state persists in
+`$XDG_STATE_HOME/daqv2/hvmon_retry_state.json` (default `~/.local/state/daqv2/`). Notifier
+(`notifier.enabled`, design 8.4) sends real e-mail through `curl --config -`; keep it disabled
+unless the task authorizes e-mail and count the messages. Closed days in `/data/daq/slowcontrol`
+are gzipped by `hvmon` after verification (design 8.5); readers must accept `.gz`. A test
+`hvmon` beside a running one needs its own `runtime_dir` (socket path ≤ 107 bytes, e.g.
+`/run/user/1000/daqv2-test`), `state_dir`, `slowcontrol_dir`, `state_file` and HTTP port.
 Secrets: `DAQ_HV_HOST`, `DAQ_HV_USER`, `DAQ_HV_PASSWORD` (and `DAQ_SMTP_*`, `DAQ_NOTIFY_*`) from
 the environment or `~/.config/daqv2/secrets.env`; template `daq/config/secrets.env.example`.
 `~/.config/daqv2/hv_credentials.json` is a deprecated fallback (warning); René removes it.

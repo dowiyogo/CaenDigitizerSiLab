@@ -91,8 +91,34 @@ $H --fake default read --slot 3         # lo mismo contra la fuente simulada
 $H --fake daq/config/fake/trip_ch2.json read --slot 3 --decode
 ```
 
-En el modo directo ningún subcomando escribe en la fuente. La única escritura del código es Pw
-de un canal y la hace `hvmon` (por `hvctl pw`) solo con `allow_commands: true`.
+En el modo directo ningún subcomando escribe en la fuente. Las únicas escrituras del código son Pw
+de un canal y `ClrAlarm` de la placa; las hace `hvmon` (por `hvctl pw` o el auto-retry) solo con
+`allow_commands: true`.
+
+## Auto-retry, correos y compresión (fase 2)
+
+Detalle en `docs/daq_v2_design.md`, secciones 8.1-8.5. Todo viene deshabilitado en
+`daq/config/hvmon.example.json`.
+
+- Auto-retry: `"auto_retry": {"enabled_channels": [..]}` (exige `allow_commands: true`). Tras un
+  trip espera 5, 30 y 60 min y escribe solo `Pw = 1`; si vuelve a saltar tras el tercer intento
+  queda en `GAVE_UP`. Cualquier cambio de `Pw` o `V0Set` hecho a mano (GECO) pasa el canal a
+  `MANUAL` y el auto-retry no lo toca hasta que esté estable 10 min. Estado en `hvctl status`,
+  en la tabla "Auto-retry" de la página y en `~/.local/state/daqv2/hvmon_retry_state.json`.
+  `test_mode` (esperas de 1/2/3 min) solo para canales de prueba (CH08-11).
+- Correos: `"notifier": {"enabled": true}` con `DAQ_SMTP_URL`, `DAQ_SMTP_USER`,
+  `DAQ_SMTP_PASSWORD`, `DAQ_NOTIFY_FROM`, `DAQ_NOTIFY_TO` (varios separados por comas) en
+  `secrets.env`. Por omisión solo avisa `GAVE_UP`, errores de escritura y pérdida de conexión
+  (> 5 min). Prueba: `hvctl notify-test` (un correo marcado PRUEBA).
+- Compresión: al cambiar de día `hvmon` comprime el día anterior a `.gz` y borra el plano solo
+  si el `.gz` releído coincide (bytes, líneas, CRC32). A mano:
+
+```bash
+S=daq/build/apps/sctool/sctool
+$S compress --keep /data/daq/slowcontrol/2026/hv_20261018.csv   # --keep conserva el plano
+$S cat /data/daq/slowcontrol/2026/hv_20261018.csv.gz | head       # lee plano o .gz
+$S digest /data/daq/slowcontrol/2026/hv_20261018.csv.gz           # bytes, líneas, crc32
+```
 
 ## Estructura
 
@@ -102,9 +128,11 @@ daq/
                  archivos, lock de instancia, socket Unix
   hv/            HVBackend, CaenHVBackend (Wrapper), FakeHVBackend, Status, credenciales, JSON
   temp/          interfaz de temperatura y backend fake
-  hvmon/         lógica de hvmon: sondeo, cambios, escritor, comandos, estado
+  hvmon/         lógica de hvmon: sondeo, cambios, escritor, comandos, estado, auto-retry,
+                 notificador, compresor, mapeo
   apps/hvmon/    daemon hvmon (único que enlaza ROOT: THttpServer)
   apps/hvctl/    herramienta de línea de comandos
+  apps/sctool/   compresión y lectura de archivos de control lento (plano o .gz)
   systemd/       unidad de usuario de hvmon (no instalada)
   tools/legacy/  hv_readall.c, test_sy5527.c, diag_sy5527.sh (heredados)
   tests/         GoogleTest, solo con fakes

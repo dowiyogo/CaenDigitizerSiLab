@@ -446,7 +446,7 @@ Esquema `daqv2.hvmon_state/1`:
 | `connection` | `connected`, `ever_connected`, `stale` (sin conexión o última lectura buena hace más de `stale_after_s` = 3 s), `last_good_read_utc_ns`, `age_s`, `last_error`, `last_error_utc_ns`, `next_connect_in_s` |
 | `read_seq`, `poller_seq` | número de lectura y de publicación del hilo de sondeo |
 | `stats` | `fast_reads`, `full_reads`, `read_errors`, `connect_attempts`, `connect_failures`, `reconnections`, `fast_read_mean_ms`, `fast_read_max_ms`, `full_read_mean_ms`, `full_read_max_ms` |
-| `channels[]` | por canal: `ch`, `values` (numéricos en SI con la unidad en la clave: `V0Set_V`, `IMon_A`, ...; enteros: `Status`, `Pw`, ...), `status_flags` (bits decodificados), `auto_retry` (siempre `"NORMAL"` en la fase 1) |
+| `channels[]` | por canal: `ch`, `values` (numéricos en SI con la unidad en la clave: `V0Set_V`, `IMon_A`, ...; enteros: `Status`, `Pw`, ...), `status_flags` (bits decodificados), `auto_retry` (objeto de 8.3 desde la fase 2; en la fase 1 era siempre `"NORMAL"`); además `notifier` y `compressor` en la raíz |
 | `changes[]` | anillo de los últimos 50 cambios (mismo formato que el JSONL) |
 | `geco_running` | GECO2020 detectado (sondeo cada 10 s) |
 | `writer` | `ok`, `last_error`, `last_error_utc_ns`, `errors`, `fsyncs`, `bytes`, `lines`, `open_files`, `dropped` |
@@ -606,9 +606,9 @@ existe y contiene `raw_manifest_20261018.sha256`, que no se toca.
 }
 ```
 
-- `notify.json` (modo 600, fuera del repositorio): servidor SMTP, puerto, usuario,
-  contraseña, remitente, destinatarios. `hv_credentials.json` igual. El programa se niega a
-  arrancar si el modo es más abierto que 600.
+- Borrador: los bloques `auto_retry` y `notifications` de arriba se reemplazaron en la fase 2
+  por `auto_retry` y `notifier` de `hvmon.json` (8.1, 8.4); `notify.json` no existe: el SMTP
+  va en `secrets.env` (`DAQ_SMTP_*`, `DAQ_NOTIFY_*`), modo 600.
 - `monitoring.*.bind`: `"127.0.0.1"` (por defecto) o `"tailscale"` (se resuelve a la
   dirección de `tailscale0` al arrancar; hoy 100.114.138.29 [V: ip -br addr]). Cualquier otro
   valor, `0.0.0.0` o la dirección de `enp0s31f6` (red de la universidad) se rechazan al
@@ -822,56 +822,123 @@ intervalo. Tests en `ctest` con secuencias sintéticas. Para v7-v10 el análisis
 `timestamp` (µs, una vez por lectura, sin TTT): la resolución es la del bucle de lectura y
 eventos leídos juntos comparten timestamp; el header acepta una resolución declarada.
 
-## 8. Auto-retry
+## 8. Auto-retry (implementado en la fase 2)
 
-Por canal HV, deshabilitado por defecto. Mientras está deshabilitado `hvmon` solo registra.
+Por canal HV, deshabilitado por defecto (`auto_retry.enabled_channels` vacío). Mientras está
+deshabilitado `hvmon` solo registra. La lógica es pura (`daq/hvmon/src/retry.cpp`,
+`RetryMachine`): recibe la lectura rápida, los cambios detectados y la hora UTC; devuelve
+transiciones, eventos para el notificador y acciones. Las acciones (`Pw = 1`, y opcionalmente
+`ClrAlarm` antes) las ejecuta el hilo de sondeo como solicitudes internas por la misma ruta
+que los comandos de `hvctl` (lectura previa, compuerta `allow_commands`, verificación).
 
 ### 8.1 Estados
 
-`DISABLED`, `NORMAL`, `MANUAL`, `WAIT(k)`, `RETRY_RAMP(k)`, `RETRY_STAB(k)`, `GAVE_UP`,
-`UNKNOWN` (sin conexión), `GROUP_TEST` (canal en manos de la prueba de grupos).
+`DISABLED` (canal fuera de `enabled_channels`), `NORMAL`, `MANUAL`, `WAIT(k)`, `RETRY(k)`
+(Pw = 1 escrito, rampa en curso), `STABILIZING(k)`, `GAVE_UP`. k es el número de intento
+(1..len(wait_min)). `UNKNOWN` y `GROUP_TEST` del borrador no existen: sin lectura fresca la
+máquina no avanza y no escribe (bloqueo "sin lectura fresca"); `GROUP_TEST` llega en la fase 6.
 
-### 8.2 Transiciones
+Configuración (`auto_retry` en `hvmon.json`): `enabled_channels` [], `wait_min` [5, 30, 60],
+`stable_min` 10, `reset_after_h` 2, `imon_stable_max_uA` 6.0, `max_ramping_channels` 1,
+`inhibit_when_geco_running` false, `clear_alarm_before_retry` false, `state_file`
+(por omisión `$XDG_STATE_HOME/daqv2/hvmon_retry_state.json`, o
+`~/.local/state/daqv2/hvmon_retry_state.json`), `test_mode` {`enabled`, `channels`,
+`wait_min` [1, 2, 3], `stable_min` 1}, `test_mode_allow_detector_channels` false. Validación:
+`enabled_channels` ⊂ `channels` y exige `allow_commands = true`; los canales de `test_mode`
+deben estar en `enabled_channels`, y CH00-07 (detector) se rechazan en `test_mode` salvo
+`test_mode_allow_detector_channels = true`.
 
-| desde | condición | hacia | acción |
+"Estable" = Pw = 1, bit `on`, sin bits de trip ni de rampa, e IMon − offset < `imon_stable_max_uA`.
+
+### 8.2 Transiciones (tal como están en el código)
+
+| desde | condición | hacia | efecto |
 |---|---|---|---|
-| `NORMAL` | Pw 1→0 con bits de trip, u OVC/IMon alta en los `Trip` s previos | `WAIT(k+1)` | evento `trip`; correo si `on_trip`; temporizador `wait_s[k]` |
-| `NORMAL` | Pw 1→0 sin indicio de trip | `MANUAL` | evento `external` |
-| `NORMAL` | estable `reset_after_stable_s` (2 h) | `NORMAL`, k = 0 | — |
-| `WAIT(k)` | vence el temporizador, conexión fresca (≥ 2 lecturas buenas), ningún otro canal en rampa en los últimos `min_spacing_between_channels_s`, y si `inhibit_when_geco_running` = true, GECO no corre | `RETRY_RAMP(k)` | un solo `SetChParam(Pw=1)`; nunca V0Set, I0Set ni Trip |
-| `WAIT(k)` | cambio de `Pw`, `V0Set`, `I0Set` o `Trip` no hecho por `hvmon` | `MANUAL` | se cancela el reintento; evento `external` |
-| `RETRY_RAMP(k)` | Pw leído ≠ 1 tras 5 s | `WAIT(k+1)` o `GAVE_UP` | comando fallido |
-| `RETRY_RAMP(k)` | sin rampa y \|VMon − V0Set\| < tolerancia | `RETRY_STAB(k)` | inicia ventana |
-| `RETRY_RAMP(k)` | supera V0Set/RUp + `ramp_timeout_extra_s` (~126 s con 65.9 V a 1 V/s) | `WAIT(k+1)` o `GAVE_UP` | — |
-| `RETRY_STAB(k)` | `stability_window_s` con IMon < `stability_imon_max_A` y sin trip | `NORMAL` | éxito |
-| `RETRY_STAB(k)` | IMon ≥ umbral | `RETRY_STAB(k)` | la ventana vuelve a empezar |
-| `RETRY_STAB(k)` | `stability_max_s` sin completar | `GAVE_UP` | correo "inestable, encendido" |
-| `RETRY_*(k)` | trip | `WAIT(k+1)`, o `GAVE_UP` si k = len(wait_s) | — |
-| `RETRY_*` | cambio de `Pw`/`V0Set`/`I0Set`/`Trip` no hecho por `hvmon` | `MANUAL` | la acción manual manda |
-| `GAVE_UP` | al entrar | — | un correo por canal y episodio |
-| `GAVE_UP`, `MANUAL` | Pw = 1 externo | `NORMAL` (k se conserva hasta 2 h estables) | evento `external` |
-| cualquiera | pérdida de conexión | `UNKNOWN` (recuerda estado y temporizadores) | bit 4 en `daqrun` |
-| `UNKNOWN` | reconexión y ≥ 2 lecturas completas | estado anterior, reconciliado | cambios durante el corte = `external`, con las reglas de acción manual; ningún comando antes de reconciliar |
-| cualquiera salvo `RETRY_*` | inicio de la prueba de grupos | `GROUP_TEST` | auto-retry suspendido en todos los canales |
-| `GROUP_TEST` | fin o aborto de la prueba | `NORMAL` o `MANUAL` según Pw final | — |
+| (arranque) | canal fuera de `enabled_channels` | `DISABLED` | sin registro de cambio |
+| (arranque) | persistido `WAIT(k)`, Pw = 0, y ahora < trip + wait_min[k−1] + 10 min | `WAIT(k)` | reanuda episodio, k, hora del trip y línea de tiempo |
+| (arranque) | persistido `WAIT(k)` vencido hace más de 10 min | `MANUAL` | sin acción automática |
+| (arranque) | persistido `GAVE_UP` y Pw = 0 | `GAVE_UP` | — |
+| (arranque) | Pw = 1 | `NORMAL` | k se conserva si lo persistido era NORMAL/STABILIZING |
+| (arranque) | Pw = 0 | `MANUAL` | "apagado al arrancar" |
+| cualquiera salvo `MANUAL`, `DISABLED` | cambio de `Pw` o `V0Set` con origen `external` | `MANUAL` | la acción manual manda |
+| `NORMAL` | trip (bit de trip, o Pw 1→0 con origen `trip`) | `WAIT(k+1)` | episodio nuevo si k = 0; evento `trip` |
+| `NORMAL` | trip y k = len(wait_min) | `GAVE_UP` | eventos `trip` y `gave_up` |
+| `NORMAL` | k > 0 y `reset_after_h` en NORMAL | `NORMAL`, k = 0 | registro del reinicio |
+| `WAIT(k)` | Pw leído = 1 | `MANUAL` | — |
+| `WAIT(k)` | `Status` (sin bits de rampa) o `V0Set` distinto del de la entrada a WAIT | `MANUAL` | — |
+| `WAIT(k)` | vence wait_min[k−1] desde el trip y no hay bloqueo | `RETRY(k)` | acción `Pw = 1` (con `ClrAlarm` antes si está configurado) |
+| `WAIT(k)` | vence pero hay bloqueo: sin lectura fresca; GECO corre e `inhibit_when_geco_running`; otros canales en rampa o en RETRY ≥ `max_ramping_channels` | `WAIT(k)` | `block_reason` publicado; se reintenta en cada lectura |
+| `RETRY(k)` | resultado `verified` o `noop` | `STABILIZING(k)` | — |
+| `RETRY(k)` | resultado `busy` (otro comando en curso) o `write_failed` | `WAIT(k)` | pospuesto, se reintenta |
+| `RETRY(k)` | resultado `aborted` (lectura previa distinta) o `rejected` | `MANUAL` | — |
+| `RETRY(k)` | resultado `verify_failed` (rampa no terminó) | `WAIT(k+1)` o `GAVE_UP` | intento fallido, sin evento `trip` |
+| `RETRY(k)`, `STABILIZING(k)` | trip nuevo: Pw 1→0 con origen `trip`, o bit de trip con Pw = 1 | `WAIT(k+1)`, o `GAVE_UP` si k = len(wait_min) | evento `trip` (y `gave_up`) |
+| `STABILIZING(k)` | estable durante `stable_min` | `NORMAL` | evento `recovery` |
+| `STABILIZING(k)` | deja de estar estable | `STABILIZING(k)` | la ventana vuelve a empezar |
+| `MANUAL` | estable durante `stable_min` | `NORMAL`, k = 0 | "estable tras acción manual" |
+| `GAVE_UP` | — | — | solo sale por acción manual (Pw o V0Set externo → `MANUAL` → `NORMAL`) |
 
-### 8.3 Otras reglas
+Un bit de trip retenido con el canal apagado no cuenta como trip nuevo en RETRY/STABILIZING
+(la placa lo mantiene hasta que la relectura muestra Pw = 1). Un trip en `MANUAL` no inicia un
+episodio: el canal debe haber pasado antes a `NORMAL` (prueba de la parte C, 15.3).
 
-- Origen: `daq_auto` si coincide con un comando del auto-retry en los 10 s previos;
-  `daq_command` si coincide con un comando de `hvctl` o de la prueba de grupos; `trip` según
-  8.2; `external` en cualquier otro caso.
-- GECO abierto no inhibe el auto-retry por defecto (René suele dejarlo abierto sin
-  operarlo): `hvmon` registra un aviso al detectarlo (cada minuto) y se apoya en la
-  detección de cambios externos. Patrón inicial `caengeco` (`pgrep -f -i`): el snap
-  `caengeco2020` 1.13.1 (devmode) ejecuta `bin/CAENGECO2020`
-  [V: /snap/caengeco2020/current/meta/snap.yaml], así que la ruta del proceso contiene
-  `caengeco2020` y el ejecutable `CAENGECO2020` [I]; se confirma cuando René abra GECO en la
-  fase 1.
-- Arranque de `hvmon`: un canal encontrado apagado queda en `MANUAL` salvo que el estado
-  persistido diga `WAIT` con un trip registrado hace menos de `max(wait_s)`; nunca se actúa
-  en el primer minuto.
-- Correo: `curl --max-time` en proceso aparte; un fallo se registra y no bloquea nada.
-- Si rehabilitar tras un trip requiere más que `Pw = 1` no se sabe; se verifica en la fase 2.
+### 8.3 Publicación, registro y persistencia
+
+- Cada transición es un `ChangeRecord` con `param = "auto_retry"`, `origin = "hvmon_retry"`,
+  `old`/`new` como etiquetas (`"WAIT(1)"`) y `detail` {`k`, `reason`}; va a
+  `hv_changes_YYYYMMDD.jsonl` y al log. Las escrituras son `CommandRecord` con autor
+  `hvmon (auto-retry)` y texto de autorización `auto-retry intento k`.
+- Estado (`channels[i].auto_retry`): `state`, `label`, `k`, `episode`, `enabled`, `test_mode`,
+  `since_utc_ns`, `trip_utc(_ns)` (trip que abrió la espera actual), `next_retry_in_s`,
+  `stable_for_s`, `block_reason`, `last_outcome`. La página tiene la tabla "Auto-retry" y
+  `hvctl status` una columna y líneas por canal habilitado.
+- Persistencia: `state_file` (esquema `daqv2.hvmon_retry_state/1`) por escritura atómica en
+  cada transición; guarda estado, k, episodio, hora del trip y línea de tiempo por canal.
+- GECO abierto no inhibe por defecto; al reintentar con GECO abierto se registra un aviso por
+  intento.
+- Si rehabilitar tras un trip requiere más que `Pw = 1` en el A7030DP real no se sabe
+  (`ClrAlarm` existe como opción): se verifica en la prueba con carga resistiva (DAQ2-5).
+
+### 8.4 Notificador
+
+Hilo propio en `hvmon` (`daq/hvmon/src/notifier.cpp`). Eventos: `trip`, `recovery`,
+`gave_up` (de la máquina), `writer_error` (escritor con errores), `connection_lost`
+(desconectado más de `connection_lost_min`). Configuración `notifier`: `enabled` false,
+`notify_each_trip` false, `notify_recovery` false, `notify_writer_errors` true,
+`notify_connection_lost` true, `connection_lost_min` 5, `problem_interval_min` 30,
+`retry_delays_min` [1, 5, 15], `curl` "curl", `max_time_s` 30, `mapping_file`.
+
+- Envío: `curl --config -` lanzado con `posix_spawn`; URL, usuario, contraseña, `mail-from`
+  y `mail-rcpt` van por stdin (nunca en argv); el mensaje va en un temporal 0600 en el
+  directorio de runtime que se borra al terminar. `ssl-reqd`, `max-time`. Timeout del hijo con
+  SIGTERM y luego SIGKILL.
+- Mensaje: cabeceras `Date` (RFC 5322, UTC), `Message-ID`, `From`, `To` (varios
+  destinatarios separados por comas en `DAQ_NOTIFY_TO`), `Subject` codificado RFC 2047 que
+  `[DAQ hodoscopio] [PRUEBA ]<tipo> CHnn (grupo g)`; cuerpo en español, CRLF: evento, hora UTC
+  del evento y del envío, host, canal y grupo HV, intento k, canales del digitizador del
+  grupo según el mapeo (los no confirmados por medición marcados con `*`), motivo, línea de
+  tiempo del episodio, último VMon/IMon/Status, temperatura de la placa y si GECO corre.
+- Límites: un correo por canal, tipo y episodio para `trip`/`recovery`/`gave_up`; uno cada
+  `problem_interval_min` por tipo para `writer_error` y `connection_lost`. Un envío fallido
+  se reintenta a 1, 5 y 15 min y luego se descarta con registro. Los descartes se cuentan
+  (`suppressed`).
+- `hvctl notify-test [--ch N]`: correo marcado PRUEBA, sin límites ni reintentos; `hvctl`
+  espera la respuesta (hasta 180 s) e imprime el código de salida de `curl`.
+- Secretos: `DAQ_SMTP_URL`, `DAQ_SMTP_USER`, `DAQ_SMTP_PASSWORD`, `DAQ_NOTIFY_FROM`,
+  `DAQ_NOTIFY_TO` (entorno o `secrets.env`). Con `enabled = true` y sin ellos `hvmon` no
+  arranca; con `enabled = false`, aviso. Reemplaza al `notify.json` del borrador.
+
+### 8.5 Compresión de días cerrados
+
+- `compress_closed_days` (true por omisión). Al rotar, el escritor pasa la ruta del día
+  cerrado a un hilo compresor (nice 19); al arrancar se buscan días cerrados sin comprimir
+  (`hv_*`, `hv_full_*`, `hv_changes_*`, `notes_*` con fecha < hoy; los `.schema.json` y
+  `offsets.jsonl` quedan planos).
+- `gzipFileVerified` (zlib, nivel 6): escribe `.gz`, lo relee y compara bytes, líneas y CRC32
+  con el original; solo entonces borra el plano. Si falla, el plano queda y el `.gz` pasa a
+  `.gz.failed`.
+- Los lectores (`LineReader`, `sctool cat`) aceptan plano y `.gz`. Herramienta
+  `daq/build/apps/sctool/sctool compress [--keep] | cat | digest`.
 
 ## 9. Coexistencia, seguridad y comandos HV
 
@@ -1030,7 +1097,7 @@ detiene y lo informa (no se copia un framework al repositorio).
 |---|---|
 | 0 HV lib + `FakeHVBackend` + `hvctl` | tests pasan (normal, ASan+UBSan, TSan); `hvctl --fake` y `hvctl` real (solo lectura, tarea autorizada) dan la misma tabla que `hv_readall`; latencia de una lectura completa de 12 canales medida y registrada; el binario de fase 0 no importa `CAENHV_Set*` ni `CAENHV_ExecComm` (verificado con `nm -D --undefined-only`). Resultado DAQ2-2: cumplido salvo la prueba con GECO abierto (GECO estaba cerrado) |
 | 1 `hvmon` + ruta de comandos | Resultado DAQ2-3: 2 h 30 min reales de solo lectura sin errores ni pérdidas (15.2), tests de todos los puntos con fake y tiempo acelerado; pendiente la confirmación de la detección de GECO por ejecutable y la evaluación de la suscripción. Criterios originales: 24 h con fake acelerado sin pérdida de líneas; cambios del guion con el origen correcto en el 100 % de los casos; reconexión; lector a TTree/RDataFrame validado; 8 h reales de solo lectura con GECO abierto, cada cambio hecho en GECO aparece como `external`; patrón de GECO confirmado; suscripción evaluada; comandos `pw` probados solo contra el fake (con hardware real recién en fase 2 o 6, con autorización) |
-| 2 auto-retry y notificador | todas las transiciones de 8.2 cubiertas con tiempo acelerado; acción manual siempre manda; un correo por episodio; luego una vez en hardware real con carga resistiva e I0Set bajo, con autorización explícita: trip provocado → WAIT → RETRY → NORMAL, GAVE_UP con correo, y verificación de los bits de `Status` |
+| 2 auto-retry y notificador | Resultado DAQ2-4: transiciones de 8.2 con fake y reloj acelerado (`test_hvmon_retry`), notificador con `FakeSpawner`, compresión verificada; secuencia completa NORMAL → WAIT(1..3) → GAVE_UP con fake en tiempo real y correo real (15.3). Pendiente (DAQ2-5): una vez en hardware real con carga resistiva. Criterio original: todas las transiciones de 8.2 cubiertas con tiempo acelerado; acción manual siempre manda; un correo por episodio; luego una vez en hardware real con carga resistiva e I0Set bajo, con autorización explícita: trip provocado → WAIT → RETRY → NORMAL, GAVE_UP con correo, y verificación de los bits de `Status` |
 | 3 `daqrun` con digitizador fake | 24 h aceleradas sin perder eventos; apagado limpio por señal en cualquier momento; segmentos e índice con SHA256 correctos; flags del guion correctos (incluidas pruebas de Poisson con agregación); estado sin calibración visible; modo calibración con SW trigger fake; RSS sin deriva > 10 % |
 | 4 digitizador real | autorizado por el operador; `GetRecordLength` = 144; pico de muón en la muestra esperada ±1; paso del TTT medido; SW trigger a 100 Hz sin pérdidas; `DT_NEEDED` con la ruta de `/usr/lib`; 1 h de datos comparables con v8 |
 | 5 monitoreo y flags | todos los paneles de 7.2; flags coherentes con `hv_changes` y con los apagones en una reproducción de v8/v10 |
@@ -1227,6 +1294,54 @@ SY5527 desde ~23:32Z, sin operar nada):
   (corrida corta que René autoriza por separado).
 - Escribir por HTTP o con GECO no se probó (fuera del alcance de la fase 1).
 
+### 15.3 Fase 2 (DAQ2-4): decisiones fijadas y validación
+
+Decisiones fijadas por la implementación:
+
+38. **Estados**: `RETRY_RAMP`/`RETRY_STAB` se llaman `RETRY`/`STABILIZING`; `UNKNOWN` se
+    reemplaza por "sin lectura fresca → no avanza ni escribe"; `GROUP_TEST` queda para la
+    fase 6. Tiempos en minutos (`wait_min`, `stable_min`) y horas (`reset_after_h`).
+39. **`DISABLED` silencioso**: los canales fuera de `enabled_channels` no generan registro al
+    arrancar (una versión previa registraba `UNINIT -> DISABLED` por canal).
+40. **Trip nuevo** en RETRY/STABILIZING: Pw 1→0 con origen `trip`, o bit de trip con Pw = 1.
+    Un bit de trip retenido con Pw = 0 no cuenta.
+41. **Fase `busy`**: si la ruta de comandos está ocupada, la solicitud interna del auto-retry
+    vuelve a `WAIT(k)` sin contar intento. `write_failed` igual; `verify_failed` cuenta como
+    intento fallido; `aborted` y `rejected` pasan a `MANUAL`.
+42. **Segunda escritura** del código: `clearBoardAlarm()` (`CAENHV_SetBdParam("ClrAlarm")`),
+    solo por el poller, con la misma compuerta `allow_commands` y su propio `CommandRecord`;
+    se usa solo con `clear_alarm_before_retry = true` (false por omisión). Con la de `Pw` son
+    las dos únicas escrituras.
+43. **Persistencia del auto-retry** en `$XDG_STATE_HOME/daqv2/hvmon_retry_state.json` (no en
+    `/dev/shm`, que se pierde al reiniciar), escrita atómicamente en cada transición; una
+    espera persistida se reanuda solo si no venció hace más de 10 min.
+44. **Notificador** sin `notify.json`: SMTP en `secrets.env`, `curl --config -` por stdin,
+    cuerpo en un temporal 0600 (8.4). Los correos de prueba saltan límites y reintentos.
+45. **Compresión** en `hvmon` (hilo con nice 19) y herramienta `sctool` con el mismo código;
+    verificación por bytes, líneas y CRC32 antes de borrar el plano (8.5).
+46. **Mapeo** `daq/config/mapping/hodo_mapping_2026_10.json` (`daqv2.mapping/1`) para el texto
+    de los correos; los grupos de hod2018 no medidos van marcados como supuestos o
+    desconocidos.
+
+Validación (DAQ2-4):
+
+- Tests: 130/130 en las tres builds (normal, ASan+UBSan, TSan), sin reportes de sanitizers
+  (tabla en el informe de DAQ2-4).
+- Compresión de copias de `/data/daq/slowcontrol/2026` con `sctool`: total 11628312 → 789041
+  bytes (0.0679); `hv_*.csv` 0.0686/0.0680, `hv_full_*.csv` 0.0598/0.0552, `notes` 0.6059.
+  Luego los originales del día cerrado 20261018 con la misma herramienta: 2410047 → 165164
+  bytes (0.0685), digests (bytes, líneas, CRC32) idénticos antes y después.
+- Correo real: `hvctl notify-test` → "curl salió con 0 (intentos 1)". Secuencia con fake
+  (CH08 a 10 V, I0Set 5 µA, Trip 10 s, excursión de +20 µA continua, `test_mode` 1/2/3 min,
+  `stable_min` 1): MANUAL → NORMAL (09:19:52Z) → trip 09:20:37Z → WAIT(1) → RETRY(1)
+  09:21:38Z → STABILIZING(1) → trip → WAIT(2) → RETRY(2) 09:23:50Z → … → RETRY(3) 09:27:02Z →
+  STABILIZING(3) → trip → GAVE_UP 09:27:13Z; correo `gave_up CH8` a las 09:27:17Z, curl 0;
+  4 eventos `trip` descartados por `notify_each_trip = false`. Dos correos en total.
+- Un primer intento con la excursión a t = 20 s no inició el episodio: el canal estaba en
+  `MANUAL` (apagado al arrancar) y el trip llegó antes de `stable_min`; es el comportamiento
+  de 8.2.
+- GECO con el detector nuevo (`/proc/<pid>/exe` o `argv[0]`): **pendiente** de la prueba de René.
+
 ## 16. Preguntas resueltas por el handoff y la revisión
 
 | pregunta (DAQ2-0) | respuesta |
@@ -1243,7 +1358,7 @@ SY5527 desde ~23:32Z, sin operar nada):
 | nombre de GECO | snap `caengeco2020`, ejecutable `bin/CAENGECO2020`; patrón confirmado en fase 1 |
 | servicio | servicio de usuario con `enable-linger` (fase 1) |
 | acceso web | localhost + túnel SSH por Tailscale; opción Tailscale |
-| SMTP | `notify.json` (600, fuera del repo), decidido antes de la fase 2 |
+| SMTP | `secrets.env` (600, fuera del repo), `DAQ_SMTP_*` y `DAQ_NOTIFY_*`; `curl --config -` por stdin (8.4) |
 | temperatura y `dialout` | `TempBackend` + fake; `dialout` cuando llegue el hardware |
 | resistencias de la PCB | desconocidas; opcionales en configuración |
 | framework de tests | GoogleTest de apt |
