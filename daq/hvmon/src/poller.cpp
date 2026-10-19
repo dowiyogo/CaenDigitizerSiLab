@@ -107,7 +107,8 @@ void Poller::tryConnect(SteadyTime now) {
       // Parámetros de placa: opcionales (si la placa no los informa, sigue sin ellos).
       auto bp = backend_.boardParamNames(cfg_.slot);
       if (bp) {
-        for (const auto& info : bp.value()) boardParams_.push_back(info.name);
+        for (const auto& info : bp.value())
+          if (!containsStr(cfg_.boardParamsExclude, info.name)) boardParams_.push_back(info.name);
       } else {
         logWarn("la placa no informa parámetros de placa: ", bp.error().message);
       }
@@ -445,7 +446,8 @@ void Poller::publish(SteadyTime now) {
   state_.connected = connected_;
   state_.everConnected = everConnected_;
   state_.stats = stats_;
-  state_.nextConnectInS = connected_ ? 0.0 : std::chrono::duration<double>(nextConnect_ - now).count();
+  state_.nextConnectInS =
+      connected_ ? 0.0 : std::max(0.0, std::chrono::duration<double>(nextConnect_ - now).count());
   if (active_)
     state_.activeCommand = {{"command_id", active_->id}, {"ch", active_->ch}, {"on", active_->on},
                             {"deadline_in_s", std::chrono::duration<double>(active_->deadline - now).count()},

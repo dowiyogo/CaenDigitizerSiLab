@@ -39,6 +39,7 @@ Result<HvmonConfig> HvmonConfig::fromJson(const nlohmann::json& j) {
     }
     c.tripFlags = j.value("trip_flags", c.tripFlags);
     c.legacyCredentials = j.value("legacy_credentials", c.legacyCredentials);
+    c.boardParamsExclude = j.value("board_params_exclude", c.boardParamsExclude);
     c.allowCommands = j.value("allow_commands", c.allowCommands);
     c.verifyMarginS = j.value("verify_margin_s", c.verifyMarginS);
     c.vmonOnToleranceV = j.value("vmon_on_tolerance_V", c.vmonOnToleranceV);
@@ -106,7 +107,7 @@ nlohmann::json HvmonConfig::toJson() const {
                         {"fast_params", fastParams}, {"fast_tracked", fastTracked}, {"fast_period_s", fastPeriodS},
                         {"full_period_s", fullPeriodS}, {"backoff_initial_s", backoffInitialS},
                         {"backoff_max_s", backoffMaxS}, {"stale_after_s", staleAfterS}, {"status_bits", bits},
-                        {"trip_flags", tripFlags}, {"allow_commands", allowCommands},
+                        {"trip_flags", tripFlags}, {"board_params_exclude", boardParamsExclude}, {"allow_commands", allowCommands},
                         {"verify_margin_s", verifyMarginS}, {"vmon_on_tolerance_V", vmonOnToleranceV},
                         {"vmon_off_max_V", vmonOffMaxV}, {"slowcontrol_dir", slowcontrolDir},
                         {"fsync_period_s", fsyncPeriodS}, {"runtime_dir", runtimeDir}, {"state_dir", stateDir},

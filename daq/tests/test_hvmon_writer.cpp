@@ -164,7 +164,7 @@ TEST(HvmonWriter, FullFileHasBoardColumns) {
   EXPECT_EQ(header,
             "t_req_utc_ns,t_resp_utc_ns,read_seq,slot,ch,V0Set_V,Status,read_duration_ns,bd_BdStatus,bd_HVMax_V,"
             "bd_HIMax_A,bd_Temp_degC");
-  EXPECT_NE(c.find(",0,3127,0.001111,26\n"), std::string::npos) << c;
+  EXPECT_NE(c.find(",0,3127,0.001111,25\n"), std::string::npos) << c;
   const auto schema = nlohmann::json::parse(r.fs.content("/sc/2026/hv_full_20261019.csv.schema.json"));
   EXPECT_EQ(schema["schema"], "daqv2.hv_full/2");
   EXPECT_EQ(schema["columns"].back()["unit"], "degC");

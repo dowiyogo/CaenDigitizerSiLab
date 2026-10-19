@@ -340,7 +340,8 @@ TEST(HvmonPoller, FullReadIncludesBoardParametersAndBoardTemperature) {
   while (auto item = r.writer.try_pop())
     if (auto* f = std::get_if<FullRows>(&*item)) {
       ++fulls;
-      hasBoard = hasBoard && f->board.has_value() && f->board->params.size() == 4;
+      hasBoard = hasBoard && f->board.has_value() && f->board->params.size() == 4 &&
+                 !f->board->get("ClrAlarm");  // excluido por board_params_exclude
     }
   EXPECT_EQ(fulls, 2);
   EXPECT_TRUE(hasBoard);

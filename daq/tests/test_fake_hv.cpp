@@ -259,12 +259,14 @@ TEST(FakeHV, BoardParametersAndScriptedTemperature) {
   ASSERT_TRUE(be.connect().ok());
   auto names = be.boardParamNames(3);
   ASSERT_TRUE(names.ok());
-  ASSERT_EQ(names.value().size(), 4u);
+  ASSERT_EQ(names.value().size(), 5u);
+  EXPECT_EQ(names.value()[4].name, "ClrAlarm");
+  EXPECT_EQ(names.value()[4].mode, daq::hv::ParamMode::ReadWrite);
   EXPECT_EQ(names.value()[0].name, "BdStatus");
   EXPECT_EQ(names.value()[0].type, daq::hv::ParamType::BdStatus);
   auto r = be.readBoard(3, {"BdStatus", "HVMax", "HIMax", "Temp"});
   ASSERT_TRUE(r.ok());
-  EXPECT_DOUBLE_EQ(r.value().get("Temp")->si, 26.0);
+  EXPECT_DOUBLE_EQ(r.value().get("Temp")->si, 25.0);
   EXPECT_DOUBLE_EQ(r.value().get("HVMax")->si, 3127.0);
   EXPECT_NEAR(r.value().get("HIMax")->si, 1111e-6, 1e-15);
   EXPECT_EQ(r.value().get("BdStatus")->raw, 0u);

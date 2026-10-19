@@ -85,11 +85,12 @@ std::vector<ParamInfo> FakeHVBackend::a7030dpParams() {
 }
 
 std::vector<ParamInfo> FakeHVBackend::a7030dpBoardParams() {
-  // Nombres de GECO2020 sobre la placa real (René, 2026-10-18); tipos y unidades a confirmar con
-  // hvctl board (las unidades de HIMax/Temp son inferencias hasta esa lectura).
+  // Copia de lo que informa la placa real (hvctl board --slot 3, 2026-10-19T01:53:50Z): 5
+  // parámetros, unidades de la placa. Rangos min/max no leídos (valores del fake).
   const auto RO = ParamMode::ReadOnly;
   return {other("BdStatus", ParamType::BdStatus, RO), numeric("HVMax", RO, 2, 0, 0.0, 3150.0),
-          numeric("HIMax", RO, 1, -6, 0.0, 1111.0), numeric("Temp", RO, 4, 0, -50.0, 150.0)};
+          numeric("HIMax", RO, 1, -6, 0.0, 1111.0), numeric("Temp", RO, 4, 0, -50.0, 150.0),
+          other("ClrAlarm", ParamType::OnOff, ParamMode::ReadWrite)};
 }
 
 nlohmann::json FakeHVBackend::defaultScenario() {
@@ -116,7 +117,7 @@ nlohmann::json FakeHVBackend::defaultScenario() {
       "vmon_offset_V": [0.19, 0.92, 0.67, 0.78, 0.38, 0.0, 0.0, 0.62, 1.26, 1.18, 1.15, 1.47],
       "imon_noise_uA": 0.004, "vmon_noise_V": 0.02,
       "imon_step_uA": 0.002, "vmon_step_V": 0.01,
-      "board": {"BdStatus": 0, "HVMax": 3127, "HIMax": 1111, "Temp": 26.0}
+      "board": {"BdStatus": 0, "HVMax": 3127, "HIMax": 1111, "Temp": 25.0, "ClrAlarm": 0}
     }],
     "events": []
   })json");

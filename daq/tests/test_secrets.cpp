@@ -23,7 +23,9 @@ class SecretsTest : public ::testing::Test {
  protected:
   void SetUp() override {
     for (const char* v : kVars) ::unsetenv(v);
-    path_ = ::testing::TempDir() + "daq_test_secrets.env";
+    // Un archivo por test: ctest corre los tests en paralelo.
+    path_ = ::testing::TempDir() + "daq_test_secrets_" +
+            ::testing::UnitTest::GetInstance()->current_test_info()->name() + ".env";
     ::setenv("DAQV2_SECRETS", path_.c_str(), 1);
   }
   void TearDown() override {

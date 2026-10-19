@@ -31,6 +31,9 @@ struct HvmonConfig {
   hv::StatusBitMap statusBits = hv::StatusBitMap::wrapperRev13();
   std::vector<std::string> tripFlags{"internal_trip", "external_trip"};
   std::string legacyCredentials = "~/.config/daqv2/hv_credentials.json";
+  // Parámetros de placa que NO se leen periódicamente. ClrAlarm (on/off, lectura-escritura) es el
+  // comando de borrado de alarmas del A7030DP: no se toca, ni siquiera para leerlo cada minuto.
+  std::vector<std::string> boardParamsExclude{"ClrAlarm"};
 
   // Escritura (única operación: Pw de un canal)
   bool allowCommands = false;

@@ -47,7 +47,7 @@ class FakeHVBackend final : public HVBackend {
   static nlohmann::json defaultScenario();
   // Tabla de parámetros del A7030DP (nombres, tipos, modos, unidades, rangos).
   static std::vector<ParamInfo> a7030dpParams();
-  // Parámetros de placa del A7030DP (BdStatus, HVMax, HIMax, Temp).
+  // Parámetros de placa del A7030DP (BdStatus, HVMax, HIMax, Temp, ClrAlarm).
   static std::vector<ParamInfo> a7030dpBoardParams();
 
   Status connect() override;
