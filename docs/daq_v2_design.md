@@ -1551,6 +1551,14 @@ VX1740 (serie 21, ROC 04.29 build 8716, AMC 00.13 build 8A15; CAENDigitizer 2.17
     pulsos oscuros (y del ruido del MPPC polarizado): el estimador de pedestal tiene que seguir
     siendo robusto a pulsos (media recortada, no media simple), y el ruido electrónico solo no
     sirve para fijar umbrales con HV encendida.
+73. **Trigger externo y crate NIM**: el 2026-10-19 el run003 no recibió triggers porque la fuente
+    del crate NIM (CAEN) se apagó por sobretemperatura (sala cerrada caliente de noche o con sol) y
+    dejó sin alimentación el N845 y el N405. daqrun avisa ahora por correo (`TriggerWatchdog`, en el
+    hilo monitor) si en un run con trigger externo no llega ningún trigger durante
+    `notifier.no_trigger_alert_min` (5 min): "no_triggers" con la hora del último trigger, el run, la
+    campaña y la temperatura de la placa A7030DP del estado de hvmon; y "triggers_resumed" con la
+    duración del hueco. Uno de cada por episodio, con el límite de `problem_interval_min` (30 min)
+    del notificador.
 
 ## 16. Preguntas resueltas por el handoff y la revisión
 
