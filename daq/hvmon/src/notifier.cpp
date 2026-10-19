@@ -5,10 +5,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <dirent.h>
+
+#include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 #include <ctime>
 #include <random>
 #include <sstream>
+
+#include "daq/core/file_system.h"
 
 #include "daq/core/logger.h"
 #include "daq/hvmon/state.h"
@@ -80,6 +86,7 @@ std::string describeEvent(const std::string& kind) {
   if (kind == "recovery") return "RECUPERADO tras un reintento automático";
   if (kind == "writer_error") return "ERROR de escritura de los archivos de control lento";
   if (kind == "connection_lost") return "CONEXIÓN PERDIDA con el SY5527";
+  if (kind == "hvmon_stale") return "hvmon NO RESPONDE durante un run de daqrun (bit 4 en todos los canales)";
   return kind;
 }
 
@@ -91,9 +98,39 @@ std::string utcAndLocal(UtcNs t) {
 
 }  // namespace
 
+std::string defaultOutboxDir() {
+  const char* x = std::getenv("XDG_STATE_HOME");
+  if (x && *x) return std::string(x) + "/daqv2/outbox";
+  const char* home = std::getenv("HOME");
+  return std::string(home ? home : "") + "/.local/state/daqv2/outbox";
+}
+
+nlohmann::json NotifyEvent::toJson() const {
+  return {{"kind", kind},       {"ch", ch},           {"slot", slot},       {"episode", episode},
+          {"k", k},             {"reason", reason},   {"timeline", timeline}, {"context", context},
+          {"t_utc_ns", tUtcNs}, {"simulated", simulated}, {"origin", origin}};
+}
+
+NotifyEvent NotifyEvent::fromJson(const nlohmann::json& j) {
+  NotifyEvent e;
+  e.kind = j.value("kind", "");
+  e.ch = j.value("ch", -1);
+  e.slot = j.value("slot", 3);
+  e.episode = j.value("episode", std::uint64_t{0});
+  e.k = j.value("k", 0);
+  e.reason = j.value("reason", "");
+  e.timeline = j.value("timeline", nlohmann::json::array());
+  e.context = j.value("context", nlohmann::json::object());
+  e.tUtcNs = j.value("t_utc_ns", UtcNs{0});
+  e.simulated = j.value("simulated", false);
+  e.origin = j.value("origin", "");
+  return e;
+}
+
 Result<NotifierConfig> NotifierConfig::fromJson(const nlohmann::json& j) {
   using R = Result<NotifierConfig>;
   NotifierConfig c;
+  c.outboxDir = defaultOutboxDir();
   try {
     c.enabled = j.value("enabled", c.enabled);
     c.notifyEachTrip = j.value("notify_each_trip", c.notifyEachTrip);
@@ -106,13 +143,16 @@ Result<NotifierConfig> NotifierConfig::fromJson(const nlohmann::json& j) {
     c.curlPath = j.value("curl", c.curlPath);
     c.maxTimeS = j.value("max_time_s", c.maxTimeS);
     c.mappingFile = j.value("mapping_file", c.mappingFile);
+    c.retryHourlyMin = j.value("retry_hourly_min", c.retryHourlyMin);
+    c.maxAgeH = j.value("max_age_h", c.maxAgeH);
+    c.outboxDir = j.value("outbox_dir", c.outboxDir);
     c.localTimezone = j.value("local_timezone", c.localTimezone);
     c.pageSshUser = j.value("page_ssh_user", c.pageSshUser);
     c.pageSshHost = j.value("page_ssh_host", c.pageSshHost);
   } catch (const std::exception& e) {
     return R::failure(-1, std::string("notifier inválido: ") + e.what());
   }
-  if (c.maxTimeS <= 0 || c.connectionLostMin <= 0 || c.problemIntervalMin <= 0)
+  if (c.maxTimeS <= 0 || c.connectionLostMin <= 0 || c.problemIntervalMin <= 0 || c.retryHourlyMin <= 0 || c.maxAgeH <= 0)
     return R::failure(-1, "notifier: max_time_s, connection_lost_min y problem_interval_min deben ser positivos");
   return c;
 }
@@ -124,7 +164,8 @@ nlohmann::json NotifierConfig::toJson() const {
                         {"problem_interval_min", problemIntervalMin}, {"retry_delays_min", retryDelaysMin},
                         {"curl", curlPath},             {"max_time_s", maxTimeS},
                         {"mapping_file", mappingFile}, {"local_timezone", localTimezone},
-                        {"page_ssh_user", pageSshUser}, {"page_ssh_host", pageSshHost}};
+                        {"page_ssh_user", pageSshUser}, {"page_ssh_host", pageSshHost},
+                        {"retry_hourly_min", retryHourlyMin}, {"max_age_h", maxAgeH}, {"outbox_dir", outboxDir}};
 }
 
 Result<SmtpSettings> SmtpSettings::fromSecrets(Secrets& s) {
@@ -166,7 +207,55 @@ Notifier::Notifier(NotifierConfig cfg, SmtpSettings smtp, std::optional<Mapping>
     host_ = ::gethostname(buf, sizeof buf - 1) == 0 ? buf : "localhost";
   }
   lastWriterErrors_ = hub_.writer.read().first.errors;
+  loadOutbox();
   publish();
+}
+
+// Un archivo JSON por correo pendiente, modo 600, sin secretos (el evento; el mensaje y la
+// configuración de curl se arman al enviar). Sobrevive a reinicios de hvmon.
+void Notifier::persist(const Pending& p) {
+  if (p.path.empty()) return;
+  PosixFileSystem fs;
+  const nlohmann::json j{{"schema", "daqv2.notify_outbox/1"}, {"event", p.ev.toJson()},  {"attempts", p.attempts},
+                         {"queued_utc_ns", p.queuedUtcNs},     {"due_utc_ns", p.dueUtcNs}};
+  if (auto st = fs.writeAtomic(p.path, j.dump() + "\n", 0600); !st) logError("outbox: ", st.error().message);
+}
+
+void Notifier::loadOutbox() {
+  if (cfg_.outboxDir.empty()) return;
+  PosixFileSystem fs;
+  if (auto st = fs.makeDirectories(cfg_.outboxDir, 0700); !st) {
+    logError("outbox: ", st.error().message);
+    return;
+  }
+  DIR* d = ::opendir(cfg_.outboxDir.c_str());
+  if (!d) return;
+  std::vector<std::string> files;
+  while (dirent* e = ::readdir(d)) {
+    const std::string n = e->d_name;
+    if (n.size() > 5 && n.compare(n.size() - 5, 5, ".json") == 0) files.push_back(cfg_.outboxDir + "/" + n);
+  }
+  ::closedir(d);
+  std::sort(files.begin(), files.end());
+  const UtcNs now = clock_.now_utc_ns();
+  for (const auto& f : files) {
+    auto t = fs.readFile(f);
+    if (!t) continue;
+    try {
+      const auto j = nlohmann::json::parse(t.value());
+      Pending p;
+      p.ev = NotifyEvent::fromJson(j.at("event"));
+      p.attempts = j.value("attempts", 0);
+      p.queuedUtcNs = j.value("queued_utc_ns", now);
+      p.dueUtcNs = std::max<UtcNs>(now, j.value("due_utc_ns", now));
+      p.path = f;
+      pending_.push_back(std::move(p));
+      ++restored_;
+    } catch (const std::exception& ex) {
+      logError("outbox: archivo ilegible ", f, ": ", ex.what());
+    }
+  }
+  if (restored_) logInfo("notificador: ", restored_, " correos pendientes recuperados del outbox ", cfg_.outboxDir);
 }
 
 std::string Notifier::redact(std::string s) const {
@@ -236,6 +325,7 @@ std::string Notifier::composeMessage(const NotifyEvent& e, std::string* subjectO
   } else {
     subj << e.kind;
   }
+  if (!e.origin.empty()) subj << " — " << e.origin;
   const std::string subject = subj.str();
   if (subjectOut) *subjectOut = subject;
 
@@ -254,6 +344,13 @@ std::string Notifier::composeMessage(const NotifyEvent& e, std::string* subjectO
   body << "Evento: " << describeEvent(e.kind) << "\n";
   body << "Hora del evento: " << utcAndLocal(e.tUtcNs) << "\n";
   body << "Hora de envío: " << utcAndLocal(clock_.now_utc_ns()) << "\n";
+  {
+    const double delayS = static_cast<double>(clock_.now_utc_ns() - e.tUtcNs) / 1e9;
+    char dl[64];
+    std::snprintf(dl, sizeof dl, "%.0f s (%.1f min)", delayS, delayS / 60.0);
+    body << "Retraso de entrega: " << dl << "\n";
+  }
+  if (!e.origin.empty()) body << "Origen: " << e.origin << "\n";
   body << "Host: " << host_ << "\n";
   if (e.ch >= 0) {
     body << "Canal HV: CH" << (e.ch < 10 ? "0" : "") << e.ch << " del slot " << e.slot;
@@ -376,8 +473,13 @@ bool Notifier::submit(NotifyEvent e) {
   ++seq_;
   Pending p;
   p.ev = std::move(e);
-  p.message = composeMessage(p.ev);
-  p.due = clock_.now_steady();
+  p.queuedUtcNs = p.dueUtcNs = clock_.now_utc_ns();
+  if (!p.ev.test && !cfg_.outboxDir.empty()) {
+    PosixFileSystem().makeDirectories(cfg_.outboxDir, 0700);
+    p.path = cfg_.outboxDir + "/" + std::to_string(p.queuedUtcNs) + "_" + std::to_string(::getpid()) + "_" +
+             std::to_string(seq_) + ".json";
+    persist(p);
+  }
   pending_.push_back(std::move(p));
   publish();
   return true;
@@ -392,8 +494,9 @@ bool Notifier::sendOnce(Pending& p, std::string& err, int& exitCode) {
     err = "no se pudo crear " + path;
     return false;
   }
-  const char* d = p.message.data();
-  std::size_t left = p.message.size();
+  const std::string message = composeMessage(p.ev);  // al enviar: incluye el retraso de entrega
+  const char* d = message.data();
+  std::size_t left = message.size();
   while (left > 0) {
     const ssize_t n = ::write(fd, d, left);
     if (n <= 0) break;
@@ -417,9 +520,9 @@ bool Notifier::sendOnce(Pending& p, std::string& err, int& exitCode) {
 }
 
 void Notifier::processDue() {
-  const SteadyTime now = clock_.now_steady();
+  const UtcNs now = clock_.now_utc_ns();
   for (auto it = pending_.begin(); it != pending_.end();) {
-    if (it->due > now) {
+    if (it->dueUtcNs > now) {
       ++it;
       continue;
     }
@@ -428,26 +531,38 @@ void Notifier::processDue() {
     ++it->attempts;
     const bool ok = sendOnce(*it, err, code);
     lastResult_ = {{"kind", it->ev.kind}, {"ch", it->ev.ch}, {"test", it->ev.test}, {"attempt", it->attempts},
-                   {"ok", ok}, {"curl_exit", code}, {"error", err}, {"t_utc", formatUtcIso(clock_.now_utc_ns())}};
+                   {"ok", ok}, {"curl_exit", code}, {"error", err}, {"t_utc", formatUtcIso(clock_.now_utc_ns())},
+                   {"delay_s", static_cast<double>(clock_.now_utc_ns() - it->ev.tUtcNs) / 1e9}};
     if (ok) {
       ++sent_;
-      logInfo("correo enviado: ", it->ev.kind, " CH", it->ev.ch, it->ev.test ? " (PRUEBA)" : "", ", curl salió con 0");
+      logInfo("correo enviado: ", it->ev.kind, " CH", it->ev.ch, it->ev.test ? " (PRUEBA)" : "", ", curl salió con 0",
+              ", intento ", it->attempts, ", retraso ", static_cast<double>(clock_.now_utc_ns() - it->ev.tUtcNs) / 1e9, " s");
       if (it->ev.reply) it->ev.reply->set_value({{"ok", true}, {"curl_exit", code}, {"attempts", it->attempts}});
+      if (!it->path.empty()) ::unlink(it->path.c_str());  // entregado: sale del outbox
       it = pending_.erase(it);
       continue;
     }
-    const std::size_t retriesDone = static_cast<std::size_t>(it->attempts - 1);
-    if (!it->ev.test && retriesDone < cfg_.retryDelaysMin.size()) {
-      const double delay = cfg_.retryDelaysMin[retriesDone];
+    const double ageH = static_cast<double>(now - it->ev.tUtcNs) / 3.6e12;
+    if (!it->ev.test && ageH < cfg_.maxAgeH) {
+      const std::size_t i = static_cast<std::size_t>(it->attempts - 1);
+      const double delay = i < cfg_.retryDelaysMin.size() ? cfg_.retryDelaysMin[i] : cfg_.retryHourlyMin;
       logWarn("correo ", it->ev.kind, " CH", it->ev.ch, " falló (intento ", it->attempts, "): ", err,
               "; reintento en ", delay, " min");
-      it->due = now + std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(delay * 60.0));
+      it->dueUtcNs = now + static_cast<UtcNs>(delay * 60e9);
+      persist(*it);
       ++it;
       continue;
     }
     ++failed_;
-    logError("correo ", it->ev.kind, " CH", it->ev.ch, " no se pudo enviar tras ", it->attempts, " intentos: ", err);
+    if (!it->ev.test) ++abandoned_;
+    logError("correo ", it->ev.kind, " CH", it->ev.ch, " no se pudo enviar tras ", it->attempts, " intentos",
+             it->ev.test ? "" : " (más de max_age_h desde el evento)", ": ", err);
     if (it->ev.reply) it->ev.reply->set_value({{"ok", false}, {"curl_exit", code}, {"error", err}, {"attempts", it->attempts}});
+    if (!it->path.empty()) {  // abandonado: se aparta, no se borra
+      const std::string failedDir = cfg_.outboxDir + "/failed";
+      PosixFileSystem().makeDirectories(failedDir, 0700);
+      ::rename(it->path.c_str(), (failedDir + it->path.substr(it->path.find_last_of('/'))).c_str());
+    }
     it = pending_.erase(it);
   }
   publish();
@@ -481,6 +596,7 @@ void Notifier::checkProblems() {
 
 nlohmann::json Notifier::status() const {
   return nlohmann::json{{"enabled", cfg_.enabled}, {"sent", sent_},          {"failed", failed_},
+                        {"restored_from_outbox", restored_}, {"abandoned", abandoned_}, {"outbox", cfg_.outboxDir},
                         {"suppressed", suppressed_}, {"pending", pending_.size()}, {"last_result", lastResult_},
                         {"recipients", smtp_.to.size()}};
 }

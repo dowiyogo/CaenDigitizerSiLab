@@ -2,7 +2,9 @@
 // El Spawner es un fake que registra argv y stdin y lee el archivo del cuerpo antes de que se borre.
 #include <gtest/gtest.h>
 
+#include <dirent.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <fstream>
 #include <iterator>
@@ -65,6 +67,22 @@ std::optional<Mapping> mapping() {
   return m.ok() ? std::optional<Mapping>(m.value()) : std::nullopt;
 }
 
+std::string freshOutbox() {
+  static int n = 0;
+  const std::string d = ::testing::TempDir() + "daq_outbox_" + std::to_string(::getpid()) + "_" +
+                        ::testing::UnitTest::GetInstance()->current_test_info()->name() + "_" + std::to_string(n++);
+  return d;
+}
+
+int filesIn(const std::string& dir) {
+  int n = 0;
+  if (DIR* d = ::opendir(dir.c_str())) {
+    while (dirent* e = ::readdir(d)) n += std::string(e->d_name).size() > 5 && std::string(e->d_name).find(".json") != std::string::npos;
+    ::closedir(d);
+  }
+  return n;
+}
+
 // Primera línea del cuerpo (tras los encabezados).
 std::string firstBodyLine(const std::string& msg) {
   const auto p = msg.find("\r\n\r\n");
@@ -93,6 +111,8 @@ struct NRig {
   NotifierConfig cfg;
   std::unique_ptr<Notifier> n;
   explicit NRig(nlohmann::json c = {{"enabled", true}}) {
+    // Outbox propio de cada test (nunca el real de ~/.local/state).
+    if (!c.contains("outbox_dir")) c["outbox_dir"] = freshOutbox();
     cfg = NotifierConfig::fromJson(c).value();
     n = std::make_unique<Notifier>(cfg, smtp(), mapping(), spawner, clock, ::testing::TempDir(), hub, "host-test");
   }
@@ -202,43 +222,99 @@ TEST(Notifier, ConnectionLostAfterFiveMinutes) {
   EXPECT_NE(r.spawner.calls[0].body.find("CONEXIÓN PERDIDA"), std::string::npos);
 }
 
-TEST(Notifier, RetriesThreeTimesThenPublishesFailure) {
+TEST(Notifier, OutageBackoffOutboxAndDeliveryDelay) {
+  // La red cae 3 h: reintentos a 1, 5, 15, 60 min y luego cada hora; el correo sale al volver la red,
+  // con la hora del evento y el retraso; el archivo del outbox desaparece al entregarse.
   NRig r;
-  r.spawner.exitCodes = {67, 67, 67, 67};
-  r.spawner.stderrText = "curl: (67) Login denied for user daq:" + kPassword;  // el stderr no debe filtrarse
-  const std::string log = ::testing::TempDir() + "daq_notifier_test.log";
+  const std::string box = r.cfg.outboxDir;
+  r.spawner.exitCodes = std::vector<int>(6, 6);  // curl: (6) no se pudo resolver el host
+  r.spawner.stderrText = "curl: (6) Could not resolve host; pass " + kPassword;
+  const std::string log = ::testing::TempDir() + "daq_notifier_outage.log";
   std::remove(log.c_str());
   Logger::instance().setStderr(false);
   ASSERT_TRUE(Logger::instance().openFile(log).ok());
-  ASSERT_TRUE(r.n->submit(gaveUp(5, 1)));
+  auto e = gaveUp(5, 1);
+  e.tUtcNs = r.clock.now_utc_ns();
+  ASSERT_TRUE(r.n->submit(std::move(e)));
+  EXPECT_EQ(filesIn(box), 1);
+  // Contenido del outbox: modo 600 y sin secretos.
+  DIR* d = ::opendir(box.c_str());
+  std::string f;
+  while (dirent* x = ::readdir(d))
+    if (std::string(x->d_name).find(".json") != std::string::npos) f = box + "/" + x->d_name;
+  ::closedir(d);
+  struct stat st {};
+  ASSERT_EQ(::stat(f.c_str(), &st), 0);
+  EXPECT_EQ(st.st_mode & 0777, 0600u);
+  {
+    std::ifstream in(f);
+    const std::string all((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(all.find("S3cr3t"), std::string::npos);
+    EXPECT_EQ(all.find("smtp"), std::string::npos);
+  }
+  // Minuto de cada intento, avanzando de a 1 min durante 4 h.
+  std::vector<int> callMinutes;
   r.n->processDue();
-  EXPECT_EQ(r.spawner.calls.size(), 1u);
-  r.clock.advance(59s);
-  r.n->processDue();
-  EXPECT_EQ(r.spawner.calls.size(), 1u);
-  r.clock.advance(1s);  // +1 min
-  r.n->processDue();
-  EXPECT_EQ(r.spawner.calls.size(), 2u);
-  r.clock.advance(5min);
-  r.n->processDue();
-  EXPECT_EQ(r.spawner.calls.size(), 3u);
-  r.clock.advance(15min);
-  r.n->processDue();
-  EXPECT_EQ(r.spawner.calls.size(), 4u);
+  if (r.spawner.calls.size() == 1) callMinutes.push_back(0);
+  for (int m = 1; m <= 240; ++m) {
+    r.clock.advance(1min);
+    const auto before = r.spawner.calls.size();
+    r.n->processDue();
+    if (r.spawner.calls.size() > before) callMinutes.push_back(m);
+  }
+  EXPECT_EQ(callMinutes, (std::vector<int>{0, 1, 6, 21, 81, 141, 201}));
+  // Séptimo intento (t = 0+1+5+15+60+60+60 = 201 min) entregado: curl devuelve 0.
+  ASSERT_EQ(r.spawner.calls.size(), 7u);
   EXPECT_EQ(r.n->pending(), 0u);
-  const auto st = r.n->status();
-  EXPECT_EQ(st["failed"], 1);
-  EXPECT_FALSE(st["last_result"]["ok"].get<bool>());
-  EXPECT_EQ(st["last_result"]["curl_exit"], 67);
-  EXPECT_EQ(st["last_result"]["error"].get<std::string>().find("S3cr3t"), std::string::npos);
+  EXPECT_EQ(filesIn(box), 0);
+  const std::string& body = r.spawner.calls.back().body;
+  EXPECT_NE(body.find("Hora del evento: 2026-10-18T00:00:00.000Z"), std::string::npos) << body;
+  EXPECT_NE(body.find("Retraso de entrega: 12060 s (201.0 min)"), std::string::npos) << body;
+  EXPECT_EQ(r.n->status()["sent"], 1);
   Logger::instance().closeFile();
   Logger::instance().setStderr(true);
   std::ifstream in(log);
   const std::string all((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-  EXPECT_NE(all.find("no se pudo enviar tras 4 intentos"), std::string::npos);
+  EXPECT_NE(all.find("reintento en 60 min"), std::string::npos);
   EXPECT_EQ(all.find("S3cr3t"), std::string::npos);
-  EXPECT_NE(all.find("***"), std::string::npos);
   std::remove(log.c_str());
+}
+
+TEST(Notifier, OutboxSurvivesRestartAndAbandonsAfter48h) {
+  const std::string box = freshOutbox();
+  {
+    NRig a({{"enabled", true}, {"outbox_dir", box}});
+    a.spawner.exitCodes = {7};
+    ASSERT_TRUE(a.n->submit(gaveUp(3, 1)));
+    a.n->processDue();  // falla
+    EXPECT_EQ(filesIn(box), 1);
+  }  // "hvmon" se reinicia: el correo pendiente sigue en el outbox
+  NRig b({{"enabled", true}, {"outbox_dir", box}});
+  EXPECT_EQ(b.n->restoredFromOutbox(), 1u);
+  EXPECT_EQ(b.n->pending(), 1u);
+  b.clock.advance(2min);
+  b.n->processDue();
+  ASSERT_EQ(b.spawner.calls.size(), 1u);
+  EXPECT_NE(b.spawner.calls[0].body.find("gave_up CH03"), std::string::npos);
+  EXPECT_EQ(filesIn(box), 0);
+  // Sin red nunca: a las 48 h del evento se abandona y se aparta en failed/.
+  const std::string box2 = freshOutbox();
+  NRig c({{"enabled", true}, {"outbox_dir", box2}});
+  c.spawner.exitCodes = std::vector<int>(100, 6);
+  auto e = gaveUp(4, 2);
+  e.tUtcNs = c.clock.now_utc_ns();
+  ASSERT_TRUE(c.n->submit(std::move(e)));
+  for (int h = 0; h < 50 * 4; ++h) {
+    c.clock.advance(15min);
+    c.n->processDue();
+  }
+  EXPECT_EQ(c.n->pending(), 0u);
+  EXPECT_EQ(filesIn(box2), 0);
+  EXPECT_EQ(filesIn(box2 + "/failed"), 1);
+  EXPECT_EQ(c.n->status()["abandoned"], 1);
+  // 1, 5, 15, 60 y luego cada hora hasta 48 h: 4 + ~47 intentos más el primero.
+  EXPECT_GE(c.spawner.calls.size(), 48u);
+  EXPECT_LE(c.spawner.calls.size(), 53u);
 }
 
 TEST(Notifier, TestEventIsMarkedAndRepliesWithExitCode) {
@@ -353,7 +429,7 @@ TEST(Notifier, BodyUnitsLocalTimeWaitsAndPageLine) {
   EXPECT_NE(b.find("2026-10-18T00:05:02.005Z (2026-10-17 21:05:02 -03)  ramp_done (k = 1)\r\n"), std::string::npos);
   EXPECT_NE(b.find("ssh -N -L 8081:127.0.0.1:8081 xplus@tailnet-host y abrir http://localhost:8081"), std::string::npos);
   // Sin host configurado la línea lo dice; el puerto viene de http.port de hvmon.
-  NotifierConfig c2 = NotifierConfig::fromJson({{"enabled", true}}).value();
+  NotifierConfig c2 = NotifierConfig::fromJson({{"enabled", true}, {"outbox_dir", freshOutbox()}}).value();
   c2.pagePort = 8091;
   c2.pageSshHost = "otro";
   FakeSpawner sp;
@@ -361,7 +437,7 @@ TEST(Notifier, BodyUnitsLocalTimeWaitsAndPageLine) {
   std::string subj;
   EXPECT_NE(n2.composeMessage(gaveUp(3, 1), &subj).find("ssh -N -L 8091:127.0.0.1:8091 xplus@otro y abrir http://localhost:8091"),
             std::string::npos);
-  NotifierConfig c3 = NotifierConfig::fromJson({{"enabled", true}}).value();
+  NotifierConfig c3 = NotifierConfig::fromJson({{"enabled", true}, {"outbox_dir", freshOutbox()}}).value();
   Notifier n3(c3, smtp(), mapping(), sp, r.clock, ::testing::TempDir(), r.hub, "h");
   EXPECT_NE(n3.composeMessage(gaveUp(3, 1)).find("notifier.page_ssh_host sin configurar"), std::string::npos);
 }

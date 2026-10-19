@@ -45,7 +45,10 @@ struct NotifierConfig {
   bool notifyConnectionLost = true;
   double connectionLostMin = 5;
   double problemIntervalMin = 30;
-  std::vector<double> retryDelaysMin{1, 5, 15};
+  std::vector<double> retryDelaysMin{1, 5, 15, 60};  // luego cada retry_hourly_min hasta max_age_h
+  double retryHourlyMin = 60;
+  double maxAgeH = 48;     // un correo sin entregar se abandona (outbox/failed/) a las 48 h del evento
+  std::string outboxDir;   // persistencia ($XDG_STATE_HOME/daqv2/outbox); vacío = solo en memoria
   std::string curlPath = "curl";
   int maxTimeS = 30;
   std::string mappingFile = "daq/config/mapping/hodo_mapping_2026_10.json";
@@ -76,8 +79,13 @@ struct NotifyEvent {
   UtcNs tUtcNs = 0;
   bool test = false;       // PRUEBA: sin límite por episodio y sin reintentos
   bool simulated = false;  // canal en test_mode (la fuente simulada se marca con setSimulatedBackend)
+  std::string origin;      // quién lo genera si no es hvmon (p. ej. "daqrun campaña X run 3"): en asunto y cuerpo
   std::shared_ptr<std::promise<nlohmann::json>> reply;  // opcional (notify-test)
+  nlohmann::json toJson() const;  // sin reply; para el outbox
+  static NotifyEvent fromJson(const nlohmann::json& j);
 };
+
+std::string defaultOutboxDir();  // $XDG_STATE_HOME/daqv2/outbox (o ~/.local/state/daqv2/outbox)
 
 class Notifier {
  public:
@@ -96,15 +104,19 @@ class Notifier {
   std::string curlConfig(const std::string& bodyPath) const;
   nlohmann::json status() const;
   std::size_t pending() const { return pending_.size(); }
+  std::uint64_t restoredFromOutbox() const { return restored_; }
 
  private:
   struct Pending {
     NotifyEvent ev;
-    std::string message;
     int attempts = 0;
-    SteadyTime due{};
+    UtcNs queuedUtcNs = 0;
+    UtcNs dueUtcNs = 0;
+    std::string path;  // archivo del outbox ("" si no se persiste: PRUEBA o sin outbox)
   };
   bool sendOnce(Pending& p, std::string& err, int& exitCode);
+  void persist(const Pending& p);
+  void loadOutbox();
   void publish();
   std::string redact(std::string s) const;
   std::string rfc5322Date(UtcNs t) const;
@@ -127,6 +139,7 @@ class Notifier {
   nlohmann::json lastResult_;
   std::uint64_t seq_ = 0;
   bool simulatedBackend_ = false;
+  std::uint64_t restored_ = 0, abandoned_ = 0;
 };
 
 }  // namespace daq::hvmon
