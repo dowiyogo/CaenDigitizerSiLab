@@ -1084,6 +1084,7 @@ Siempre marcada "ESTIMADA".
   60 s; `hvctl offsets` hace la medida explícita de inicio/fin de campaña y se niega si
   algún canal tiene Pw = 1.
 - Corriente típica de un grupo: ~2 µA, con I0Set = 15 µA (margen ~7 veces) [H: 3].
+  Medido en octubre (DAQ2-6, 15.5 decisión 79): 2.986-7.958 µA, margen 1.88-3.06.
 
 ## 12. Temperatura
 
@@ -1570,6 +1571,53 @@ VX1740 (serie 21, ROC 04.29 build 8716, AMC 00.13 build 8A15; CAENDigitizer 2.17
     laboratorio y reparada. La segunda dejó triggers sueltos cada pocos minutos y no disparó el aviso
     de 5 min de silencio: `TriggerWatchdog` abre ahora también un episodio si la tasa en
     `notifier.trigger_rate_window_min` (10 min) cae bajo `notifier.min_trigger_rate_Hz` (0.1 Hz).
+
+Paso 4 con HV encendida (runs 7 y 8, trigger externo, ventana B, 17:08:49Z-19:29:45Z; macros
+`commissioning_ext_runs.C` y `commissioning_hv_period.C`, salidas en `outputs/daq2-6/`):
+
+76. **Posición del muón confirmada**: con 5800 eventos, mínimo del registro en eventos con pulso
+    > 50 mV (hod2018) y > 5 mV (hod2019): hod2018 654 de 2131 canales×eventos en [49,58) sobre un
+    fondo de 10.78 por muestra (exceso 557.0), moda 55; hod2019 256 de 358 (fondo 0.72, exceso
+    249.5), moda 50. Todo el exceso está en las muestras 50-56: no hace falta corregir el
+    post-trigger (0x8114 = 93) ni la ventana de señal [49,58). Detalle: dentro de cada canal el
+    mínimo cae en muestras de una sola paridad (hod2018, grupos 0-3: 51, 53, 55; hod2019, grupos
+    4-7: 50, 52, 54), es decir, la posición del muón salta en pasos de 32 ns. No es un offset de
+    pedestal par/impar (≤ 0.007 mV) ni depende de `ttt_raw` mód 8. Causa no determinada; no afecta
+    la ventana, sí una futura medida de tiempo con resolución de una muestra.
+77. **TTT con el bit 0 siempre en 1**: en los runs 1, 2, 4, 6, 7 y 8 (SW y trigger externo)
+    `ttt_raw` mód 4 vale solo 1 o 3: la resolución efectiva es 16 ns (una muestra), no 8 ns. El
+    contador se reinicia con `SWStartAcquisition` (el primer evento tiene t_read − t_utc de
+    2.7-4.5 ms en los runs 1, 4, 7 y 8). Tick medido 8.000071 ns en el run 8 (6637 s; 8.000059 en
+    el run 7, 8.000102 en el run 4): con el tick nominal de 8 ns, t_utc se atrasa ~9 ppm respecto
+    del PC (mediana t_read − t_utc 35.494 ms en el run 8 frente a 10.870 ms en el run 7), ~0.77 s
+    por día de run. Pendiente para la fase 5 (ver 81).
+78. **Hueco de trigger de 55.296 s** en el run 8 (~18:39:45Z → 18:40:40Z, evt_seq 2429, flag Gap):
+    contador de la placa continuo, sin memoria llena, sin errores de lectura ni de USB: la placa
+    no recibió triggers. Causa no determinada (cadena externa). El resto: run 7 0.7201 ± 0.0200 Hz,
+    run 8 0.6786 ± 0.0101 Hz; juntos 0.6876 ± 0.0090 Hz, KS p 0.444, χ² 16.3/18 p 0.571, ajuste
+    exponencial 0.6919 ± 0.0091 Hz, 0 ráfagas. `commissioning_timing.C` contaba vueltas solo por
+    caídas del TTT y perdía las de un intervalo mayor que 17.18 s; ahora usa la hora del PC.
+79. **IMon contra lo esperado**: la estimación de ~2 µA por grupo (sección 11, [H: 3]) no se cumple
+    en octubre: con V0Set 65.70-66.15 V, IMon entre 2.986 µA (CH01) y 7.958 µA (CH06) entre
+    16:30Z y 21:00Z; margen I0Set/IMon_máx de 1.88 (CH06) a 3.06 (CH01), no ~7. VMon − V0Set entre
+    −0.140 y −0.380 V. Ningún trip ni cambio de estado tras la subida de las 16:23-16:29Z.
+    Temperatura de la placa A7030DP 25.0-27.0 degC (resolución 1 degC).
+80. **Tasas fuera de tiempo y su relación con IMon**: entre ~18:00Z y 19:10Z (15:00-16:10 en
+    Chile) suben a la vez IMon de todos los grupos (CH00 de 4.183 a 5.762 µA en bins de 10 min) y
+    las tasas fuera de tiempo: hod2019 > 3 mV, media por canal, de 0.098-0.584 a 19.670 kHz;
+    hod2018 > 3 p.e. (G de v8), mediana, de 115.60 a 179.17 kHz. Correlación de Pearson IMon-tasa
+    por grupo (15 bins): hod2019 > 3 mV 0.74-0.93 en los grupos 1, 2, 3, 5, 6 y 7 (0.238 en el 4,
+    con 2 canales); hod2018 0.638, 0.840 y 0.855 en los grupos 1, 2 y 6 (los únicos con canales de
+    hod2018 de grupo conocido). La subida se concentra en la cara Trasera de hod2019 X (ch47 de
+    5.02 a 195.19 kHz, ch39 de 1.16 a 130.69 kHz) y la placa no se calentó: compatible con luz
+    (como en mayo, handoff 4), no demostrado. RSS de daqrun en el run 8: 329328 kB al minuto,
+    meseta de 365808 kB desde 18:40Z hasta el final (+768 kB en el cambio de segmento).
+81. **Pendiente para la fase 5**: (a) t_utc con el tick medido por run (ajuste TTT-PC o
+    re-anclaje periódico) en vez del nominal, antes de runs de más de unas horas; (b) la
+    cuantización de 32 ns de la posición del muón; (c) prueba de grupos HV y fuga de luz con
+    cortina o tela negra (handoff 8), porque las tasas de la tarde siguen a la luz y no a la
+    temperatura de la placa; (d) recalibración de p.e. de octubre (la vista previa del run 6 no
+    es una calibración).
 
 ## 16. Preguntas resueltas por el handoff y la revisión
 

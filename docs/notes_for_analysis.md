@@ -103,3 +103,22 @@ cadena (confirmada y reparada por el laboratorio), con triggers sueltos cada poc
 de silencio total; un corte de cable intermitente y un apagado térmico pueden dejar huecos de
 forma distinta (triggers sueltos frente a silencio completo hasta que la fuente se enfría). Desde DAQ2-6 daqrun avisa por
 correo tras 5 min sin triggers en runs con trigger externo, con la temperatura de la placa HV.
+
+## 9. Puesta en marcha del VX1740 con HV encendida (DAQ2-6, runs 7 y 8, 2026-10-19)
+
+Datos en `/data/daq/raw/commissioning_2026_10/` (campaña cerrada); resultados en
+`outputs/daq2-6/s4a_runs78*` y `hv_period_*`; detalle en el diseño 15.5, decisiones 76-81.
+
+- TTT: el bit 0 de `ttt_raw` vale 1 en todos los eventos de todos los runs: resolución de 16 ns.
+  El tick real es ~8.00007 ns; `t_utc_ns` de daqrun usa 8 ns, así que se atrasa ~9 ppm respecto del
+  PC (35 ms de mediana en el run 8, de 1.8 h). Para Δt dentro de un run no importa; para cruzar
+  con el control lento en runs largos, usar `t_read_utc_ns` o re-anclar.
+- Posición del muón: en cada canal el mínimo cae en muestras de una sola paridad (hod2018 51/53/55,
+  hod2019 50/52/54): saltos de 32 ns. Para tiempos finos, interpolar el flanco en vez de usar la
+  muestra del mínimo.
+- Tasas fuera de tiempo con el mismo buscador y las mismas 91 muestras que el replay de v8
+  (item 7): hod2018 > 3 p.e. (G de v8) mediana 133.57 kHz (v8: 377.75); hod2019 > 3 mV mediana
+  0.592 kHz, media 5.891 kHz por canal (v8: 29.67); > 5 mV media 0.233 kHz. Entre 18:00Z y
+  19:10Z (tarde) suben junto con IMon, sobre todo la cara Trasera de hod2019 X: el mismo patrón
+  que la fuga de luz de mayo, no confirmado.
+- Hueco de trigger de 55.296 s a las ~18:39:45Z (run 8), causa no determinada.

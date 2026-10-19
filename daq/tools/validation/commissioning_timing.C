@@ -1,5 +1,6 @@
 // commissioning_timing.C — DAQ2-6 (solo lectura). TTT, contador y Δt de un run de daqrun.
-//  - TTT crudo: máximo observado y caídas (vueltas); se desenrolla con `bits` y la hora del PC.
+//  - TTT crudo: máximo observado y caídas; se desenrolla con `bits` y la hora del PC (vueltas entre
+//    eventos con el tick nominal de 8 ns, también en intervalos de más de un período).
 //  - Paso del TTT: ajuste lineal de TTT desenrollado (ticks) contra t_read_utc_ns (ns del PC):
 //    pendiente = ticks/ns -> tick = 1/pendiente; residuos RMS (incluyen la latencia de lectura).
 //  - Período de vuelta = 2^bits × tick.
@@ -28,7 +29,8 @@ void commissioning_timing(const char* pattern, int bits = 31) {
   const Long64_t n = t.GetEntries();
   std::vector<double> x, y;  // x: t_read (ns desde el primero), y: ticks desenrollados
   UInt_t maxRaw = 0, maxCnt = 0, prevRaw = 0, prevCnt = 0;
-  long drops = 0, jumps = 0, above31 = 0;
+  Long64_t prevTread = 0;
+  long drops = 0, jumps = 0, above31 = 0, longIntervals = 0;
   long double wraps = 0;
   const long double period = std::ldexp(1.0L, bits);
   Long64_t t0 = 0;
@@ -39,13 +41,18 @@ void commissioning_timing(const char* pattern, int bits = 31) {
     maxCnt = std::max(maxCnt, cnt);
     if (raw >> 31) ++above31;
     const UInt_t r = bits >= 32 ? raw : (raw & ((1u << bits) - 1));
-    if (i > 0 && r < prevRaw) {
-      ++drops;
-      wraps += 1;
+    if (i > 0) {
+      // Vueltas entre eventos: con la hora del PC y el tick nominal de 8 ns (con caídas solamente se
+      // pierden vueltas si el intervalo supera el período, como el hueco de 55 s del run 8).
+      if (r < prevRaw) ++drops;
+      const long double k = std::floor(((tread - prevTread) - (static_cast<long double>(r) - prevRaw) * 8.0L) / (period * 8.0L) + 0.5L);
+      if (k > 0) wraps += k;
+      if (k > (r < prevRaw ? 1 : 0)) ++longIntervals;
     }
     if (i > 0 && ((cnt - prevCnt) & 0xFFFFFF) != 1) ++jumps;
     prevRaw = r;
     prevCnt = cnt;
+    prevTread = tread;
     x.push_back(static_cast<double>(tread - t0));
     y.push_back(static_cast<double>(wraps * period + r));
   }
@@ -66,8 +73,9 @@ void commissioning_timing(const char* pattern, int bits = 31) {
     resMax = std::max(resMax, std::fabs(r));
   }
   const double tick = 1.0 / b;
-  printf("eventos %lld; TTT crudo máximo %u (0x%08X), eventos con bit 31: %ld; caídas con %d bits: %ld\n", n, maxRaw, maxRaw, above31,
-         bits, drops);
+  printf("eventos %lld; TTT crudo máximo %u (0x%08X), eventos con bit 31: %ld; caídas con %d bits: %ld; intervalos de más de una "
+         "vuelta: %ld\n",
+         n, maxRaw, maxRaw, above31, bits, drops, longIntervals);
   printf("ajuste TTT vs PC: tick = %.6f ns, residuo RMS %.1f µs, máx %.1f µs; período de vuelta 2^%d × tick = %.3f s\n", tick,
          std::sqrt(res2 / m) / 1e3, resMax / 1e3, bits, static_cast<double>(period) * tick / 1e9);
   printf("contador: máximo %u, saltos ≠ +1 (mód 2^24): %ld\n", maxCnt, jumps);
