@@ -6,7 +6,10 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <climits>
+#include <cstdlib>
 #include <cstring>
+#include <vector>
 
 namespace daq {
 
@@ -53,6 +56,52 @@ class PosixFile final : public WritableFile {
 };
 
 }  // namespace
+
+namespace {
+std::string lexicalNormalize(const std::string& path) {
+  std::vector<std::string> parts;
+  std::size_t a = 0;
+  while (a <= path.size()) {
+    const auto b = path.find('/', a);
+    const std::string s = path.substr(a, b == std::string::npos ? std::string::npos : b - a);
+    if (s == "..") {
+      if (!parts.empty()) parts.pop_back();
+    } else if (!s.empty() && s != ".") {
+      parts.push_back(s);
+    }
+    if (b == std::string::npos) break;
+    a = b + 1;
+  }
+  std::string out;
+  for (const auto& s : parts) out += "/" + s;
+  return out.empty() ? "/" : out;
+}
+}  // namespace
+
+std::string resolvePath(const std::string& path) {
+  std::string abs = path;
+  if (abs.empty() || abs[0] != '/') {
+    char cwd[4096];
+    abs = std::string(::getcwd(cwd, sizeof cwd) ? cwd : "/") + "/" + abs;
+  }
+  abs = lexicalNormalize(abs);
+  // Prefijo existente más largo con realpath; el resto se agrega tal cual.
+  std::string head = abs, tail;
+  for (;;) {
+    char buf[PATH_MAX];
+    if (::realpath(head.c_str(), buf)) return lexicalNormalize(std::string(buf) + tail);
+    if (head == "/" || head.empty()) return abs;
+    const auto pos = head.find_last_of('/');
+    tail = head.substr(pos) + tail;
+    head = pos == 0 ? "/" : head.substr(0, pos);
+  }
+}
+
+bool pathIsWithin(const std::string& path, const std::string& dir) {
+  const std::string p = resolvePath(path), d = resolvePath(dir);
+  if (d == "/") return true;
+  return p == d || (p.size() > d.size() && p.compare(0, d.size(), d) == 0 && p[d.size()] == '/');
+}
 
 std::string parentDirectory(const std::string& path) {
   const auto pos = path.find_last_of('/');

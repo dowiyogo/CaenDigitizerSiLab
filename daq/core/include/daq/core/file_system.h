@@ -79,4 +79,10 @@ class MemoryFileSystem final : public FileSystem {
 // Directorio que contiene path ("" si no hay '/').
 std::string parentDirectory(const std::string& path);
 
+// Ruta absoluta sin "." ni "..", con los enlaces simbólicos de la parte que ya existe resueltos
+// (realpath del prefijo existente más largo; el resto se normaliza léxicamente).
+std::string resolvePath(const std::string& path);
+// true si path es dir o está debajo de dir (ambas resueltas con resolvePath).
+bool pathIsWithin(const std::string& path, const std::string& dir);
+
 }  // namespace daq

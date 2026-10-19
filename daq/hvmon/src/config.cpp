@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <fstream>
 
+#include "daq/core/file_system.h"
 #include "daq/hv/credentials.h"
 
 namespace daq::hvmon {
@@ -16,8 +17,18 @@ std::string defaultRuntimeDir() {
   return "/run/user/" + std::to_string(::getuid()) + "/daqv2";
 }
 
-Result<HvmonConfig> HvmonConfig::fromJson(const nlohmann::json& j) {
+Result<HvmonConfig> HvmonConfig::fromJson(const nlohmann::json& jIn, bool fakeBackend) {
   using R = Result<HvmonConfig>;
+  nlohmann::json j = jIn.is_object() ? jIn : nlohmann::json::object();
+  bool testMode = false;
+  if (j.contains("auto_retry") && j["auto_retry"].is_object() && j["auto_retry"].contains("test_mode") &&
+      j["auto_retry"]["test_mode"].is_object())
+    testMode = j["auto_retry"]["test_mode"].value("enabled", false);
+  if ((fakeBackend || testMode) && !j.contains("slowcontrol_dir")) j["slowcontrol_dir"] = kSimSlowcontrolDir;
+  if (fakeBackend) {  // salida separada por omisión para la fuente simulada
+    if (!j.contains("state_dir")) j["state_dir"] = kSimStateDir;
+    if (!j.contains("runtime_dir")) j["runtime_dir"] = defaultRuntimeDir() + "-sim";
+  }
   HvmonConfig c;
   c.runtimeDir = defaultRuntimeDir();
   try {
@@ -76,6 +87,7 @@ Result<HvmonConfig> HvmonConfig::fromJson(const nlohmann::json& j) {
     auto nc = NotifierConfig::fromJson(j.value("notifier", nlohmann::json::object()));
     if (!nc) return R(nc.error());
     c.notifier = nc.value();
+    c.notifier.pagePort = c.httpPort;
   } catch (const std::exception& e) {
     return R::failure(-1, std::string("configuración de hvmon inválida: ") + e.what());
   }
@@ -99,10 +111,18 @@ Result<HvmonConfig> HvmonConfig::fromJson(const nlohmann::json& j) {
     return R::failure(-1, "http.bind debe ser 127.0.0.1, localhost o tailscale (nunca la red de la universidad)");
   for (const auto& f : c.tripFlags)
     if (c.statusBits.bitOf(f) < 0) return R::failure(-1, "trip_flags: bit desconocido " + f);
+  c.simulated = fakeBackend || c.retry.testModeEnabled;
+  if (c.simulated && pathIsWithin(c.slowcontrolDir, kRealSlowcontrolDir))
+    return R::failure(-1, std::string("slowcontrol_dir = ") + c.slowcontrolDir + " está dentro de " + kRealSlowcontrolDir +
+                              ": un hvmon con " + (fakeBackend ? "FakeHVBackend" : "test_mode") +
+                              " no puede escribir ahí (usar " + kSimSlowcontrolDir + ")");
+  if (fakeBackend && resolvePath(c.stateDir) == resolvePath(kRealStateDir))
+    return R::failure(-1, std::string("state_dir = ") + c.stateDir + " es el estado real que leen hvctl y daqrun: " +
+                              "con FakeHVBackend usar " + kSimStateDir);
   return c;
 }
 
-Result<HvmonConfig> HvmonConfig::fromFile(const std::string& path) {
+Result<HvmonConfig> HvmonConfig::fromFile(const std::string& path, bool fakeBackend) {
   std::ifstream in(hv::expandHome(path));
   if (!in) return Result<HvmonConfig>::failure(-1, "no se pudo abrir la configuración " + path);
   nlohmann::json j;
@@ -111,7 +131,7 @@ Result<HvmonConfig> HvmonConfig::fromFile(const std::string& path) {
   } catch (const std::exception& e) {
     return Result<HvmonConfig>::failure(-1, "JSON inválido en " + path + ": " + e.what());
   }
-  return fromJson(j);
+  return fromJson(j, fakeBackend);
 }
 
 nlohmann::json HvmonConfig::toJson() const {

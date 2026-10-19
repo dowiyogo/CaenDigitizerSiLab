@@ -77,11 +77,22 @@ struct HvmonConfig {
   std::string socketPath() const { return runtimeDir + "/hvmon.sock"; }
   std::string statePath() const { return stateDir + "/hvmon_state.json"; }
 
-  static Result<HvmonConfig> fromJson(const nlohmann::json& j);
-  static Result<HvmonConfig> fromFile(const std::string& path);
+  // fakeBackend = true (hvmon --fake): las claves de salida ausentes toman los valores de
+  // simulación (kSimSlowcontrolDir, /dev/shm/daqv2-sim, $XDG_RUNTIME_DIR/daqv2-sim); con
+  // test_mode, slowcontrol_dir ausente también es kSimSlowcontrolDir. Con fake o
+  // test_mode, slowcontrol_dir dentro de /data/daq/slowcontrol se rechaza; con fake, también
+  // state_dir = /dev/shm/daqv2 (el estado que leen hvctl y daqrun).
+  static Result<HvmonConfig> fromJson(const nlohmann::json& j, bool fakeBackend = false);
+  static Result<HvmonConfig> fromFile(const std::string& path, bool fakeBackend = false);
+  bool simulated = false;  // fake o test_mode: correos marcados [SIMULADO] y salida separada
   nlohmann::json toJson() const;
 };
 
 std::string defaultRuntimeDir();  // $XDG_RUNTIME_DIR/daqv2 (o /run/user/<uid>/daqv2)
+
+inline constexpr const char* kRealSlowcontrolDir = "/data/daq/slowcontrol";
+inline constexpr const char* kSimSlowcontrolDir = "/data/daq/sim/slowcontrol";
+inline constexpr const char* kRealStateDir = "/dev/shm/daqv2";
+inline constexpr const char* kSimStateDir = "/dev/shm/daqv2-sim";
 
 }  // namespace daq::hvmon

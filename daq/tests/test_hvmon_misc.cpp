@@ -9,6 +9,7 @@
 #include <fstream>
 
 #include "daq/core/clock.h"
+#include "daq/core/file_system.h"
 #include "daq/hv/fake_hv_backend.h"
 #include "daq/hv/reading_json.h"
 #include "daq/hvmon/config.h"
@@ -113,4 +114,50 @@ TEST(FakeTemp, SineAndFailure) {
   EXPECT_FALSE(bad.read().ok());
   EXPECT_FALSE(temp::makeTempBackend("ds18b20", clock, {}).ok());
   EXPECT_EQ(temp::makeTempBackend("none", clock, {}).value(), nullptr);
+}
+
+TEST(HvmonConfig, SimulatedOutputNeverGoesToRealSlowcontrol) {
+  using hvmon::HvmonConfig;
+  // Fuente real sin test_mode: valores reales por omisión.
+  auto real = HvmonConfig::fromJson(nlohmann::json::object());
+  ASSERT_TRUE(real.ok());
+  EXPECT_EQ(real.value().slowcontrolDir, "/data/daq/slowcontrol");
+  EXPECT_FALSE(real.value().simulated);
+  // Fake sin claves de salida: directorios de simulación.
+  auto fake = HvmonConfig::fromJson(nlohmann::json::object(), true);
+  ASSERT_TRUE(fake.ok()) << fake.error().message;
+  EXPECT_EQ(fake.value().slowcontrolDir, "/data/daq/sim/slowcontrol");
+  EXPECT_EQ(fake.value().stateDir, "/dev/shm/daqv2-sim");
+  EXPECT_EQ(fake.value().runtimeDir, hvmon::defaultRuntimeDir() + "-sim");
+  EXPECT_TRUE(fake.value().simulated);
+  // Fake con la salida real (o debajo de ella, o por un camino con "..") se rechaza.
+  for (const char* d : {"/data/daq/slowcontrol", "/data/daq/slowcontrol/", "/data/daq/slowcontrol/2026/x",
+                        "/data/daq/sim/../slowcontrol"}) {
+    auto r = HvmonConfig::fromJson({{"slowcontrol_dir", d}}, true);
+    ASSERT_FALSE(r.ok()) << d;
+    EXPECT_NE(r.error().message.find("FakeHVBackend"), std::string::npos);
+  }
+  // Fake con el estado real: rechazado (lo leen hvctl y daqrun).
+  EXPECT_FALSE(HvmonConfig::fromJson({{"state_dir", "/dev/shm/daqv2"}}, true).ok());
+  // test_mode con la fuente real: slowcontrol_dir ausente va a simulación; explícito real, rechazado.
+  const nlohmann::json retry{{"enabled_channels", {8}}, {"test_mode", {{"enabled", true}, {"channels", {8}}}}};
+  auto tm = HvmonConfig::fromJson({{"allow_commands", true}, {"auto_retry", retry}});
+  ASSERT_TRUE(tm.ok()) << tm.error().message;
+  EXPECT_EQ(tm.value().slowcontrolDir, "/data/daq/sim/slowcontrol");
+  EXPECT_TRUE(tm.value().simulated);
+  auto tmBad = HvmonConfig::fromJson(
+      {{"allow_commands", true}, {"auto_retry", retry}, {"slowcontrol_dir", "/data/daq/slowcontrol"}});
+  ASSERT_FALSE(tmBad.ok());
+  EXPECT_NE(tmBad.error().message.find("test_mode"), std::string::npos);
+  // Un directorio enlazado al real tampoco pasa.
+  const std::string base = ::testing::TempDir() + "daq_simlink";
+  ::mkdir(base.c_str(), 0700);
+  ::mkdir((base + "/real").c_str(), 0700);
+  ::unlink((base + "/link").c_str());
+  ASSERT_EQ(::symlink((base + "/real").c_str(), (base + "/link").c_str()), 0);
+  EXPECT_TRUE(pathIsWithin(base + "/link/2026/hv.csv", base + "/real"));
+  EXPECT_TRUE(pathIsWithin(base + "/real", base + "/link"));
+  EXPECT_FALSE(pathIsWithin(base + "/realx", base + "/real"));
+  EXPECT_FALSE(pathIsWithin(base + "/other", base + "/real"));
+  EXPECT_EQ(resolvePath("/a/./b/../c//d/"), "/a/c/d");
 }
