@@ -141,6 +141,7 @@ Result<NotifierConfig> NotifierConfig::fromJson(const nlohmann::json& j) {
     c.notifyConnectionLost = j.value("notify_connection_lost", c.notifyConnectionLost);
     c.connectionLostMin = j.value("connection_lost_min", c.connectionLostMin);
     c.problemIntervalMin = j.value("problem_interval_min", c.problemIntervalMin);
+    c.maxMessages = j.value("max_messages", c.maxMessages);
     c.retryDelaysMin = j.value("retry_delays_min", c.retryDelaysMin);
     c.curlPath = j.value("curl", c.curlPath);
     c.maxTimeS = j.value("max_time_s", c.maxTimeS);
@@ -154,6 +155,7 @@ Result<NotifierConfig> NotifierConfig::fromJson(const nlohmann::json& j) {
   } catch (const std::exception& e) {
     return R::failure(-1, std::string("notifier inválido: ") + e.what());
   }
+  if (c.maxMessages < 0) return R::failure(-1, "notifier: max_messages debe ser >= 0");
   if (c.maxTimeS <= 0 || c.connectionLostMin <= 0 || c.problemIntervalMin <= 0 || c.retryHourlyMin <= 0 || c.maxAgeH <= 0)
     return R::failure(-1, "notifier: max_time_s, connection_lost_min y problem_interval_min deben ser positivos");
   return c;
@@ -167,7 +169,8 @@ nlohmann::json NotifierConfig::toJson() const {
                         {"curl", curlPath},             {"max_time_s", maxTimeS},
                         {"mapping_file", mappingFile}, {"local_timezone", localTimezone},
                         {"page_ssh_user", pageSshUser}, {"page_ssh_host", pageSshHost},
-                        {"retry_hourly_min", retryHourlyMin}, {"max_age_h", maxAgeH}, {"outbox_dir", outboxDir}};
+                        {"retry_hourly_min", retryHourlyMin}, {"max_age_h", maxAgeH}, {"outbox_dir", outboxDir},
+                        {"max_messages", maxMessages}};
 }
 
 Result<SmtpSettings> SmtpSettings::fromSecrets(Secrets& s) {
@@ -253,6 +256,7 @@ void Notifier::loadOutbox() {
       p.path = f;
       pending_.push_back(std::move(p));
       ++restored_;
+      ++accepted_;
     } catch (const std::exception& ex) {
       logError("outbox: archivo ilegible ", f, ": ", ex.what());
     }
@@ -458,6 +462,8 @@ bool Notifier::submit(NotifyEvent e) {
     if (e.kind == "recovery" && !cfg_.notifyRecovery) return drop("notify_recovery = false");
     if (e.kind == "writer_error" && !cfg_.notifyWriterErrors) return drop("notify_writer_errors = false");
     if (e.kind == "connection_lost" && !cfg_.notifyConnectionLost) return drop("notify_connection_lost = false");
+    if (cfg_.maxMessages > 0 && accepted_ >= static_cast<std::uint64_t>(cfg_.maxMessages))
+      return drop("tope de max_messages = " + std::to_string(cfg_.maxMessages) + " alcanzado");
     if (e.kind == "trip" || e.kind == "recovery" || e.kind == "gave_up") {
       const std::string key = e.kind + ":" + std::to_string(e.ch) + ":" + std::to_string(e.episode);
       if (sentKeys_.count(key)) return drop("ya notificado en este episodio (" + key + ")");
@@ -472,6 +478,7 @@ bool Notifier::submit(NotifyEvent e) {
       lastProblem_[e.kind] = now;
     }
   }
+  if (!e.test) ++accepted_;
   ++seq_;
   Pending p;
   p.ev = std::move(e);
@@ -599,7 +606,7 @@ void Notifier::checkProblems() {
 nlohmann::json Notifier::status() const {
   return nlohmann::json{{"enabled", cfg_.enabled}, {"sent", sent_},          {"failed", failed_},
                         {"restored_from_outbox", restored_}, {"abandoned", abandoned_}, {"outbox", cfg_.outboxDir},
-                        {"suppressed", suppressed_}, {"pending", pending_.size()}, {"last_result", lastResult_},
+                        {"suppressed", suppressed_}, {"accepted", accepted_}, {"max_messages", cfg_.maxMessages}, {"pending", pending_.size()}, {"last_result", lastResult_},
                         {"recipients", smtp_.to.size()}};
 }
 

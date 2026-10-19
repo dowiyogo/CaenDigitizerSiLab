@@ -22,6 +22,7 @@ Result<DigitizerConfig> DigitizerConfig::fromJson(const nlohmann::json& j) {
     c.maxEventsBlt = j.value("max_events_blt", c.maxEventsBlt);
     c.pollSleepS = j.value("poll_sleep_s", c.pollSleepS);
     c.tttTickNs = j.value("ttt_tick_ns", c.tttTickNs);
+    c.tttTickSource = j.value("ttt_tick_source", c.tttTickSource);
     c.nBit = j.value("n_bit", c.nBit);
     c.maxVpp = j.value("max_vpp_V", c.maxVpp);
     c.softwareTrigger = j.value("software_trigger", c.softwareTrigger);
@@ -70,6 +71,7 @@ nlohmann::json DigitizerConfig::toJson() const {
           {"max_events_blt", maxEventsBlt},
           {"poll_sleep_s", pollSleepS},
           {"ttt_tick_ns", tttTickNs},
+          {"ttt_tick_source", tttTickSource},
           {"n_bit", nBit},
           {"max_vpp_V", maxVpp},
           {"software_trigger", softwareTrigger},

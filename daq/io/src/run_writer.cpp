@@ -217,6 +217,7 @@ nlohmann::json RunWriter::runInfo(bool final) const {
           {"digitizer_final", st_.digitizerInfoFinal},
           {"ttt_origin", {{"utc_before_start_ns", st_.origin.utcBeforeStart}, {"utc_after_start_ns", st_.origin.utcAfterStart}}},
           {"ttt_tick_ns", cfg_.digitizer.tttTickNs},
+          {"ttt_tick_source", cfg_.digitizer.tttTickSource},
           {"ttt_wrap_bits", cfg_.tttWrapBits},
           {"run_start_utc_ns", runStartUtc_},
           {"segment_open_utc_ns", segOpenUtc_},

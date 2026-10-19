@@ -182,6 +182,22 @@ TEST(Notifier, OneMailPerChannelAndEpisode) {
   EXPECT_EQ(r.spawner.calls.size(), 3u);
 }
 
+TEST(Notifier, MaxMessagesCapsAcceptedMailsButNotTests) {
+  NRig r({{"enabled", true}, {"notify_each_trip", true}, {"max_messages", 2}});
+  auto trip = gaveUp(0, 1);
+  trip.kind = "trip";
+  EXPECT_TRUE(r.n->submit(trip));
+  trip.ch = 1;
+  EXPECT_TRUE(r.n->submit(trip));
+  trip.ch = 2;
+  EXPECT_FALSE(r.n->submit(trip));          // tercer correo: tope
+  EXPECT_FALSE(r.n->submit(gaveUp(3, 1)));  // cualquier tipo
+  r.n->processDue();
+  EXPECT_EQ(r.spawner.calls.size(), 2u);
+  EXPECT_EQ(r.n->status()["accepted"], 2);
+  EXPECT_FALSE(NotifierConfig::fromJson({{"max_messages", -1}}).ok());
+}
+
 TEST(Notifier, ProblemMailsAtMostOnePer30Min) {
   NRig r;
   WriterHealth w;

@@ -180,6 +180,7 @@ TEST(RunWriter, SegmentsIndexShaPermissionsNotesAndDelayedFlags) {
     EXPECT_EQ(info["segment"], s["seg"]);
     EXPECT_EQ(info["calibration_state"], "none");
     EXPECT_EQ(info["adc_conversion"]["NBit"], 12);
+    EXPECT_EQ(info["ttt_tick_source"], "nominal");  // de dónde sale ttt_tick_ns (DAQ2-7)
     std::unique_ptr<TNamed> cv(in->Get<TNamed>("calibration_version"));
     ASSERT_NE(cv, nullptr);
     EXPECT_EQ(std::string(cv->GetTitle()), "none");

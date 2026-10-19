@@ -45,6 +45,9 @@ struct NotifierConfig {
   bool notifyConnectionLost = true;
   double connectionLostMin = 5;
   double problemIntervalMin = 30;
+  // Máximo de correos aceptados por proceso (sin contar los de prueba; los recuperados del outbox
+  // cuentan); 0 = sin límite. Sirve para respetar un tope de correos autorizado por tarea.
+  int maxMessages = 0;
   std::vector<double> retryDelaysMin{1, 5, 15, 60};  // luego cada retry_hourly_min hasta max_age_h
   double retryHourlyMin = 60;
   double maxAgeH = 48;     // un correo sin entregar se abandona (outbox/failed/) a las 48 h del evento
@@ -139,7 +142,7 @@ class Notifier {
   nlohmann::json lastResult_;
   std::uint64_t seq_ = 0;
   bool simulatedBackend_ = false;
-  std::uint64_t restored_ = 0, abandoned_ = 0;
+  std::uint64_t restored_ = 0, abandoned_ = 0, accepted_ = 0;
 };
 
 }  // namespace daq::hvmon

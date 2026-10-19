@@ -32,6 +32,7 @@ struct DigitizerConfig {
   int maxEventsBlt = 16;
   double pollSleepS = 0.005;
   double tttTickNs = 8.0;
+  std::string tttTickSource = "nominal";  // de dónde sale ttt_tick_ns (p. ej. "medido en run008"); va a la cabecera
   int nBit = 12;
   double maxVpp = 2.0;
   bool softwareTrigger = false;  // modo calibración: el hilo de lectura envía SW triggers
