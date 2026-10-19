@@ -1,10 +1,11 @@
-# Unidad de usuario de systemd para hvmon (DAQ v2, fase 1). NO está instalada ni habilitada.
-# Para usarla (lo hace René):
-#   sudo loginctl enable-linger xplus
-#   mkdir -p ~/.config/systemd/user
-#   cp daq/systemd/hvmon.service ~/.config/systemd/user/
-#   systemctl --user daemon-reload && systemctl --user enable --now hvmon
-# Los secretos (DAQ_HV_*) se cargan de secrets.env; nunca van en ExecStart.
+# Unidad de usuario de systemd para hvmon (DAQ v2). Instalada en DAQ2-6 con daq/systemd/install.sh,
+# que copia los binarios a ~/.local/opt/daqv2/bin (ruta estable: recompilar no reemplaza el binario
+# en ejecución). Requiere linger (sudo loginctl enable-linger xplus) para seguir corriendo sin
+# sesión abierta. Uso:
+#   systemctl --user enable --now hvmon      systemctl --user status hvmon
+#   journalctl --user -u hvmon -f            systemctl --user restart hvmon
+# Es el ÚNICO hvmon contra el SY5527 real: las tareas usan hvctl (socket), nunca otro hvmon.
+# Los secretos (DAQ_HV_*, DAQ_SMTP_*, DAQ_NOTIFY_*) se cargan de secrets.env; nunca van en ExecStart.
 [Unit]
 Description=DAQ v2: control lento de HV (hvmon, SY5527)
 After=network-online.target
@@ -14,7 +15,8 @@ Wants=network-online.target
 Type=simple
 EnvironmentFile=%h/.config/daqv2/secrets.env
 Environment=LD_LIBRARY_PATH=%h/root6/lib
-ExecStart=%h/digitizer/CaenDigitizerSiLab-jai/daq/build/apps/hvmon/hvmon --config %h/.config/daqv2/hvmon.json
+WorkingDirectory=%h
+ExecStart=%h/.local/opt/daqv2/bin/hvmon --config %h/.config/daqv2/hvmon.json
 KillSignal=SIGTERM
 TimeoutStopSec=30
 Restart=on-failure

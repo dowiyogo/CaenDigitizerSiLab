@@ -89,6 +89,19 @@ Acquisition and analysis for two scintillator hodoscopes read by MPPCs:
    measured, say so. Do not run `make` in the repository root (DAQ binaries used for data
    taking live there); use `make -n`.
 9. Do not rename keys of the old `.conf` files or change their units.
+11. Unstable network (René's connection and the internet drop in the afternoon, Chile time):
+   long hardware operations (acquisition runs, validation runs, anything over a few minutes)
+   are started detached under systemd, never tied to an interactive terminal:
+   `systemd-run --user --unit=<name> --property=RuntimeMaxSec=<s> --collect ...` (or the
+   `hvmon` user service), with a planned stop time and logs to files under `/data/daq/...` or
+   the journal; their status is checked afterwards (`systemctl --user status <name>`,
+   `journalctl --user -u <name>`). Nothing depends on a terminal staying open.
+12. `hvmon` runs as the user service `hvmon.service` (since DAQ2-6, binaries in
+   `~/.local/opt/daqv2/bin/`, config `~/.config/daqv2/hvmon.json`, `allow_commands: false`).
+   Tasks use it through `hvctl` (socket) and must never start another `hvmon` against the
+   real mainframe; `systemctl --user stop|restart hvmon` only when the task says so. Rebuilding
+   `daq/build` does not touch the running binary; `daq/systemd/install.sh` installs new
+   binaries (then `systemctl --user restart hvmon`, a gap of ~2.4 s in the slow control).
 
 ## Build and test
 
@@ -133,9 +146,10 @@ HV slow control (connects to the mainframe: only when the task authorizes HV rea
 is the only owner of the Wrapper session (lock `$XDG_RUNTIME_DIR/daqv2/hvmon.lock`); while it
 runs, `hvctl` talks to it through `$XDG_RUNTIME_DIR/daqv2/hvmon.sock` and never opens a session.
 
+    systemctl --user status hvmon ; journalctl --user -u hvmon -n 50   # the real hvmon (service)
+    daq/systemd/install.sh && systemctl --user restart hvmon            # deploy new binaries
     export LD_LIBRARY_PATH=$HOME/root6/lib:$LD_LIBRARY_PATH          # hvmon links ROOT
-    ( ulimit -v 4194304; daq/build/apps/hvmon/hvmon --config daq/config/hvmon.example.json )
-    daq/build/apps/hvmon/hvmon --fake default --config <cfg with scratch slowcontrol_dir>  # no hardware
+    daq/build/apps/hvmon/hvmon --fake default --config <cfg without output keys>  # no hardware, /data/daq/sim
     daq/build/apps/hvctl/hvctl status | read | changes --n 20 | note "<text>"
     daq/build/apps/hvctl/hvctl measure-offsets --seconds 60          # only channels with Pw = 0
     daq/build/apps/hvctl/hvctl pw --ch N on|off --authorize "<reason>"  # needs allow_commands=true
