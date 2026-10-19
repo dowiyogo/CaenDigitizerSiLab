@@ -37,6 +37,10 @@ struct PollerState {
   bool connected = false;
   bool everConnected = false;
   UtcNs lastGoodReadUtcNs = 0;
+  UtcNs lastReadReqUtcNs = 0;   // t_req de la lectura que dio `values` (daqrun: ambigüedad, bit 5)
+  UtcNs lastReadRespUtcNs = 0;  // t_resp de esa lectura
+  std::uint64_t lastReadSeq = 0;
+  std::string lastReadKind;     // "fast" | "full"
   UtcNs lastErrorUtcNs = 0;
   std::string lastError;
   double nextConnectInS = 0;

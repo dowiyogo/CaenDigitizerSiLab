@@ -3,19 +3,24 @@
 
 #include <cstdlib>
 #include <fstream>
+#include <iterator>
 
 #include <nlohmann/json.hpp>
+
+#include "daq/core/sha256.h"
 
 namespace daq::hvmon {
 
 Result<Mapping> Mapping::fromFile(const std::string& path) {
   using R = Result<Mapping>;
-  std::ifstream in(path);
+  std::ifstream in(path, std::ios::binary);
   if (!in) return R::failure(-1, "no se pudo abrir el mapeo " + path);
   try {
-    nlohmann::json j;
-    in >> j;
+    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    nlohmann::json j = nlohmann::json::parse(text);
     Mapping m;
+    m.path = path;
+    m.sha256 = sha256Hex(text);
     m.version = j.at("mapping_version").get<std::string>();
     for (auto it = j.at("hv_group_to_sy5527_channel").begin(); it != j["hv_group_to_sy5527_channel"].end(); ++it)
       m.groupToHvCh[std::atoi(it.key().c_str())] = it.value().get<int>();
@@ -27,7 +32,11 @@ Result<Mapping> Mapping::fromFile(const std::string& path) {
       x.strip = e.value("strip", -1);
       if (e.contains("hv_group") && e["hv_group"].is_number_integer()) x.hvGroup = e["hv_group"].get<int>();
       if (e.contains("face") && e["face"].is_string()) x.face = e["face"].get<std::string>();
-      if (e.contains("confirmed")) x.hvGroupConfirmed = e["confirmed"].value("hv_group", "unknown");
+      if (e.contains("hv_ch") && e["hv_ch"].is_number_integer()) x.hvCh = e["hv_ch"].get<int>();
+      if (e.contains("confirmed")) {
+        x.hvGroupConfirmed = e["confirmed"].value("hv_group", "unknown");
+        x.faceConfirmed = e["confirmed"].value("face", "unknown");
+      }
       m.channels.push_back(x);
     }
     return m;

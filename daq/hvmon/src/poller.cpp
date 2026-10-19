@@ -200,6 +200,10 @@ void Poller::fastRead(SteadyTime now) {
   for (std::size_t p = 0; p < rd.params.size(); ++p)
     for (std::size_t c = 0; c < rd.channels.size(); ++c) state_.values[rd.channels[c]][rd.params[p].name] = rd.values[p][c];
   state_.lastGoodReadUtcNs = rd.tRespUtcNs;
+  state_.lastReadReqUtcNs = rd.tReqUtcNs;
+  state_.lastReadRespUtcNs = rd.tRespUtcNs;
+  state_.lastReadSeq = readSeq_;
+  state_.lastReadKind = "fast";
   verifyCommand(rd, now);
   accumulateOffsets(rd, now);
   prevFast_ = rd;
@@ -238,6 +242,10 @@ void Poller::fullRead(SteadyTime now) {
   for (std::size_t p = 0; p < rd.params.size(); ++p)
     for (std::size_t c = 0; c < rd.channels.size(); ++c) state_.values[rd.channels[c]][rd.params[p].name] = rd.values[p][c];
   state_.lastGoodReadUtcNs = rd.tRespUtcNs;
+  state_.lastReadReqUtcNs = rd.tReqUtcNs;
+  state_.lastReadRespUtcNs = rd.tRespUtcNs;
+  state_.lastReadSeq = readSeq_;
+  state_.lastReadKind = "full";
   prevFull_ = rd;
 }
 

@@ -21,13 +21,18 @@ struct MappingEntry {
   std::string plane;    // X | Y
   int strip = -1;
   std::optional<int> hvGroup;
+  std::optional<int> hvCh;  // canal del SY5527 (= grupo - 1), si el grupo se conoce
   std::string face;
   std::string hvGroupConfirmed;  // measurement | cabling_record | derived | assumed | unknown
+  std::string faceConfirmed;     // ídem para la cara física
   bool groupConfirmed() const { return hvGroupConfirmed == "measurement"; }
+  bool faceIsConfirmed() const { return faceConfirmed == "measurement"; }
 };
 
 struct Mapping {
   std::string version;
+  std::string sha256;  // del archivo leído (cabecera del run de daqrun)
+  std::string path;
   std::vector<MappingEntry> channels;
   std::map<int, int> groupToHvCh;  // grupo HV -> canal del SY5527
 
