@@ -50,6 +50,7 @@ add_subdirectory(temp)
 add_subdirectory(hvmon)
 add_subdirectory(apps/hvctl)
 add_subdirectory(apps/hvmon)
+add_subdirectory(apps/sctool)
 add_subdirectory(tools/legacy)
 
 if(DAQ_BUILD_TESTS)

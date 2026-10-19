@@ -12,6 +12,8 @@
 
 #include "daq/core/result.h"
 #include "daq/hv/status_bits.h"
+#include "daq/hvmon/notifier.h"
+#include "daq/hvmon/retry.h"
 
 namespace daq::hvmon {
 
@@ -65,6 +67,11 @@ struct HvmonConfig {
   std::string tempBackend = "none";
   double tempPeriodS = 30.0;
   nlohmann::json tempConfig = nlohmann::json::object();
+
+  // Fase 2
+  RetryConfig retry;         // "auto_retry"
+  NotifierConfig notifier;   // "notifier"
+  bool compressClosedDays = true;  // gzip verificado de los días cerrados
 
   std::string lockPath() const { return runtimeDir + "/hvmon.lock"; }
   std::string socketPath() const { return runtimeDir + "/hvmon.sock"; }

@@ -62,6 +62,7 @@ const char* kUsage =
     "  note \"<texto>\"                       nota del operador\n"
     "  measure-offsets --seconds N [--ch 0-11] [--json]   offsets con Pw = 0\n"
     "  pw --ch N on|off --authorize \"<motivo>\"          escritura de Pw (requiere allow_commands)\n"
+    "  notify-test [--ch N]                  correo de PRUEBA por el notificador de hvmon\n"
     "Sin hvmon (modo directo, solo lectura):\n"
     "  map                                   mapa del crate\n"
     "  board  --slot S [--json]              parámetros de placa (BdStatus, HVMax, HIMax, Temp)\n"
@@ -590,14 +591,42 @@ int cmdStatus(const std::string& sock, bool json) {
                 s["board_temperature_degC"].dump().c_str());
   }
   std::printf("\n");
-  std::printf("CH   V0Set[V]   I0Set[A]    VMon[V]    IMon[A]  Pw  Status  flags\n");
+  if (s.contains("notifier") && s["notifier"].is_object()) {
+    const auto& n = s["notifier"];
+    std::printf("notificador: habilitado=%s enviados=%llu fallidos=%llu pendientes=%llu\n",
+                n.value("enabled", false) ? "si" : "no", static_cast<unsigned long long>(n.value("sent", 0ULL)),
+                static_cast<unsigned long long>(n.value("failed", 0ULL)), static_cast<unsigned long long>(n.value("pending", 0ULL)));
+  }
+  if (s.contains("compressor") && s["compressor"].is_object())
+    std::printf("compresión: archivos=%llu fallidos=%llu\n",
+                static_cast<unsigned long long>(s["compressor"].value("compressed", 0ULL)),
+                static_cast<unsigned long long>(s["compressor"].value("failed", 0ULL)));
+  std::printf("\nCH   V0Set[V]   I0Set[A]    VMon[V]    IMon[A]  Pw  Status  auto-retry       próximo  flags\n");
   for (const auto& ch : s["channels"]) {
     const auto& v = ch["values"];
+    const auto& ar = ch["auto_retry"];
     std::string flags;
     for (const auto& f : ch["status_flags"]) flags += (flags.empty() ? "" : ",") + f.get<std::string>();
-    std::printf("%02d %9.3f %10.3e %9.3f %10.3e  %2u  0x%04X  %s\n", ch.value("ch", -1), v.value("V0Set_V", 0.0),
-                v.value("I0Set_A", 0.0), v.value("VMon_V", 0.0), v.value("IMon_A", 0.0), v.value("Pw", 0u),
-                v.value("Status", 0u), flags.empty() ? "-" : flags.c_str());
+    const std::string label = ar.is_object() ? ar.value("label", ar.value("state", "?")) : ar.dump();
+    const std::string next = ar.is_object() && ar.contains("next_retry_in_s") && ar["next_retry_in_s"].is_number()
+                                 ? std::to_string(static_cast<long>(ar["next_retry_in_s"].get<double>())) + " s"
+                                 : "-";
+    std::printf("%02d %9.3f %10.3e %9.3f %10.3e  %2u  0x%04X  %-15s %8s  %s\n", ch.value("ch", -1),
+                v.value("V0Set_V", 0.0), v.value("I0Set_A", 0.0), v.value("VMon_V", 0.0), v.value("IMon_A", 0.0),
+                v.value("Pw", 0u), v.value("Status", 0u), label.c_str(), next.c_str(), flags.empty() ? "-" : flags.c_str());
+  }
+  bool header = false;
+  for (const auto& ch : s["channels"]) {
+    const auto& ar = ch["auto_retry"];
+    if (!ar.is_object() || ar.value("state", "") == "DISABLED") continue;
+    if (!header) {
+      std::printf("\nauto-retry (canales habilitados):\n");
+      header = true;
+    }
+    const std::string block = ar.value("block_reason", "").empty() ? "" : "[" + ar.value("block_reason", "") + "]";
+    std::printf("  CH%02d %s trip=%s último resultado: %s %s\n", ch.value("ch", -1), ar.value("label", "").c_str(),
+                ar.contains("trip_utc") && ar["trip_utc"].is_string() ? ar["trip_utc"].get<std::string>().c_str() : "-",
+                ar.value("last_outcome", "").c_str(), block.c_str());
   }
   return kExitOk;
 }
@@ -660,6 +689,23 @@ int cmdOffsets(const std::string& sock, const Options& o) {
   return kExitOk;
 }
 
+int cmdNotifyTest(const std::string& sock, const Options& o) {
+  nlohmann::json req{{"cmd", "notify-test"}};
+  if (o.chSpec) {
+    auto ch = toInt(*o.chSpec);
+    if (!ch) {
+      std::fprintf(stderr, "hvctl notify-test: --ch debe ser un único canal\n");
+      return kExitUsage;
+    }
+    req["ch"] = *ch;
+  }
+  auto r = request(sock, req, 200);
+  if (!r) return fail(r.error());
+  std::printf("correo de PRUEBA enviado: curl salió con %d (intentos %d)\n", r.value().value("curl_exit", -1),
+              r.value().value("attempts", 0));
+  return kExitOk;
+}
+
 int cmdPw(const std::string& sock, const Options& o) {
   if (!o.chSpec || o.args.size() != 1 || (o.args[0] != "on" && o.args[0] != "off") || !o.authorize) {
     std::fprintf(stderr, "Uso: hvctl pw --ch N on|off --authorize \"<motivo>\"\n");
@@ -694,7 +740,7 @@ int main(int argc, char** argv) {
     std::fputs(kUsage, o.command == "help" ? stdout : stderr);
     return o.command == "help" ? kExitOk : kExitUsage;
   }
-  const std::vector<std::string> socketOnly{"status", "changes", "note", "measure-offsets", "pw"};
+  const std::vector<std::string> socketOnly{"status", "changes", "note", "measure-offsets", "pw", "notify-test"};
   const std::vector<std::string> directOnly{"map", "params", "bench", "board"};
   const bool isSocketOnly = std::find(socketOnly.begin(), socketOnly.end(), o.command) != socketOnly.end();
   const bool isDirectOnly = std::find(directOnly.begin(), directOnly.end(), o.command) != directOnly.end();
@@ -725,6 +771,7 @@ int main(int argc, char** argv) {
     if (o.command == "changes") return cmdChanges(sock, o.n.value_or(20), o.json);
     if (o.command == "note") return cmdNote(sock, o);
     if (o.command == "measure-offsets") return cmdOffsets(sock, o);
+    if (o.command == "notify-test") return cmdNotifyTest(sock, o);
     return cmdPw(sock, o);
   }
   if (hvmonRunning) {

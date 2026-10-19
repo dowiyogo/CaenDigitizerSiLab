@@ -39,7 +39,7 @@ bool CommandHandler::isLong(const std::string& line) {
   try {
     const auto j = nlohmann::json::parse(line);
     const std::string cmd = j.value("cmd", "");
-    return cmd == "pw" || cmd == "measure-offsets";
+    return cmd == "pw" || cmd == "measure-offsets" || cmd == "notify-test";
   } catch (...) {
     return false;
   }
@@ -148,6 +148,35 @@ nlohmann::json CommandHandler::dispatch(const nlohmann::json& req, const PeerCre
     r.requester = describePeer(peer);
     // El rechazo con allow_commands = false lo hace (y lo registra) el hilo de sondeo.
     return forward(std::move(r), 3600.0);
+  }
+  if (cmd == "notify-test") {
+    if (!notifyQ_) return error("notificador no disponible en este hvmon");
+    NotifyEvent e;
+    e.kind = "gave_up";
+    e.test = true;
+    e.ch = req.value("ch", 11);
+    e.slot = cfg_.slot;
+    e.k = 3;
+    e.reason = "PRUEBA de hvctl notify-test pedida por " + describePeer(peer) + " (evento sintético)";
+    const UtcNs now = clock_.now_utc_ns();
+    e.tUtcNs = now;
+    for (int i = 0; i < 4; ++i)
+      e.timeline.push_back({{"t_utc", formatUtcIso(now)}, {"event", i < 3 ? "trip (PRUEBA)" : "GAVE_UP (PRUEBA)"}, {"k", i}});
+    const auto state = hub_.compose(cfg_, now, ++statusSeq_, false);
+    for (const auto& c : state["channels"])
+      if (c.value("ch", -1) == e.ch) {
+        const auto& v = c["values"];
+        e.context = {{"VMon_V", v.value("VMon_V", 0.0)}, {"IMon_A", v.value("IMon_A", 0.0)}, {"Status", v.value("Status", 0u)},
+                     {"status_flags", c["status_flags"]}};
+      }
+    e.context["board_temperature_degC"] = state["board_temperature_degC"];
+    e.context["geco_running"] = state["geco_running"];
+    e.reply = std::make_shared<std::promise<nlohmann::json>>();
+    auto fut = e.reply->get_future();
+    if (!notifyQ_->try_push(std::move(e), DropPolicy::DropNewest)) return error("cola del notificador llena");
+    if (fut.wait_for(std::chrono::seconds(180)) != std::future_status::ready)
+      return error("sin respuesta del notificador en 180 s");
+    return fut.get();
   }
   return error("comando desconocido: " + cmd);
 }

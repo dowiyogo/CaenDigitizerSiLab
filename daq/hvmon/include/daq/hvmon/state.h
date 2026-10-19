@@ -21,40 +21,9 @@
 #include "daq/core/time.h"
 #include "daq/hv/hv_types.h"
 #include "daq/hvmon/config.h"
+#include "daq/hvmon/records.h"
 
 namespace daq::hvmon {
-
-struct ChangeRecord {
-  std::uint64_t id = 0;
-  UtcNs tUtcNs = 0;          // t_resp de la lectura que mostró el valor nuevo
-  UtcNs tPrevReadUtcNs = 0;  // t_req de la lectura anterior (el cambio ocurrió entre ambas)
-  int slot = 0;
-  int ch = 0;
-  std::string param;
-  std::string unit;          // unidad SI de old/new ("" para enteros)
-  nlohmann::json oldValue;
-  nlohmann::json newValue;
-  std::string origin;        // "trip", "hvmon_command" o "external"
-  std::optional<std::uint64_t> commandId;
-  bool duringDisconnect = false;  // la lectura anterior es de antes de una pérdida de conexión
-  std::string readKind;      // "fast" o "full"
-  nlohmann::json toJson() const;
-};
-
-// Registro de un comando de escritura (va al mismo JSONL que los cambios, con "type":"command").
-struct CommandRecord {
-  std::uint64_t id = 0;
-  UtcNs tUtcNs = 0;
-  int slot = 0;
-  int ch = 0;
-  std::string param = "Pw";
-  int value = 0;
-  std::string phase;      // request, rejected, aborted, noop, written, write_failed, verified, verify_failed
-  std::string reason;     // texto de --authorize
-  std::string requester;  // uid/pid del cliente o "hvmon"
-  std::string detail;
-  nlohmann::json toJson() const;
-};
 
 struct ReadStats {
   std::uint64_t fastReads = 0, fullReads = 0, readErrors = 0;
@@ -79,6 +48,7 @@ struct PollerState {
   nlohmann::json activeCommand;  // null si no hay
   nlohmann::json activeOffsets;
   nlohmann::json lastOffsets;
+  nlohmann::json retry = nlohmann::json::array();  // estado de reintento por canal (RetryMachine::publish)
 };
 
 struct WriterHealth {
@@ -98,6 +68,8 @@ class StateHub {
   Snapshot<PollerState> poller;
   Snapshot<WriterHealth> writer;
   Snapshot<nlohmann::json> temperature{nlohmann::json()};
+  Snapshot<nlohmann::json> notifier{nlohmann::json()};
+  Snapshot<nlohmann::json> compressor{nlohmann::json()};
   std::atomic<bool> gecoRunning{false};
   std::atomic<std::uint64_t> writerDropped{0};
   UtcNs startedUtcNs = 0;

@@ -215,6 +215,8 @@ void SlowControlWriter::writeDaily(const std::string& kind, const std::string& e
     syncStream(s);
     health_.openFiles.erase(s.path);
     s.file.reset();
+    if (compressQ_ && !compressQ_->try_push(s.path, DropPolicy::DropNewest))
+      logWarn("cola de compresión llena: ", s.path, " queda sin comprimir");
   }
   if (!s.file) {
     const std::string path = baseDir_ + "/" + date.substr(0, 4) + "/" + kind + "_" + date + "." + ext;

@@ -7,7 +7,8 @@
 //   {"cmd":"changes","n":20}                          últimos n cambios (máximo el anillo, 50)
 //   {"cmd":"note","text":"..."}                       nota del operador (notes_YYYYMMDD.jsonl)
 //   {"cmd":"measure-offsets","seconds":60,"channels":[...]}   solo canales con Pw = 0
-//   {"cmd":"pw","ch":3,"on":true,"authorize":"motivo"} única escritura; requiere allow_commands
+//   {"cmd":"pw","ch":3,"on":true,"authorize":"motivo"} escritura de Pw; requiere allow_commands
+//   {"cmd":"notify-test","ch":11}                     correo de PRUEBA (GAVE_UP sintético)
 // Respuesta: {"ok":true,...} o {"ok":false,"error":"..."}. Las peticiones largas (pw,
 // measure-offsets) se atienden en un hilo propio para no bloquear status/read.
 // CommandHandler::handle() nunca lanza excepciones; CommandServer es el transporte.
@@ -26,6 +27,7 @@
 #include "daq/core/jthread.h"
 #include "daq/core/unix_socket.h"
 #include "daq/hvmon/config.h"
+#include "daq/hvmon/notifier.h"
 #include "daq/hvmon/poller.h"
 #include "daq/hvmon/state.h"
 #include "daq/hvmon/writer.h"
@@ -37,6 +39,8 @@ class CommandHandler {
   CommandHandler(const HvmonConfig& cfg, StateHub& hub, BoundedQueue<PollRequest>& poll, BoundedQueue<WriterItem>& writer,
                  const Clock& clock);
   nlohmann::json handle(const std::string& line, const PeerCredentials& peer);
+  // Fase 2: cola del notificador para notify-test (nullptr = notificador ausente).
+  void setNotifyQueue(BoundedQueue<NotifyEvent>* q) { notifyQ_ = q; }
   static bool isLong(const std::string& line);
 
  private:
@@ -50,6 +54,7 @@ class CommandHandler {
   BoundedQueue<WriterItem>& writer_;
   const Clock& clock_;
   std::atomic<std::uint64_t> statusSeq_{0};
+  BoundedQueue<NotifyEvent>* notifyQ_ = nullptr;
 };
 
 class CommandServer {

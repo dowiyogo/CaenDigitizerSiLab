@@ -138,6 +138,25 @@ void HttpPage::update(const PollerState& p, const nlohmann::json& state, UtcNs n
                   v.value("Pw", 0u), flags.empty() ? "-" : flags.c_str());
     os << line;
   }
+  os << "\nAuto-retry\nCH  estado          k  trip (UTC)                       prox. intento  ultimo resultado\n";
+  for (const auto& c : state["channels"]) {
+    const auto& r = c["auto_retry"];
+    char line[512];
+    const std::string trip = r.contains("trip_utc") && r["trip_utc"].is_string() ? r["trip_utc"].get<std::string>() : "-";
+    const std::string next = r.contains("next_retry_in_s") && r["next_retry_in_s"].is_number()
+                                 ? std::to_string(static_cast<long>(r["next_retry_in_s"].get<double>())) + " s"
+                                 : "-";
+    const std::string block = r.value("block_reason", "").empty() ? "" : " [" + r.value("block_reason", "") + "]";
+    std::snprintf(line, sizeof line, "%02d  %-14s %2d  %-32s %-13s  %s%s\n", c.value("ch", -1),
+                  r.value("label", r.value("state", "?")).c_str(), r.value("k", 0), trip.c_str(), next.c_str(),
+                  r.value("last_outcome", "").c_str(), block.c_str());
+    os << line;
+  }
+  if (state.contains("notifier") && state["notifier"].is_object()) {
+    const auto& n = state["notifier"];
+    os << "\nnotificador: habilitado=" << n.value("enabled", false) << " enviados=" << n.value("sent", 0)
+       << " fallidos=" << n.value("failed", 0) << " pendientes=" << n.value("pending", 0) << "\n";
+  }
   os << "\nultimos cambios:\n";
   const auto& ch = state["changes"];
   const std::size_t n = ch.size();

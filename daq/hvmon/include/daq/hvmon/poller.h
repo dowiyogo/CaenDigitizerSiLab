@@ -32,7 +32,10 @@
 #include "daq/core/clock.h"
 #include "daq/hv/hv_backend.h"
 #include "daq/hvmon/change_detector.h"
+#include "daq/core/file_system.h"
 #include "daq/hvmon/config.h"
+#include "daq/hvmon/notifier.h"
+#include "daq/hvmon/retry.h"
 #include "daq/hvmon/state.h"
 #include "daq/hvmon/writer.h"
 
@@ -48,6 +51,8 @@ struct PollRequest {
   bool internal = false;          // pedida por hvmon mismo (auto-retry, prueba de grupos)
   double seconds = 0;             // offsets
   std::vector<int> channels;      // offsets (vacío = todos)
+  std::uint64_t retryToken = 0;   // != 0: escritura pedida por la máquina de reintento
+  bool clearAlarmFirst = false;   // ClrAlarm de la placa antes de Pw = 1 (clear_alarm_before_retry)
   std::shared_ptr<std::promise<nlohmann::json>> reply = std::make_shared<std::promise<nlohmann::json>>();
 };
 
@@ -61,6 +66,10 @@ class Poller {
   void step(const StopToken& st = {});
   // Responde con error a todo lo pendiente (al apagar).
   void shutdown();
+  // Fase 2: persistencia de la máquina de reintento (carga el estado anterior) y cola de correo.
+  void enableRetryPersistence(FileSystem& fs);
+  void setNotifyQueue(BoundedQueue<NotifyEvent>* q) { notifyQ_ = q; }
+  const RetryMachine& retry() const { return retry_; }
 
   // Para tests.
   const ReadStats& stats() const { return stats_; }
@@ -75,6 +84,7 @@ class Poller {
     SteadyTime deadline{};
     std::string reason, requester;
     std::shared_ptr<std::promise<nlohmann::json>> reply;
+    std::uint64_t retryToken = 0;
   };
   struct ActiveOffsets {
     std::vector<int> channels;
@@ -103,6 +113,9 @@ class Poller {
   void pushWriter(WriterItem item);
   void addChanges(std::vector<ChangeRecord>& changes);
   void publish(SteadyTime now);
+  void runRetry(const hv::ChannelReading& rd, const std::vector<ChangeRecord>& changes, SteadyTime now);
+  void applyRetry(RetryOutput out, SteadyTime now);
+  nlohmann::json channelContext(int ch) const;
   const hv::ParamValue* lastValue(int ch, const std::string& param) const;
   bool anyRamping() const;
   SteadyTime nextWake(SteadyTime now) const;
@@ -137,6 +150,9 @@ class Poller {
   PollerState state_;
   std::optional<ActiveCommand> active_;
   std::optional<ActiveOffsets> offsets_;
+  RetryMachine retry_;
+  FileSystem* fs_ = nullptr;
+  BoundedQueue<NotifyEvent>* notifyQ_ = nullptr;
 };
 
 }  // namespace daq::hvmon

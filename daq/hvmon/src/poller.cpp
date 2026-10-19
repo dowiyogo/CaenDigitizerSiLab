@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <sstream>
 
 #include "daq/core/logger.h"
@@ -37,7 +38,8 @@ Poller::Poller(const HvmonConfig& cfg, hv::HVBackend& backend, Clock& clock, Bou
       requests_(requests),
       detector_(cfg.statusBits, cfg.tripFlags),
       backoffS_(cfg.backoffInitialS),
-      nextConnect_(clock.now_steady()) {
+      nextConnect_(clock.now_steady()),
+      retry_(cfg.retry, cfg.statusBits, cfg.tripFlags, cfg.channels) {
   state_.activeCommand = nlohmann::json();
   state_.activeOffsets = nlohmann::json();
   state_.lastOffsets = nlohmann::json();
@@ -188,8 +190,9 @@ void Poller::fastRead(SteadyTime now) {
   const double ms = static_cast<double>(rd.durationNs) / 1e6;
   stats_.sumFastMs += ms;
   stats_.maxFastMs = std::max(stats_.maxFastMs, ms);
+  std::vector<ChangeRecord> changes;
   if (prevFast_) {
-    auto changes = detector_.compare(*prevFast_, rd, cfg_.fastTracked, "fast", fastGap_, now, nextChangeId_);
+    changes = detector_.compare(*prevFast_, rd, cfg_.fastTracked, "fast", fastGap_, now, nextChangeId_);
     addChanges(changes);
   }
   fastGap_ = false;
@@ -200,6 +203,7 @@ void Poller::fastRead(SteadyTime now) {
   verifyCommand(rd, now);
   accumulateOffsets(rd, now);
   prevFast_ = rd;
+  runRetry(rd, changes, now);
 }
 
 void Poller::fullRead(SteadyTime now) {
@@ -281,12 +285,15 @@ void Poller::handlePw(PollRequest& r, SteadyTime now) {
     if (!ok) logWarn("comando ", rec.id, " Pw CH", r.ch, "=", rec.value, ": ", phase, ": ", detail);
     r.reply->set_value(nlohmann::json{{"ok", ok}, {"command_id", rec.id}, {"result", phase}, {"detail", detail},
                                       {"ch", r.ch}, {"on", r.on}});
+    if (r.retryToken) applyRetry(retry_.onCommandResult(r.ch, r.retryToken, phase, detail, clock_.now_utc_ns()), now);
   };
   if (!cfg_.allowCommands) return finish("rejected", "escrituras deshabilitadas (allow_commands = false)", false);
   if (!contains(cfg_.channels, r.ch)) return finish("rejected", "canal fuera de la configuración", false);
   if (!connected_ || !prevFast_) return finish("rejected", "sin conexión o sin lectura previa", false);
-  if (active_) return finish("rejected", "otro comando en curso (id " + std::to_string(active_->id) + ")", false);
-  if (r.internal && anyRamping()) return finish("rejected", "hay un canal en rampa (petición interna)", false);
+  if (active_)
+    return finish(r.internal ? "busy" : "rejected", "otro comando en curso (id " + std::to_string(active_->id) + ")",
+                  false);
+  if (r.internal && anyRamping()) return finish("busy", "hay un canal en rampa (petición interna)", false);
 
   // Relectura inmediata antes de escribir: aborta si el canal cambió desde la última lectura publicada.
   auto pre = backend_.readChannels(cfg_.slot, {r.ch}, cfg_.fastParams);
@@ -314,6 +321,25 @@ void Poller::handlePw(PollRequest& r, SteadyTime now) {
   const double timeoutS = (v0 ? std::fabs(v0->si) : 0.0) / rateVps + cfg_.verifyMarginS;
   detector_.addPending({rec.id, r.ch, now, now + secondsToNs(timeoutS + cfg_.commandWindowExtraS)});
 
+  if (r.clearAlarmFirst) {
+    // ClrAlarm de la placa antes de Pw = 1 (clear_alarm_before_retry); misma compuerta allow_commands.
+    CommandRecord ca = rec;
+    ca.param = "ClrAlarm";
+    ca.value = 1;
+    ca.phase = "request";
+    ca.tUtcNs = clock_.now_utc_ns();
+    record(ca);
+    if (auto st = backend_.clearBoardAlarm(cfg_.slot); !st) {
+      ca.phase = "write_failed";
+      ca.detail = st.error().message;
+      record(ca);
+      detector_.setPendingEnd(rec.id, now);
+      return finish("write_failed", "ClrAlarm: " + st.error().message, false);
+    }
+    ca.phase = "written";
+    ca.tUtcNs = clock_.now_utc_ns();
+    record(ca);
+  }
   if (auto st = backend_.setChannelPw(cfg_.slot, r.ch, r.on); !st) {
     detector_.setPendingEnd(rec.id, now);
     return finish("write_failed", st.error().message, false);
@@ -323,7 +349,7 @@ void Poller::handlePw(PollRequest& r, SteadyTime now) {
   rec.tUtcNs = clock_.now_utc_ns();
   record(rec);
   logInfo("comando ", rec.id, ": Pw CH", r.ch, "=", rec.value, " escrito (", r.requester, "): ", r.reason);
-  active_ = ActiveCommand{rec.id, r.ch, r.on, now + secondsToNs(timeoutS), r.reason, r.requester, r.reply};
+  active_ = ActiveCommand{rec.id, r.ch, r.on, now + secondsToNs(timeoutS), r.reason, r.requester, r.reply, r.retryToken};
 }
 
 void Poller::verifyCommand(const hv::ChannelReading& rd, SteadyTime now) {
@@ -367,7 +393,10 @@ void Poller::finishCommand(const std::string& phase, const std::string& detail, 
   active_->reply->set_value(nlohmann::json{{"ok", ok}, {"command_id", rec.id}, {"result", phase}, {"detail", detail},
                                            {"ch", rec.ch}, {"on", active_->on}});
   detector_.setPendingEnd(rec.id, now + secondsToNs(cfg_.commandWindowExtraS));
+  const std::uint64_t token = active_->retryToken;
+  const int ch = active_->ch;
   active_.reset();
+  if (token) applyRetry(retry_.onCommandResult(ch, token, phase, detail, clock_.now_utc_ns()), now);
 }
 
 void Poller::handleOffsets(PollRequest& r, SteadyTime now) {
@@ -441,7 +470,121 @@ void Poller::accumulateOffsets(const hv::ChannelReading& rd, SteadyTime now) {
   offsets_.reset();
 }
 
+void Poller::enableRetryPersistence(FileSystem& fs) {
+  fs_ = &fs;
+  const std::string path = cfg_.retry.stateFile;
+  if (!fs.exists(path)) return;
+  auto content = fs.readFile(path);
+  if (!content) {
+    logWarn("no se pudo leer el estado de reintento ", path, ": ", content.error().message);
+    return;
+  }
+  try {
+    const auto j = nlohmann::json::parse(content.value());
+    retry_.restore(j);
+    logInfo("estado de reintento cargado de ", path, " (guardado ", j.value("saved_utc", "?"), ")");
+  } catch (const std::exception& e) {
+    logWarn("estado de reintento ilegible en ", path, ": ", e.what(), " (se ignora)");
+  }
+}
+
+nlohmann::json Poller::channelContext(int ch) const {
+  nlohmann::json c = nlohmann::json::object();
+  auto it = state_.values.find(ch);
+  if (it != state_.values.end()) {
+    for (const auto& info : state_.params) {
+      auto v = it->second.find(info.name);
+      if (v == it->second.end()) continue;
+      if (info.name == "VMon") c["VMon_V"] = v->second.si;
+      if (info.name == "IMon") c["IMon_A"] = v->second.si;
+      if (info.name == "V0Set") c["V0Set_V"] = v->second.si;
+      if (info.name == "Status") {
+        c["Status"] = v->second.raw;
+        c["status_flags"] = cfg_.statusBits.decode(v->second.raw);
+      }
+    }
+  }
+  c["board_temperature_degC"] = nlohmann::json();
+  if (state_.board)
+    if (const auto* t = state_.board->get("Temp")) c["board_temperature_degC"] = t->si;
+  c["geco_running"] = hub_.gecoRunning.load();
+  return c;
+}
+
+void Poller::runRetry(const hv::ChannelReading& rd, const std::vector<ChangeRecord>& changes, SteadyTime now) {
+  RetryInput in;
+  in.nowUtc = clock_.now_utc_ns();
+  in.fresh = connected_;
+  in.geco = hub_.gecoRunning.load();
+  in.changes = changes;
+  for (int ch : rd.channels) {
+    RetryChannelView v;
+    if (const auto* x = rd.get("Pw", ch)) v.pw = x->raw;
+    if (const auto* x = rd.get("Status", ch)) v.status = x->raw;
+    if (const auto* x = rd.get("VMon", ch)) v.vmonV = x->si;
+    if (const auto* x = rd.get("IMon", ch)) v.imonA = x->si;
+    if (const auto* x = rd.get("V0Set", ch)) v.v0setV = x->si;
+    in.channels[ch] = v;
+  }
+  if (state_.lastOffsets.is_object() && state_.lastOffsets.contains("channels"))
+    for (const auto& c : state_.lastOffsets["channels"]) in.imonOffsetA[c.value("ch", -1)] = c.value("imon_offset_A", 0.0);
+  applyRetry(retry_.update(in), now);
+}
+
+void Poller::applyRetry(RetryOutput out, SteadyTime now) {
+  std::vector<ChangeRecord> recs;
+  for (const auto& t : out.transitions) {
+    ChangeRecord r;
+    r.id = nextChangeId_++;
+    r.tUtcNs = t.tUtcNs;
+    r.tPrevReadUtcNs = t.tUtcNs;
+    r.slot = cfg_.slot;
+    r.ch = t.ch;
+    r.param = "auto_retry";
+    r.oldValue = t.from;
+    r.newValue = t.to;
+    r.origin = "hvmon_retry";
+    r.readKind = "retry";
+    r.detail = {{"k", t.k}, {"reason", t.reason}};
+    recs.push_back(r);
+  }
+  addChanges(recs);
+  for (const auto& w : out.warnings) logWarn(w);
+  for (const auto& e : out.events) {
+    NotifyEvent n;
+    n.kind = e.kind;
+    n.ch = e.ch;
+    n.slot = cfg_.slot;
+    n.episode = e.episode;
+    n.k = e.k;
+    n.reason = e.reason;
+    n.timeline = e.timeline;
+    n.tUtcNs = e.tUtcNs;
+    n.context = channelContext(e.ch);
+    if (notifyQ_ && !notifyQ_->try_push(std::move(n), DropPolicy::DropNewest)) logError("cola del notificador llena");
+  }
+  if (out.persist && fs_) {
+    const std::string path = cfg_.retry.stateFile;
+    fs_->makeDirectories(parentDirectory(path), 0700);
+    if (auto st = fs_->writeAtomic(path, retry_.persistJson(clock_.now_utc_ns()).dump(1) + "\n", 0600); !st)
+      logError("no se pudo guardar el estado de reintento: ", st.error().message);
+  }
+  for (const auto& a : out.actions) {
+    PollRequest r;
+    r.kind = PollRequest::Kind::Pw;
+    r.ch = a.ch;
+    r.on = true;
+    r.internal = true;
+    r.retryToken = a.token;
+    r.clearAlarmFirst = a.clearAlarmFirst;
+    r.reason = "auto-retry intento " + std::to_string(a.k);
+    r.requester = "hvmon (auto-retry)";
+    handlePw(r, now);
+  }
+}
+
 void Poller::publish(SteadyTime now) {
+  state_.retry = retry_.publish(clock_.now_utc_ns());
   state_.readSeq = readSeq_;
   state_.connected = connected_;
   state_.everConnected = everConnected_;

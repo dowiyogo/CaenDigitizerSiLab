@@ -69,9 +69,23 @@ Result<HvmonConfig> HvmonConfig::fromJson(const nlohmann::json& j) {
       c.tempPeriodS = t.value("period_s", c.tempPeriodS);
       c.tempConfig = t.value("config", nlohmann::json::object());
     }
+    c.compressClosedDays = j.value("compress_closed_days", c.compressClosedDays);
+    auto rc = RetryConfig::fromJson(j.value("auto_retry", nlohmann::json::object()));
+    if (!rc) return R(rc.error());
+    c.retry = rc.value();
+    auto nc = NotifierConfig::fromJson(j.value("notifier", nlohmann::json::object()));
+    if (!nc) return R(nc.error());
+    c.notifier = nc.value();
   } catch (const std::exception& e) {
     return R::failure(-1, std::string("configuración de hvmon inválida: ") + e.what());
   }
+  for (int ch : c.retry.enabledChannels) {
+    bool known = false;
+    for (int x : c.channels) known = known || x == ch;
+    if (!known) return R::failure(-1, "auto_retry.enabled_channels: CH" + std::to_string(ch) + " no está en channels");
+  }
+  if (!c.retry.enabledChannels.empty() && !c.allowCommands)
+    return R::failure(-1, "auto_retry.enabled_channels no vacío requiere allow_commands = true (escribe Pw)");
   if (c.channels.empty()) return R::failure(-1, "channels vacío");
   if (c.fastPeriodS <= 0 || c.fullPeriodS <= 0 || c.fsyncPeriodS <= 0 || c.backoffInitialS <= 0 ||
       c.backoffMaxS < c.backoffInitialS || c.gecoPeriodS <= 0 || c.tempPeriodS <= 0 || c.graphPeriodS <= 0)
@@ -115,7 +129,10 @@ nlohmann::json HvmonConfig::toJson() const {
                         {"http", {{"enabled", httpEnabled}, {"bind", httpBind}, {"port", httpPort},
                                   {"channels", httpChannels}, {"graph_period_s", graphPeriodS},
                                   {"graph_hours", graphHours}}},
-                        {"temperature", {{"backend", tempBackend}, {"period_s", tempPeriodS}, {"config", tempConfig}}}};
+                        {"temperature", {{"backend", tempBackend}, {"period_s", tempPeriodS}, {"config", tempConfig}}},
+                        {"auto_retry", retry.toJson()},
+                        {"notifier", notifier.toJson()},
+                        {"compress_closed_days", compressClosedDays}};
 }
 
 }  // namespace daq::hvmon

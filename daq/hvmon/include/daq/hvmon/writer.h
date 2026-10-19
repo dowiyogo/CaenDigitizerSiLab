@@ -77,6 +77,8 @@ class SlowControlWriter {
   void run(BoundedQueue<WriterItem>& queue);
 
   const WriterHealth& health() const { return health_; }
+  // Fase 2: al rotar, encola los archivos del día cerrado para comprimirlos (nullptr = no).
+  void setCompressionQueue(BoundedQueue<std::string>* q) { compressQ_ = q; }
   static std::string dateKey(UtcNs t);  // "YYYYMMDD" en UTC
 
  private:
@@ -106,6 +108,7 @@ class SlowControlWriter {
   Stream offsets_;
   WriterHealth health_;
   std::string lastLoggedError_;
+  BoundedQueue<std::string>* compressQ_ = nullptr;
 };
 
 // Esquemas (también se escriben como .schema.json).

@@ -37,6 +37,10 @@
 #include "daq/hvmon/state.h"
 #include "daq/hvmon/system_probe.h"
 #include "daq/hvmon/writer.h"
+#include "daq/hvmon/compressor.h"
+#include "daq/hvmon/mapping.h"
+#include "daq/hvmon/notifier.h"
+#include "daq/core/spawn.h"
 #include "daq/temp/temp_backend.h"
 #include "http_page.h"
 
@@ -156,7 +160,46 @@ int main(int argc, char** argv) {
   hub.startedUtcNs = clock.now_utc_ns();
   SlowControlWriter writer(cfg.slowcontrolDir, cfg.fsyncPeriodS, fs, clock, hub);
   Poller poller(cfg, *backend, clock, writerQ, hub, pollQ);
+  poller.enableRetryPersistence(fs);
+  if (!cfg.retry.enabledChannels.empty())
+    logWarn("auto-retry HABILITADO en ", cfg.retry.enabledChannels.size(), " canales (allow_commands = true)",
+            cfg.retry.testModeEnabled ? "; test_mode activo" : "");
   CommandHandler handler(cfg, hub, pollQ, writerQ, clock);
+
+  // Fase 2: compresión de días cerrados.
+  BoundedQueue<std::string> compressQ(1000);
+  Compressor compressor(hub);
+  if (cfg.compressClosedDays) {
+    writer.setCompressionQueue(&compressQ);
+    for (const auto& f : Compressor::closedDailyFiles(cfg.slowcontrolDir, SlowControlWriter::dateKey(clock.now_utc_ns())))
+      compressQ.try_push(f, DropPolicy::DropNewest);
+  }
+
+  // Fase 2: notificador por correo (secretos DAQ_SMTP_*, DAQ_NOTIFY_* de secrets.env o del entorno).
+  BoundedQueue<NotifyEvent> notifyQ(256);
+  PosixSpawner spawner;
+  std::unique_ptr<Notifier> notifier;
+  {
+    Secrets smtpSecrets;
+    auto smtp = SmtpSettings::fromSecrets(smtpSecrets);
+    if (!smtp) {
+      if (cfg.notifier.enabled) {
+        logError("notificador habilitado pero sin configuración SMTP: ", smtp.error().message);
+        return 1;
+      }
+      logWarn("notificador sin SMTP (", smtp.error().message, "): notify-test no disponible");
+    } else {
+      std::optional<Mapping> mapping;
+      auto m = Mapping::fromFile(cfg.notifier.mappingFile);
+      if (m) mapping = m.value();
+      else logWarn("notificador sin mapeo: ", m.error().message);
+      notifier = std::make_unique<Notifier>(cfg.notifier, smtp.value(), mapping, spawner, clock, cfg.runtimeDir, hub);
+      poller.setNotifyQueue(&notifyQ);
+      handler.setNotifyQueue(&notifyQ);
+      logInfo("notificador: ", cfg.notifier.enabled ? "habilitado" : "deshabilitado (solo notify-test)", ", ",
+              smtp.value().to.size(), " destinatarios");
+    }
+  }
   auto listener = UnixListener::listen(cfg.socketPath());
   if (!listener) {
     logError(listener.error().message);
@@ -196,6 +239,9 @@ int main(int argc, char** argv) {
   });
   JThread pollThread([&](StopToken st) { poller.run(st); });
   JThread cmdThread([&](StopToken st) { server.run(st); });
+  JThread notifyThread;
+  if (notifier) notifyThread = JThread([&](StopToken st) { notifier->run(notifyQ, st); });
+  JThread compressThread([&](StopToken st) { compressor.run(compressQ, st); });
   JThread tempThread;
   if (tempBackend) {
     tempThread = JThread([&](StopToken st) {
@@ -257,6 +303,14 @@ int main(int argc, char** argv) {
   }
   writerQ.close();
   writerThread.join();
+  compressQ.close();
+  compressThread.request_stop();
+  compressThread.join();
+  if (notifyThread.joinable()) {
+    notifyQ.close();
+    notifyThread.request_stop();
+    notifyThread.join();
+  }
   const auto finalState = hub.compose(cfg, clock.now_utc_ns(), ++stateSeq, true);
   if (auto st = fs.writeAtomic(cfg.statePath(), finalState.dump() + "\n", 0600); !st)
     logError("estado final: ", st.error().message);

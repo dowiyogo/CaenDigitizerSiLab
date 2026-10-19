@@ -15,6 +15,7 @@ nlohmann::json ChangeRecord::toJson() const {
                    {"origin", origin},     {"during_disconnect", duringDisconnect},
                    {"read_kind", readKind}};
   j["command_id"] = commandId ? nlohmann::json(*commandId) : nlohmann::json();
+  if (!detail.is_null()) j["detail"] = detail;
   return j;
 }
 
@@ -43,6 +44,10 @@ nlohmann::json WriterHealth::toJson() const {
                         {"lines", lines},   {"open_files", openFiles}};
 }
 
+namespace {
+nlohmann::json hub_notifier(const StateHub& h) { return h.notifier.read().first; }
+}  // namespace
+
 nlohmann::json StateHub::compose(const HvmonConfig& cfg, UtcNs now, std::uint64_t seq, bool final) const {
   const auto [p, pseq] = poller.read();
   const auto [w, wseq] = writer.read();
@@ -68,7 +73,10 @@ nlohmann::json StateHub::compose(const HvmonConfig& cfg, UtcNs now, std::uint64_
         if (info.type == hv::ParamType::ChStatus) flags = cfg.statusBits.decode(v->second.raw);
       }
     }
-    channels.push_back({{"ch", ch}, {"values", values}, {"status_flags", flags}, {"auto_retry", "NORMAL"}});
+    nlohmann::json retry{{"state", "UNINIT"}};
+    for (const auto& r : p.retry)
+      if (r.value("ch", -1) == ch) retry = r;
+    channels.push_back({{"ch", ch}, {"values", values}, {"status_flags", flags}, {"auto_retry", retry}});
   }
   nlohmann::json changes = nlohmann::json::array();
   for (const auto& c : p.recentChanges) changes.push_back(c.toJson());
@@ -125,6 +133,8 @@ nlohmann::json StateHub::compose(const HvmonConfig& cfg, UtcNs now, std::uint64_
       {"active_offsets", p.activeOffsets},
       {"last_offsets", p.lastOffsets},
       {"temperature", temp},
+      {"notifier", hub_notifier(*this)},
+      {"compressor", compressor.read().first},
       {"board", board},
       {"board_temperature_degC", boardTemp},
       {"board_temperature_note", "temperatura de la placa A7030DP (sigue la del rack), no la del detector"}};
