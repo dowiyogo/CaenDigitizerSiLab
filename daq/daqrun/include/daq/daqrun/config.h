@@ -1,0 +1,96 @@
+// config.h
+// Configuración de daqrun (fase 3), JSON (diseño 5). Ejemplo: daq/config/daqrun.example.json.
+// Regla de simulación: con un digitizador simulado (fake o replay) raw_root y manifests_dir no
+// pueden estar dentro de /data/daq/raw ni de /data/daq/manifests; si faltan en el JSON toman
+// /data/daq/sim/raw y /data/daq/sim/manifests.
+// Tipo de valor; se lee una vez al arrancar.
+#pragma once
+
+#include <string>
+#include <vector>
+
+#include <nlohmann/json.hpp>
+
+#include "daq/core/result.h"
+#include "daq/dig/digitizer.h"
+#include "daq/hv/status_bits.h"
+
+namespace daq::daqrun {
+
+inline constexpr const char* kRealRawRoot = "/data/daq/raw";
+inline constexpr const char* kRealManifests = "/data/daq/manifests";
+inline constexpr const char* kSimRawRoot = "/data/daq/sim/raw";
+inline constexpr const char* kSimManifests = "/data/daq/sim/manifests";
+
+// [A-Za-z0-9][A-Za-z0-9_.-]{0,63}, sin "..": nombre de campaña (directorio y prefijo de archivo).
+bool validCampaignName(const std::string& s);
+
+struct WindowLayout {
+  int refOldRecordStartNs = 3344;
+  std::pair<int, int> pedestal{0, 40}, control{40, 49}, signal{49, 58}, tail{58, 102}, post{102, 144};
+  nlohmann::json toJson() const;
+};
+
+struct DaqrunConfig {
+  // campaign
+  std::string campaign;  // también --campaign
+  std::string rawRoot = kRealRawRoot;
+  std::string manifestsDir = kRealManifests;
+  std::string operatorName;
+  // digitizer
+  dig::DigitizerConfig digitizer;
+  int tttWrapBits = 31;
+  double tttPcToleranceS = 1.0;  // bit 4 de evt_flags
+  WindowLayout window;
+  // run
+  std::string mode = "physics";
+  std::uint64_t maxEvents = 0;
+  double maxDurationS = 0;
+  double segmentMaxS = 3600;
+  std::uint64_t segmentMaxBytes = 2000000000ULL;
+  double autosaveS = 300;
+  double flagDelayS = 5.0;
+  int compression = 505;  // ROOT: algoritmo 5 (ZSTD) nivel 5
+  // hv
+  std::string hvStateFile = "/dev/shm/daqv2/hvmon_state.json";
+  double hvPollPeriodS = 1.0;
+  double hvStaleAfterS = 3.0;
+  double hvSnapshotPeriodS = 10.0;
+  std::vector<int> expectedOn{0, 1, 2, 3, 4, 5, 6, 7};
+  hv::StatusBitMap statusBits = hv::StatusBitMap::wrapperRev13();
+  std::vector<std::string> tripFlags{"internal_trip", "external_trip"};
+  double vmonToleranceV = 0.5;
+  double ovcKOverBaseline = 2.0;
+  double imonBaselineWindowS = 3600;
+  double tripBackdateS = 5.0;
+  // notas y mapeo
+  std::string notesDir = "/data/daq/slowcontrol";
+  std::string mappingFile = "daq/config/mapping/hodo_mapping_2026_10.json";
+  std::string calibrationFile;  // vacío = "none"
+  // búsqueda de pulsos / monitor
+  int minSeparationSamples = 4;
+  double provisionalThresholdMv[2] = {20.0, 3.0};
+  double trimMv = 2.0;
+  double ampHistMaxMv = 100.0;
+  double summaryPeriodS = 60;
+  double gapProbability = 1e-6;
+  double burstProbability = 1e-6;
+  // monitoreo y colas
+  bool httpEnabled = true;
+  std::string httpBind = "127.0.0.1";
+  int httpPort = 8080;
+  double processRequestsHz = 15;
+  std::size_t monitorQueueCapacity = 64;
+  std::size_t writerQueueCapacity = 256;
+  std::size_t hvQueueCapacity = 4096;
+  double writerShutdownTimeoutS = 120;
+
+  bool simulated() const { return digitizer.backend != "caen"; }
+  std::string campaignDir() const { return rawRoot + "/" + campaign; }
+
+  static Result<DaqrunConfig> fromJson(const nlohmann::json& j);
+  static Result<DaqrunConfig> fromFile(const std::string& path);
+  nlohmann::json toJson() const;
+};
+
+}  // namespace daq::daqrun
