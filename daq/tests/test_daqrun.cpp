@@ -98,8 +98,15 @@ TEST(DaqrunConfig, SimulatedRunsNeverWriteToRealRawOrManifests) {
     EXPECT_FALSE(bad2.ok());
   }
   EXPECT_FALSE(DaqrunConfig::fromJson({{"campaign", {{"name", "t1"}, {"manifests_dir", "/data/daq/manifests"}}}}).ok());
-  // En la fase 3 no hay backend real.
-  EXPECT_FALSE(DaqrunConfig::fromJson({{"digitizer", {{"backend", "caen"}}}}).ok());
+  // Fase 4: backend real con las rutas reales por omisión; la longitud pedida no necesita ser
+  // múltiplo de 3 (la placa la ajusta: 625 -> 624).
+  auto real = DaqrunConfig::fromJson({{"digitizer", {{"backend", "caen"}, {"record_length_samples", 625}}}});
+  ASSERT_TRUE(real.ok()) << real.error().message;
+  EXPECT_FALSE(real.value().simulated());
+  EXPECT_EQ(real.value().rawRoot, "/data/daq/raw");
+  EXPECT_EQ(real.value().manifestsDir, "/data/daq/manifests");
+  EXPECT_FALSE(DaqrunConfig::fromJson({{"digitizer", {{"backend", "fake"}, {"record_length_samples", 625}}}}).ok());
+  EXPECT_FALSE(DaqrunConfig::fromJson({{"digitizer", {{"backend", "otro"}}}}).ok());
   // Validación de la ventana y del nombre.
   EXPECT_FALSE(DaqrunConfig::fromJson({{"digitizer", {{"window_layout", {{"signal", {30, 58}}}}}}}).ok());
   EXPECT_FALSE(DaqrunConfig::fromJson({{"digitizer", {{"record_length_samples", 145}}}}).ok());

@@ -36,6 +36,7 @@
 #include "daq/daqrun/config.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/daqrun/monitor.h"
+#include "daq/dig/caen_digitizer.h"
 #include "daq/dig/fake_digitizer.h"
 #include "daq/dig/readout.h"
 #include "daq/dig/replay_digitizer.h"
@@ -205,17 +206,33 @@ int main(int argc, char** argv) {
       return 2;
     }
     backend = std::make_unique<dig::FakeDigitizer>(sp.value(), clock, channelInfo(mapping.value()));
-  } else {
+  } else if (cfg.digitizer.backend == "replay") {
     auto rp = dig::ReplayParams::fromJson(cfg.digitizer.scenario);
     if (!rp) {
       logError(rp.error().message);
       return 2;
     }
     backend = std::make_unique<dig::ReplayDigitizer>(rp.value(), clock);
+  } else {
+    // VX1740 real (fase 4): open + configure con relectura; un error cierra sin crear segmento.
+    backend = std::make_unique<dig::CaenDigitizerBackend>(clock);
   }
   if (auto s = backend->configure(cfg.digitizer); !s) {
     logError("configuración del digitizador: ", s.error().message);
     return 1;
+  }
+  // La placa puede ajustar la longitud pedida (625 -> 624): el run usa la real.
+  if (backend->recordLength() != cfg.digitizer.recordLength) {
+    logWarn("longitud de registro pedida ", cfg.digitizer.recordLength, ", real ", backend->recordLength());
+    cfg.digitizer.recordLength = backend->recordLength();
+  }
+  {
+    const int n = cfg.digitizer.recordLength;
+    for (auto* r : {&cfg.window.pedestal, &cfg.window.control, &cfg.window.signal, &cfg.window.tail, &cfg.window.post})
+      if (r->second > n) {
+        logError("window_layout fuera del registro real de ", n, " muestras");
+        return 2;
+      }
   }
 
   // Colas e hilos.

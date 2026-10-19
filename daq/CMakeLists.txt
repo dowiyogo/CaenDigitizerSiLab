@@ -55,6 +55,17 @@ add_custom_target(daq_build_info ALL
   BYPRODUCTS ${DAQ_GENERATED_DIR}/daq_build_info.h
   COMMENT "commit de git del build")
 
+# CAENDigitizer 2.17.3 (VX1740, fase 4): copias versionadas de /usr/lib por ruta completa (sin
+# SONAME, así DT_NEEDED queda con la ruta). CAENDigitizer resuelve CAENComm por nombre; las copias de
+# /usr/lib y /usr/local/lib son idénticas (DAQ2-1).
+add_library(caen::digitizer SHARED IMPORTED GLOBAL)
+set_target_properties(caen::digitizer PROPERTIES IMPORTED_LOCATION "/usr/lib/libCAENDigitizer.so.v2.17.3"
+                      INTERFACE_INCLUDE_DIRECTORIES "/usr/include" INTERFACE_COMPILE_DEFINITIONS "LINUX;UNIX")
+add_library(caen::comm SHARED IMPORTED GLOBAL)
+set_target_properties(caen::comm PROPERTIES IMPORTED_LOCATION "/usr/lib/libCAENComm.so.v1.7.0")
+add_library(caen::vme SHARED IMPORTED GLOBAL)
+set_target_properties(caen::vme PROPERTIES IMPORTED_LOCATION "/usr/lib/libCAENVME.so.v4.0.2")
+
 add_subdirectory(core)
 add_subdirectory(hv)
 add_subdirectory(temp)
@@ -67,6 +78,7 @@ add_subdirectory(apps/hvmon)
 add_subdirectory(apps/sctool)
 add_subdirectory(apps/daqrun)
 add_subdirectory(apps/daqcampaign)
+add_subdirectory(apps/digprobe)
 add_subdirectory(tools/legacy)
 
 if(DAQ_BUILD_TESTS)

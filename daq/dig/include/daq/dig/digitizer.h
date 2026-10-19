@@ -25,8 +25,8 @@ inline constexpr int kChannels = 64;
 inline constexpr int kGroups = 8;
 
 struct DigitizerConfig {
-  std::string backend = "fake";  // "fake" (sintético), "replay"; "caen" en la fase 4
-  int recordLength = 144;        // N, múltiplo de 3
+  std::string backend = "fake";  // "fake" (sintético), "replay", "caen" (VX1740 real, fase 4)
+  int recordLength = 144;        // N pedido; la placa puede ajustarlo (625 -> 624): ver recordLength()
   int postTriggerRegister = 93;  // 0x8114
   std::vector<int> groupDcOffset = std::vector<int>(kGroups, 32767);
   int maxEventsBlt = 16;
@@ -36,6 +36,18 @@ struct DigitizerConfig {
   double maxVpp = 2.0;
   bool softwareTrigger = false;  // modo calibración: el hilo de lectura envía SW triggers
   double swTriggerRateHz = 100;
+  bool externalTrigger = true;   // TRG IN (ACQ_ONLY); false = deshabilitado
+  std::string ioLevel = "NIM";   // nivel del panel frontal: NIM o TTL
+  std::uint32_t groupEnableMask = 0xFF;
+  // Enlace (backend caen), como el DAQ antiguo: CAEN_DGTZ_USB_A4818 = 5, linkNum 62578.
+  int linkType = 5;
+  int linkNum = 62578;
+  int conetNode = 0;
+  std::uint32_t vmeBaseAddress = 0;
+  bool resetOnConfigure = true;
+  // Captura de buffers crudos de ReadData (tests de decodificación): directorio y nº de bloques.
+  std::string captureDir;
+  int captureBlocks = 0;
   std::string scenarioFile;      // fake: escenario JSON; replay: configuración del replay
   nlohmann::json scenario;       // contenido (resuelto al cargar)
 
@@ -98,6 +110,8 @@ class DigitizerBackend {
   virtual bool simulated() const = 0;
   // true cuando una fuente finita (replay) ya entregó todo.
   virtual bool exhausted() const { return false; }
+  // Longitud de registro real después de configure() (la placa puede ajustar la pedida).
+  virtual int recordLength() const = 0;
 };
 
 // Monotónico del sistema en ns (CLOCK_MONOTONIC), para t_read_mono_ns.

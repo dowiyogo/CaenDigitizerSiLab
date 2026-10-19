@@ -2,5 +2,5 @@
 add_executable(daqrun main.cpp http_page.cpp)
 add_dependencies(daqrun daq_build_info)
 target_include_directories(daqrun PRIVATE ${DAQ_GENERATED_DIR})
-target_link_libraries(daqrun PRIVATE daq_io daq_dig_replay daq_dig daq_daqrun daq_hvmon daq_hv_common daq_core
+target_link_libraries(daqrun PRIVATE daq_io daq_dig_replay daq_dig_caen daq_dig daq_daqrun daq_hvmon daq_hv_common daq_core
                       ROOT::Core ROOT::Hist ROOT::RHTTP daq_warnings)

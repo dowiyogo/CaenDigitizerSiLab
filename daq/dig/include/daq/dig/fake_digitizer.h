@@ -69,6 +69,7 @@ class FakeDigitizer final : public DigitizerBackend {
   Status sendSoftwareTrigger() override;
   nlohmann::json info() const override;
   bool simulated() const override { return true; }
+  int recordLength() const override { return cfg_.recordLength; }
 
   // Para tests: verdad del generador.
   std::uint64_t triggersGenerated() const { return generated_; }

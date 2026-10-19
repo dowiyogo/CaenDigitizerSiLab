@@ -27,15 +27,38 @@ Result<DigitizerConfig> DigitizerConfig::fromJson(const nlohmann::json& j) {
     c.softwareTrigger = j.value("software_trigger", c.softwareTrigger);
     c.swTriggerRateHz = j.value("sw_trigger_rate_Hz", c.swTriggerRateHz);
     c.scenarioFile = j.value("scenario_file", c.scenarioFile);
+    c.externalTrigger = j.value("external_trigger", c.externalTrigger);
+    c.ioLevel = j.value("io_level", c.ioLevel);
+    if (j.contains("group_enable_mask"))
+      c.groupEnableMask = j["group_enable_mask"].is_string()
+                              ? static_cast<std::uint32_t>(std::stoul(j["group_enable_mask"].get<std::string>(), nullptr, 0))
+                              : j["group_enable_mask"].get<std::uint32_t>();
+    if (j.contains("link")) {
+      const auto& l = j["link"];
+      c.linkType = l.value("type", c.linkType);
+      c.linkNum = l.value("link_num", c.linkNum);
+      c.conetNode = l.value("conet_node", c.conetNode);
+      if (l.contains("vme_base_address"))
+        c.vmeBaseAddress = l["vme_base_address"].is_string()
+                               ? static_cast<std::uint32_t>(std::stoul(l["vme_base_address"].get<std::string>(), nullptr, 0))
+                               : l["vme_base_address"].get<std::uint32_t>();
+    }
+    c.resetOnConfigure = j.value("reset_on_configure", c.resetOnConfigure);
+    c.captureDir = j.value("capture_dir", c.captureDir);
+    c.captureBlocks = j.value("capture_blocks", c.captureBlocks);
     if (j.contains("scenario")) c.scenario = j["scenario"];
   } catch (const std::exception& e) {
     return R::failure(-1, std::string("digitizer inválido: ") + e.what());
   }
-  if (c.recordLength <= 0 || c.recordLength % 3 != 0) return R::failure(-1, "record_length_samples debe ser múltiplo de 3 y > 0");
+  if (c.recordLength <= 0 || c.recordLength > 100000) return R::failure(-1, "record_length_samples fuera de rango");
+  if (c.recordLength % 3 != 0 && c.backend != "caen")
+    return R::failure(-1, "record_length_samples debe ser múltiplo de 3 (la placa redondea hacia abajo)");
+  if (c.ioLevel != "NIM" && c.ioLevel != "TTL") return R::failure(-1, "io_level debe ser NIM o TTL");
+  if (c.groupEnableMask == 0 || c.groupEnableMask > 0xFF) return R::failure(-1, "group_enable_mask fuera de rango");
   if (static_cast<int>(c.groupDcOffset.size()) != kGroups) return R::failure(-1, "group_dc_offset debe tener 8 valores");
   if (c.maxEventsBlt <= 0 || c.pollSleepS <= 0 || c.tttTickNs <= 0) return R::failure(-1, "digitizer: parámetros de lectura inválidos");
-  if (c.backend != "fake" && c.backend != "replay")
-    return R::failure(-1, "digitizer.backend = " + c.backend + ": en la fase 3 solo hay 'fake' y 'replay'");
+  if (c.backend != "fake" && c.backend != "replay" && c.backend != "caen")
+    return R::failure(-1, "digitizer.backend = " + c.backend + ": debe ser fake, replay o caen");
   return c;
 }
 
@@ -52,6 +75,13 @@ nlohmann::json DigitizerConfig::toJson() const {
           {"software_trigger", softwareTrigger},
           {"sw_trigger_rate_Hz", swTriggerRateHz},
           {"scenario_file", scenarioFile},
+          {"external_trigger", externalTrigger},
+          {"io_level", ioLevel},
+          {"group_enable_mask", groupEnableMask},
+          {"link", {{"type", linkType}, {"link_num", linkNum}, {"conet_node", conetNode}, {"vme_base_address", vmeBaseAddress}}},
+          {"reset_on_configure", resetOnConfigure},
+          {"capture_dir", captureDir},
+          {"capture_blocks", captureBlocks},
           {"scenario", scenario}};
 }
 

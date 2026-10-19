@@ -53,6 +53,7 @@ class ReplayDigitizer final : public DigitizerBackend {
   Result<std::size_t> readBlock(EventBlock& out, std::size_t maxEvents) override;
   nlohmann::json info() const override;
   bool simulated() const override { return true; }
+  int recordLength() const override { return cfg_.recordLength; }
   bool exhausted() const override { return done_; }
 
   const std::string& resolvedPath() const { return path_; }
