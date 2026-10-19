@@ -55,11 +55,20 @@ En v8, para canales de hod2018 con pulso en tiempo > 10 p.e., la mediana de las 
 base de referencia (mediana sobre canales), por el sobreimpulso. Cualquier pedestal que
 mezcle muestras posteriores a la señal está sesgado en esos eventos.
 
-## 6. Control lento: `hv_full_20261019.csv` mezcla dos formatos (DAQ2-4, 2026-10-19)
+## 6. Control lento: `hv_full_20261019` reparado en dos partes (DAQ2-4, 2026-10-19)
 
-`/data/daq/slowcontrol/2026/hv_full_20261019.csv` tiene el encabezado de 24 columnas (corrida de
-DAQ2-3, filas 2-1345, última `t_req_utc_ns` = 1792374668848097448), pero desde la fila 1346
-(2026-10-19T08:32:37Z, `hvmon` con las columnas de la placa) las filas tienen 28 columnas: al final
-`bd_BdStatus,bd_HVMax_V,bd_HIMax_A,bd_Temp_degC`. El `.schema.json` describe solo las 24. Para
-leerlo, separar por número de campos. Desde DAQ2-4 el escritor ya no mezcla: abre
-`hv_full_YYYYMMDD.2.csv` (diseño 4.3). El archivo no se reescribió.
+`/data/daq/slowcontrol/2026/hv_full_20261019.csv` mezclaba dos formatos: encabezado de 24
+columnas (corrida de DAQ2-3, filas 2-1345, última `t_req_utc_ns` = 1792374668848097448) y, desde
+la fila 1346 (2026-10-19T08:32:37Z, `hvmon` con las columnas de la placa), filas de 28 columnas
+(al final `bd_BdStatus,bd_HVMax_V,bd_HIMax_A,bd_Temp_degC`). Tras parar `hvmon` se separó:
+
+| archivo | filas de datos | columnas | esquema | bytes | crc32 |
+|---|---|---|---|---|---|
+| `hv_full_20261019.csv` | 1344 | 24 | `.schema.json` existente (`daqv2.hv_full/1`) | 160328 | e961c2c5 |
+| `hv_full_20261019.2.csv` | 1092 | 28 | nuevo `.2.csv.schema.json` (`daqv2.hv_full/2`) | 150829 | ddd5d531 |
+
+1344 + 1092 = 2436 = filas de datos del original (2437 líneas con el encabezado); las filas son
+idénticas y en el mismo orden. Original (310910 bytes, crc32 2f92343c) y su esquema guardados en
+`/data/daq/slowcontrol/repair_backup/`. Es el mismo esquema de nombres que usa el escritor
+corregido: los lectores deben tomar todas las partes del día (`hv_full_YYYYMMDD*.csv*`) y ordenar
+por `t_resp_utc_ns`.

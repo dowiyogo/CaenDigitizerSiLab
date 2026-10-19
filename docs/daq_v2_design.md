@@ -432,9 +432,9 @@ otro encabezado (otra versión de `hvmon`), o si cambian las columnas durante la
 lectura de la placa en un ciclo y la fila sale sin `bd_*`), las filas van a
 `<tipo>_YYYYMMDD.2.csv` (`.3`, ...), cada una con su `.schema.json`; se vuelve a la primera parte
 cuyo encabezado coincide. Los lectores deben tomar todas las partes del día (`<tipo>_YYYYMMDD*.csv*`)
-y ordenar por `t_resp_utc_ns`. Excepción: `hv_full_20261019.csv`, escrito antes de la corrección,
-mezcla 24 columnas (filas 2-1345, corrida de DAQ2-3) y 28 (desde la fila 1346, 08:32:37Z); no se
-reescribe (`docs/notes_for_analysis.md`, ítem 6).
+y ordenar por `t_resp_utc_ns`. `hv_full_20261019.csv`, escrito antes de la corrección, mezclaba 24
+y 28 columnas; se separó en `hv_full_20261019.csv` (1344 filas) y `.2.csv` (1092), con el original
+en `/data/daq/slowcontrol/repair_backup/` (`docs/notes_for_analysis.md`, ítem 6).
 
 Los eventos de conexión, GECO y comandos rechazados quedan además en el log de `hvmon`
 (stderr / journal de systemd). Notas: `daqrun` copiará a su archivo las notas del intervalo de su
@@ -1105,7 +1105,7 @@ detiene y lo informa (no se copia un framework al repositorio).
 | fase | aceptación |
 |---|---|
 | 0 HV lib + `FakeHVBackend` + `hvctl` | tests pasan (normal, ASan+UBSan, TSan); `hvctl --fake` y `hvctl` real (solo lectura, tarea autorizada) dan la misma tabla que `hv_readall`; latencia de una lectura completa de 12 canales medida y registrada; el binario de fase 0 no importa `CAENHV_Set*` ni `CAENHV_ExecComm` (verificado con `nm -D --undefined-only`). Resultado DAQ2-2: cumplido salvo la prueba con GECO abierto (GECO estaba cerrado) |
-| 1 `hvmon` + ruta de comandos | Resultado DAQ2-3: 2 h 30 min reales de solo lectura sin errores ni pérdidas (15.2), tests de todos los puntos con fake y tiempo acelerado; pendiente la confirmación de la detección de GECO por ejecutable y la evaluación de la suscripción. Criterios originales: 24 h con fake acelerado sin pérdida de líneas; cambios del guion con el origen correcto en el 100 % de los casos; reconexión; lector a TTree/RDataFrame validado; 8 h reales de solo lectura con GECO abierto, cada cambio hecho en GECO aparece como `external`; patrón de GECO confirmado; suscripción evaluada; comandos `pw` probados solo contra el fake (con hardware real recién en fase 2 o 6, con autorización) |
+| 1 `hvmon` + ruta de comandos | Resultado DAQ2-3: 2 h 30 min reales de solo lectura sin errores ni pérdidas (15.2), tests de todos los puntos con fake y tiempo acelerado; detección de GECO por ejecutable confirmada en DAQ2-4 (15.3); pendiente la evaluación de la suscripción. Criterios originales: 24 h con fake acelerado sin pérdida de líneas; cambios del guion con el origen correcto en el 100 % de los casos; reconexión; lector a TTree/RDataFrame validado; 8 h reales de solo lectura con GECO abierto, cada cambio hecho en GECO aparece como `external`; patrón de GECO confirmado; suscripción evaluada; comandos `pw` probados solo contra el fake (con hardware real recién en fase 2 o 6, con autorización) |
 | 2 auto-retry y notificador | Resultado DAQ2-4: transiciones de 8.2 con fake y reloj acelerado (`test_hvmon_retry`), notificador con `FakeSpawner`, compresión verificada; secuencia completa NORMAL → WAIT(1..3) → GAVE_UP con fake en tiempo real y correo real (15.3). Pendiente (DAQ2-5): una vez en hardware real con carga resistiva. Criterio original: todas las transiciones de 8.2 cubiertas con tiempo acelerado; acción manual siempre manda; un correo por episodio; luego una vez en hardware real con carga resistiva e I0Set bajo, con autorización explícita: trip provocado → WAIT → RETRY → NORMAL, GAVE_UP con correo, y verificación de los bits de `Status` |
 | 3 `daqrun` con digitizador fake | 24 h aceleradas sin perder eventos; apagado limpio por señal en cualquier momento; segmentos e índice con SHA256 correctos; flags del guion correctos (incluidas pruebas de Poisson con agregación); estado sin calibración visible; modo calibración con SW trigger fake; RSS sin deriva > 10 % |
 | 4 digitizador real | autorizado por el operador; `GetRecordLength` = 144; pico de muón en la muestra esperada ±1; paso del TTT medido; SW trigger a 100 Hz sin pérdidas; `DT_NEEDED` con la ruta de `/usr/lib`; 1 h de datos comparables con v8 |
@@ -1299,8 +1299,7 @@ SY5527 desde ~23:32Z, sin operar nada):
   ~71 s (la compilación siguiente empezó a las 23:57:12Z); GECO no reescribió su log de suscripción
   (sigue con 23:32:13Z). El bucle de muestreo, cuya línea contiene `geco_running` pero no el
   patrón, no coincidió (el indicador volvió a 0 con el bucle corriendo). Corregido en `6eb49b2`:
-  solo `/proc/<pid>/exe` o `argv[0]`. **Pendiente**: confirmar la detección nueva con GECO abierto
-  (corrida corta que René autoriza por separado).
+  solo `/proc/<pid>/exe` o `argv[0]`. Detección nueva confirmada con GECO abierto en DAQ2-4 (15.3).
 - Escribir por HTTP o con GECO no se probó (fuera del alcance de la fase 1).
 
 ### 15.3 Fase 2 (DAQ2-4): decisiones fijadas y validación
@@ -1352,7 +1351,12 @@ Validación (DAQ2-4):
 - Un primer intento con la excursión a t = 20 s no inició el episodio: el canal estaba en
   `MANUAL` (apagado al arrancar) y el trip llegó antes de `stable_min`; es el comportamiento
   de 8.2.
-- GECO con el detector nuevo (`/proc/<pid>/exe` o `argv[0]`): **pendiente** de la prueba de René.
+- GECO con el detector nuevo (`/proc/<pid>/exe` o `argv[0]`), corrida de solo lectura desde
+  08:32:37Z: nota "GECO abierto" 09:48:36.798Z → "GECO2020 detectado en ejecución" 09:48:55.626Z;
+  nota "GECO cerrado" 10:01:35.983Z → "ya no está en ejecución" 10:01:36.321Z. Una sola
+  detección, sin falsos positivos. Al final: 5400 lecturas rápidas y 90 completas, 0 errores,
+  0 reconexiones, 0 cambios, escritor 0 errores. `board_temperature_degC` = 25.0 en el estado,
+  en la página (`/board/BoardTemp_degC`) y en `bd_Temp_degC` de `hv_full`.
 
 ## 16. Preguntas resueltas por el handoff y la revisión
 
