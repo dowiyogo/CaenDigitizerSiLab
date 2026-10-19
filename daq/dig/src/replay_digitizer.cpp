@@ -117,7 +117,11 @@ Result<std::size_t> ReplayDigitizer::readBlock(EventBlock& out, std::size_t maxE
     }
     Event ev;
     ev.counterHw = static_cast<std::uint32_t>(event_);
-    const std::uint64_t ticks = static_cast<std::uint64_t>(elapsedUs * 1000.0 / cfg_.tttTickNs);
+    // TTT al ritmo de entrega (intervalos originales / speed; con speed = 0, la hora de lectura):
+    // así t_utc = origen + ttt queda coherente con t_read y el desenrollado con la hora del PC.
+    const double deliveredNs =
+        p_.speed > 0 ? elapsedUs * 1000.0 / p_.speed : static_cast<double>(out.tReadUtcNs - t0_);
+    const std::uint64_t ticks = static_cast<std::uint64_t>(std::max(0.0, deliveredNs) / cfg_.tttTickNs);
     const std::uint64_t wrap = p_.tttWrapBits >= 32 ? (1ull << 32) : (1ull << p_.tttWrapBits);
     ev.tttRaw = static_cast<std::uint32_t>(ticks % wrap);
     ev.triggerKind = 0;

@@ -11,7 +11,9 @@
 //    old_start_sample = ref_old_record_start_ns / 16 = 209 para la ventana B.
 //  - Ritmo: speed = 1 respeta los intervalos de `timestamp` (µs del steady_clock del DAQ antiguo,
 //    uno por lectura), speed > 1 acelera, speed = 0 entrega todo lo antes posible.
-//  - TTT sintetizado desde `timestamp` con ttt_tick_ns y vuelta en ttt_wrap_bits; contador = `event`.
+//  - TTT sintetizado al ritmo de entrega: intervalos de `timestamp` divididos por speed (speed = 0:
+//    hora de lectura), con ttt_tick_ns y vuelta en ttt_wrap_bits, para que t_utc sea coherente con
+//    t_read; contador = `event` del original (identifica la entrada de origen).
 // Seguridad entre hilos: pertenece al hilo de lectura; los objetos ROOT (TFile, TTree) son suyos.
 #pragma once
 

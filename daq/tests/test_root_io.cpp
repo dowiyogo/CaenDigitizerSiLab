@@ -257,7 +257,7 @@ TEST(ReplayDigitizer, CropsV8FormatAndRecoversAdcExactly) {
   }
   ::setenv("HODO_RAW_DIR", raw.c_str(), 1);
   ManualClock clock;
-  auto rp = dig::ReplayParams::fromJson({{"file", "lectura_test_v8fmt.root"}, {"speed", 0.0}, {"max_entries", 15}});
+  auto rp = dig::ReplayParams::fromJson({{"file", "lectura_test_v8fmt.root"}, {"speed", 10.0}, {"max_entries", 15}});
   ASSERT_TRUE(rp.ok());
   dig::ReplayDigitizer rd(rp.value(), clock);
   dig::DigitizerConfig dc;
@@ -265,10 +265,15 @@ TEST(ReplayDigitizer, CropsV8FormatAndRecoversAdcExactly) {
   EXPECT_EQ(rd.resolvedPath(), file);
   ASSERT_TRUE(rd.start().ok());
   std::vector<dig::Event> evs;
-  while (!rd.exhausted()) {
+  std::vector<UtcNs> tRead;
+  for (int i = 0; i < 1000 && !rd.exhausted(); ++i) {
+    clock.advance(50us);  // speed 10: un evento cada 100 µs (1 ms del original)
     dig::EventBlock b;
     ASSERT_TRUE(rd.readBlock(b, 4).ok());
-    for (auto& e : b.events) evs.push_back(std::move(e));
+    for (auto& e : b.events) {
+      evs.push_back(std::move(e));
+      tRead.push_back(b.tReadUtcNs);
+    }
   }
   ASSERT_EQ(evs.size(), 15u);
   for (std::size_t e = 0; e < evs.size(); ++e) {
@@ -278,7 +283,10 @@ TEST(ReplayDigitizer, CropsV8FormatAndRecoversAdcExactly) {
         ASSERT_EQ(evs[e].adc[static_cast<std::size_t>(c * 144 + k)], adcOf(static_cast<int>(e), c, 209 + k)) << e << " " << c << " " << k;
   }
   EXPECT_LT(rd.maxRoundingResidualAdc(), 0.01);
-  EXPECT_EQ(evs[3].tttRaw, 3u * 1000u * 1000u / 8u);  // 3 ms en ticks de 8 ns
+  // TTT al ritmo de entrega: 3 ms del original / speed 10 = 300 µs, en ticks de 8 ns; coherente con
+  // la hora de lectura (el evento se entrega en cuanto vence).
+  EXPECT_EQ(evs[3].tttRaw, 300u * 1000u / 8u);
+  EXPECT_LE(static_cast<double>(tRead[3] - tRead[0]) / 1e3, 300.0 + 50.0);
   ::unsetenv("HODO_RAW_DIR");
 }
 
