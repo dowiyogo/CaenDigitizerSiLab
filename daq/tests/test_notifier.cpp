@@ -6,7 +6,6 @@
 
 #include <fstream>
 #include <iterator>
-#include <regex>
 
 #include "daq/core/clock.h"
 #include "daq/core/logger.h"
@@ -112,8 +111,22 @@ TEST(Notifier, GaveUpMailHasNoSecretInArgvOrBodyAndCorrectHeaders) {
   EXPECT_EQ(c.body.find("S3cr3t"), std::string::npos);
   EXPECT_NE(c.body.find("Subject: [DAQ hodoscopio] gave_up CH03 (grupo 4)\r\n"), std::string::npos) << c.body;
   EXPECT_NE(c.body.find("To: a@example.org, b@example.org\r\n"), std::string::npos);
-  EXPECT_TRUE(std::regex_search(c.body, std::regex("Date: [A-Z][a-z]{2}, [0-9]{2} [A-Z][a-z]{2} [0-9]{4} [0-9:]{8} \\+0000\r\n")));
-  EXPECT_TRUE(std::regex_search(c.body, std::regex("Message-ID: <[0-9]+\\.[0-9a-f]{16}@host-test>\r\n")));
+  // Date: "Sun, 18 Oct 2026 00:00:00 +0000" (RFC 5322, UTC).
+  const auto dpos = c.body.find("Date: ");
+  ASSERT_NE(dpos, std::string::npos);
+  const std::string date = c.body.substr(dpos + 6, c.body.find("\r\n", dpos) - dpos - 6);
+  EXPECT_EQ(date, "Sun, 18 Oct 2026 00:00:00 +0000");
+  // Message-ID: "<ns.16hex@host-test>".
+  const auto mpos = c.body.find("Message-ID: <");
+  ASSERT_NE(mpos, std::string::npos);
+  const std::string mid = c.body.substr(mpos + 13, c.body.find(">", mpos) - mpos - 13);
+  const auto dot = mid.find('.'), at = mid.find('@');
+  ASSERT_NE(dot, std::string::npos);
+  ASSERT_NE(at, std::string::npos);
+  EXPECT_EQ(mid.substr(0, dot).find_first_not_of("0123456789"), std::string::npos);
+  EXPECT_EQ(at - dot - 1, 16u);
+  EXPECT_EQ(mid.substr(dot + 1, 16).find_first_not_of("0123456789abcdef"), std::string::npos);
+  EXPECT_EQ(mid.substr(at + 1), "host-test");
   EXPECT_NE(c.body.find("hod2019: ch50*"), std::string::npos) << c.body;  // grupo 4 = ch50, ch61 (derivados)
   EXPECT_NE(c.body.find("ch61*"), std::string::npos);
   EXPECT_NE(c.body.find("no confirmada por medición"), std::string::npos);
