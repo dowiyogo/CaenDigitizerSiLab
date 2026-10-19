@@ -14,7 +14,11 @@ add_executable(daq_tests
   test_hvmon_poller.cpp
   test_hvmon_writer.cpp
   test_hvmon_commands.cpp
-  test_hvmon_misc.cpp)
+  test_hvmon_misc.cpp
+  test_hvmon_retry.cpp
+  test_notifier.cpp
+  test_gzip.cpp)
+target_compile_definitions(daq_tests PRIVATE DAQ_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_link_libraries(daq_tests PRIVATE daq_hvmon daq_temp daq_hv_common daq_core GTest::gtest GTest::gtest_main daq_warnings)
 # TSan de GCC 13 falla con "unexpected memory mapping" con la entropía ASLR de este kernel; se
 # corre el binario con ASLR deshabilitado solo para ese proceso (setarch -R), sin tocar sysctl.

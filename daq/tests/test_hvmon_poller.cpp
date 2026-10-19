@@ -88,7 +88,7 @@ TEST(HvmonPoller, FastEverySecondFullEveryMinute) {
   EXPECT_EQ(st["channels"].size(), 12u);
   EXPECT_DOUBLE_EQ(st["channels"][6]["values"]["V0Set_V"].get<double>(), 66.15);
   EXPECT_DOUBLE_EQ(st["channels"][0]["values"]["I0Set_A"].get<double>(), 1.5e-05);
-  EXPECT_EQ(st["channels"][0]["auto_retry"], "NORMAL");
+  EXPECT_EQ(st["channels"][0]["auto_retry"]["state"], "DISABLED");  // sin auto_retry configurado
   EXPECT_TRUE(st["temperature"].is_null());
 }
 
@@ -259,7 +259,7 @@ TEST(HvmonPoller, InternalRequestRefusedWhileAnotherChannelRamps) {
   auto f = r.pw(2, true, /*internal=*/true);
   r.runUntil(6s);
   const auto j = f.get();
-  EXPECT_EQ(j["result"], "rejected");
+  EXPECT_EQ(j["result"], "busy");  // fase 2: una petición interna espera en vez de fallar
   EXPECT_NE(j["detail"].get<std::string>().find("rampa"), std::string::npos);
   auto g = r.pw(2, true, /*internal=*/false);  // una petición del operador sí procede
   r.runUntil(7s);

@@ -169,3 +169,19 @@ TEST(HvmonWriter, FullFileHasBoardColumns) {
   EXPECT_EQ(schema["schema"], "daqv2.hv_full/2");
   EXPECT_EQ(schema["columns"].back()["unit"], "degC");
 }
+
+TEST(HvmonWriter, RotationQueuesClosedDayForCompression) {
+  WRig r;
+  BoundedQueue<std::string> q(10);
+  r.w.setCompressionQueue(&q);
+  auto rd = reading(r.clock);  // 23:59:58Z del 18
+  r.w.handle(FastRows{rd, 1});
+  EXPECT_EQ(q.size(), 0u);
+  r.clock.advance(3s);
+  auto rd2 = reading(r.clock);  // 00:00:01Z del 19
+  r.w.handle(FastRows{rd2, 2});
+  auto p = q.try_pop();
+  ASSERT_TRUE(p.has_value());
+  EXPECT_EQ(*p, "/sc/2026/hv_20261018.csv");
+  EXPECT_FALSE(q.try_pop().has_value());
+}
