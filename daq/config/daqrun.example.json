@@ -1,0 +1,59 @@
+{
+  "campaign": {"name": "", "operator": ""},
+  "digitizer": {
+    "backend": "fake",
+    "scenario_file": "daq/config/fake/dig_synthetic_default.json",
+    "record_length_samples": 144,
+    "post_trigger_register": 93,
+    "group_dc_offset": [32767, 32767, 32767, 32767, 32767, 32767, 32767, 32767],
+    "max_events_blt": 16,
+    "poll_sleep_s": 0.005,
+    "ttt_tick_ns": 8.0,
+    "ttt_wrap_bits": 31,
+    "ttt_pc_tolerance_s": 1.0,
+    "window_layout": {
+      "ref_old_record_start_ns": 3344,
+      "pedestal": [0, 40], "control": [40, 49], "signal": [49, 58], "tail": [58, 102], "post": [102, 144]
+    }
+  },
+  "run": {
+    "mode": "physics",
+    "max_events": 0,
+    "max_duration_s": 0,
+    "segment_max_s": 3600,
+    "segment_max_bytes": 2000000000,
+    "autosave_s": 300,
+    "flag_delay_s": 5.0,
+    "compression": 505
+  },
+  "hv": {
+    "state_file": "/dev/shm/daqv2/hvmon_state.json",
+    "poll_period_s": 1.0,
+    "stale_after_s": 3.0,
+    "snapshot_period_s": 10.0,
+    "expected_on": [0, 1, 2, 3, 4, 5, 6, 7],
+    "trip_flags": ["internal_trip", "external_trip"],
+    "vmon_tolerance_V": 0.5,
+    "ovc_k_over_baseline": 2.0,
+    "imon_baseline_window_s": 3600,
+    "trip_backdate_s": 5.0
+  },
+  "notes": {"slowcontrol_dir": "/data/daq/slowcontrol"},
+  "mapping": {"file": "daq/config/mapping/hodo_mapping_2026_10.json"},
+  "calibration": {"file": null},
+  "pulse_finder": {
+    "min_separation_samples": 4,
+    "provisional_thresholds_mV": {"hod2018": 20.0, "hod2019": 3.0},
+    "trim_mV": 2.0,
+    "amp_hist_max_mV": 100.0
+  },
+  "monitoring": {
+    "summary_period_s": 60,
+    "gap_probability": 1e-6,
+    "burst_probability": 1e-6,
+    "http": {"enabled": true, "bind": "127.0.0.1", "port": 8080},
+    "process_requests_hz": 15,
+    "monitor_queue_capacity": 64
+  },
+  "queues": {"writer_capacity": 256, "hv_capacity": 4096, "writer_shutdown_timeout_s": 120}
+}
