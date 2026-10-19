@@ -1559,6 +1559,11 @@ VX1740 (serie 21, ROC 04.29 build 8716, AMC 00.13 build 8A15; CAENDigitizer 2.17
     campaña y la temperatura de la placa A7030DP del estado de hvmon; y "triggers_resumed" con la
     duración del hueco. Uno de cada por episodio, con el límite de `problem_interval_min` (30 min)
     del notificador.
+74. **Crate NIM sin lectura remota**: es un CAEN NIM8302 (compacto, sin ventilación, fuente lineal
+    de 150 W que se apaga por encima de 75 °C) y no tiene interfaz remota, así que hvmon no puede
+    leerlo. Hasta que se agregue un termopar en el disipador de su fuente al backend de temperatura
+    (sección 12), el aviso "sin triggers" de la decisión 73 es la única detección automática de un
+    apagado térmico.
 
 ## 16. Preguntas resueltas por el handoff y la revisión
 
