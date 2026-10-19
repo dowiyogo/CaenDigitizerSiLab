@@ -37,6 +37,7 @@ class FileSystem {
   virtual Status makeDirectories(const std::string& path, unsigned mode) = 0;
   virtual Status writeAtomic(const std::string& path, std::string_view content, unsigned mode) = 0;
   virtual bool exists(const std::string& path) = 0;
+  virtual Result<std::string> readFile(const std::string& path) = 0;
 };
 
 class PosixFileSystem final : public FileSystem {
@@ -45,6 +46,7 @@ class PosixFileSystem final : public FileSystem {
   Status makeDirectories(const std::string& path, unsigned mode) override;
   Status writeAtomic(const std::string& path, std::string_view content, unsigned mode) override;
   bool exists(const std::string& path) override;
+  Result<std::string> readFile(const std::string& path) override;
 };
 
 // Sistema de archivos en memoria para tests: cuenta fsync por archivo y permite inyectar fallos.
@@ -54,6 +56,7 @@ class MemoryFileSystem final : public FileSystem {
   Status makeDirectories(const std::string& path, unsigned mode) override;
   Status writeAtomic(const std::string& path, std::string_view content, unsigned mode) override;
   bool exists(const std::string& path) override;
+  Result<std::string> readFile(const std::string& path) override;
 
   std::string content(const std::string& path) const;
   std::uint64_t syncCount(const std::string& path) const;

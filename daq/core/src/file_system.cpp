@@ -104,6 +104,26 @@ Status PosixFileSystem::writeAtomic(const std::string& path, std::string_view co
   return okStatus();
 }
 
+Result<std::string> PosixFileSystem::readFile(const std::string& path) {
+  const int fd = ::open(path.c_str(), O_RDONLY | O_CLOEXEC);
+  if (fd < 0) return Result<std::string>(sysError("open", path));
+  std::string out;
+  char buf[65536];
+  for (;;) {
+    const ssize_t n = ::read(fd, buf, sizeof buf);
+    if (n < 0) {
+      if (errno == EINTR) continue;
+      const Error e = sysError("read", path);
+      ::close(fd);
+      return Result<std::string>(e);
+    }
+    if (n == 0) break;
+    out.append(buf, static_cast<std::size_t>(n));
+  }
+  ::close(fd);
+  return out;
+}
+
 bool PosixFileSystem::exists(const std::string& path) {
   struct stat st {};
   return ::stat(path.c_str(), &st) == 0;
@@ -155,6 +175,13 @@ Status MemoryFileSystem::writeAtomic(const std::string& path, std::string_view c
 bool MemoryFileSystem::exists(const std::string& path) {
   std::lock_guard<std::mutex> lk(m_);
   return data_.count(path) > 0;
+}
+
+Result<std::string> MemoryFileSystem::readFile(const std::string& path) {
+  std::lock_guard<std::mutex> lk(m_);
+  auto it = data_.find(path);
+  if (it == data_.end()) return Result<std::string>::failure(2, "no existe " + path);
+  return it->second;
 }
 
 std::string MemoryFileSystem::content(const std::string& path) const {

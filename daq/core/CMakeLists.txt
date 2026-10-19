@@ -7,6 +7,9 @@ add_library(daq_core
   src/secrets.cpp
   src/file_system.cpp
   src/instance_lock.cpp
-  src/unix_socket.cpp)
+  src/unix_socket.cpp
+  src/gzip.cpp
+  src/spawn.cpp)
 target_include_directories(daq_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(daq_core PUBLIC Threads::Threads nlohmann_json::nlohmann_json PRIVATE daq_warnings)
+find_package(ZLIB REQUIRED)
+target_link_libraries(daq_core PUBLIC Threads::Threads nlohmann_json::nlohmann_json PRIVATE ZLIB::ZLIB daq_warnings)
