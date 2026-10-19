@@ -1,7 +1,7 @@
 // caen_hv_backend.cpp
 // Implementación sobre la Wrapper: InitSystem, DeinitSystem, GetCrateMap, GetChParamInfo,
-// GetChParamProp, GetChParam, GetError, Free, CAENHVLibSwRel y, como única escritura,
-// CAENHV_SetChParam("Pw") en setChannelPw().
+// GetChParamProp, GetChParam, GetBd*, GetError, Free, CAENHVLibSwRel y dos escrituras:
+// CAENHV_SetChParam("Pw") en setChannelPw() y CAENHV_SetBdParam("ClrAlarm") en clearBoardAlarm().
 #include "daq/hv/caen_hv_backend.h"
 
 #include <array>
@@ -360,6 +360,16 @@ Status CaenHVBackend::setChannelPw(int slot, int channel, bool on) {
   unsigned int value = on ? 1u : 0u;
   const CAENHVRESULT r = CAENHV_SetChParam(handle_, static_cast<unsigned short>(slot), "Pw", 1, &ch, &value);
   if (r != CAENHV_OK) return Status(wrapperError(r, "SetChParam(Pw)"));
+  return okStatus();
+}
+
+// Segunda (y última) escritura del código base: ClrAlarm de la placa.
+Status CaenHVBackend::clearBoardAlarm(int slot) {
+  if (!isConnected()) return Status::failure(-1, "no conectado");
+  unsigned short s = static_cast<unsigned short>(slot);
+  unsigned int value = 1u;
+  const CAENHVRESULT r = CAENHV_SetBdParam(handle_, 1, &s, "ClrAlarm", &value);
+  if (r != CAENHV_OK) return Status(wrapperError(r, "SetBdParam(ClrAlarm)"));
   return okStatus();
 }
 

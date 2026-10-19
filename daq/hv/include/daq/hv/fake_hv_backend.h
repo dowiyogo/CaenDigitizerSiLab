@@ -62,6 +62,11 @@ class FakeHVBackend final : public HVBackend {
   Result<std::vector<ParamInfo>> boardParamNames(int slot) override;
   Result<BoardReading> readBoard(int slot, const std::vector<std::string>& params) override;
   Status setChannelPw(int slot, int channel, bool on) override;
+  // Fake: borra los bits de trip retenidos del slot sin encender nada [I: a verificar con la placa].
+  Status clearBoardAlarm(int slot) override;
+  std::uint64_t clearAlarmWrites() const { return clearAlarmWrites_; }
+  // Para tests: secuencia de escrituras ("Pw:<ch>=<v>", "ClrAlarm") en orden.
+  const std::vector<std::string>& writeLog() const { return writeLog_; }
   std::string describe() const override { return "FakeHVBackend"; }
 
   // Solo para tests: tensión verdadera (sin offset ni ruido) en V, tras avanzar al instante actual.
@@ -123,6 +128,8 @@ class FakeHVBackend final : public HVBackend {
   bool connected_ = false;
   std::uint64_t calls_ = 0;
   std::uint64_t pwWrites_ = 0;
+  std::uint64_t clearAlarmWrites_ = 0;
+  std::vector<std::string> writeLog_;
   bool pwWriteIgnored_ = false;
   std::mt19937_64 rng_;
 };

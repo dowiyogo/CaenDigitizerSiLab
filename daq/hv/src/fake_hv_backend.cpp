@@ -453,6 +453,7 @@ Status FakeHVBackend::setChannelPw(int slot, int channel, bool on) {
   Slot* s = findSlot(slot);
   if (!s || channel < 0 || channel >= s->info.channels) return Status::failure(-3, "fake: slot o canal inexistente");
   ++pwWrites_;
+  writeLog_.push_back("Pw:" + std::to_string(channel) + "=" + (on ? "1" : "0"));
   if (pwWriteIgnored_) return okStatus();
   Event e;
   e.t = simTime_;
@@ -462,6 +463,16 @@ Status FakeHVBackend::setChannelPw(int slot, int channel, bool on) {
   e.param = "Pw";
   e.value = on ? 1.0 : 0.0;
   apply(e);
+  return okStatus();
+}
+
+Status FakeHVBackend::clearBoardAlarm(int slot) {
+  if (auto st = checkLink(); !st) return st;
+  Slot* s = findSlot(slot);
+  if (!s) return Status::failure(-3, "fake: slot inexistente");
+  ++clearAlarmWrites_;
+  writeLog_.push_back("ClrAlarm");
+  for (auto& c : s->channels) c.tripped = false;
   return okStatus();
 }
 
