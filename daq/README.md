@@ -120,7 +120,31 @@ $S cat /data/daq/slowcontrol/2026/hv_20261018.csv.gz | head       # lee plano o 
 $S digest /data/daq/slowcontrol/2026/hv_20261018.csv.gz           # bytes, líneas, crc32
 ```
 
-## Estructura
+## daqrun (runs de adquisición; fase 3: solo digitizador simulado)
+
+Un run necesita una campaña abierta. Con el digitizador simulado (`fake` o `replay`) todo va a
+`/data/daq/sim/` (nunca a `/data/daq/raw`):
+
+```bash
+C=daq/build/apps/daqcampaign/daqcampaign
+$C --sim open prueba_1          # crea /data/daq/sim/raw/prueba_1/ y su manifiesto
+$C --sim status prueba_1
+export LD_LIBRARY_PATH=$HOME/root6/lib:$LD_LIBRARY_PATH
+daq/build/apps/daqrun/daqrun --config daq/config/daqrun.example.json --campaign prueba_1 --max-duration 600
+$C --sim close prueba_1         # después del último run: la campaña queda de solo lectura
+```
+
+- Página de solo lectura en `http://127.0.0.1:8080/` (tasa de trigger, Δt, tasas por canal,
+  amplitudes en mV con umbrales PROVISIONALES, colas, flags; aviso si hvmon no corre).
+- Ctrl+C (o SIGTERM) cierra el segmento y el índice de forma limpia.
+- Archivos: `<campaña>_<UTC>_runNNN_segMMM.root` (sin permiso de escritura al cerrarse),
+  `..._runNNN.index.json`, `..._runNNN.config.json` y `SHA256SUMS` (`sha256sum -c SHA256SUMS`).
+- El escenario sintético está en `daq/config/fake/dig_synthetic_default.json` (tasa, ruido,
+  pulsos oscuros, guion de grupo HV apagado, fuga de luz, huecos, ráfagas). Para reproducir v8:
+  `"digitizer": {"backend": "replay", "scenario": {"file": "lectura_vx1740_ext_nim_1M_v8.root",
+  "first_entry": 30000, "max_entries": 5000, "speed": 1}}`.
+- Para leer los archivos de control lento desde ROOT: `analysis/macros/plot_hv_imon_day.C`.
+
 
 ```
 daq/
@@ -130,9 +154,15 @@ daq/
   temp/          interfaz de temperatura y backend fake
   hvmon/         lógica de hvmon: sondeo, cambios, escritor, comandos, estado, auto-retry,
                  notificador, compresor, mapeo
+  dig/           digitizador: interfaz, FakeDigitizer (sintético), replay de v8, bucle de lectura
+  daqrun/        configuración, campañas, cliente HV y flags, monitor, notas
+  io/            escritor ROOT de los runs; lector de control lento (libdaq_screader.so)
   apps/hvmon/    daemon hvmon (único que enlaza ROOT: THttpServer)
   apps/hvctl/    herramienta de línea de comandos
   apps/sctool/   compresión y lectura de archivos de control lento (plano o .gz)
+  apps/daqrun/   un run de adquisición (THttpServer :8080)
+  apps/daqcampaign/  abrir, cerrar y ver campañas
+  tools/validation/  macros de validación de DAQ2-5 (solo lectura)
   systemd/       unidad de usuario de hvmon (no instalada)
   tools/legacy/  hv_readall.c, test_sy5527.c, diag_sy5527.sh (heredados)
   tests/         GoogleTest, solo con fakes

@@ -354,6 +354,13 @@ TEST(SlowControlReader, MergesPartsGzAndSchemas) {
     else EXPECT_TRUE(std::isnan(temp));
   }
   EXPECT_EQ(std::string(t->GetBranch("ch")->GetLeaf("ch")->GetTypeName()), "Int_t");
+  // Con dirección en una sola rama, GetEntry no escribe en las variables locales del lector (ASan).
+  std::unique_ptr<TTree> t2(io::readSlowControl(d, "hv_full", "20261019", "20261020", &err));
+  Long64_t onlyT = 0;
+  t2->SetBranchAddress("t_resp_utc_ns", &onlyT);
+  for (Long64_t i = 0; i < t2->GetEntries(); ++i) t2->GetEntry(i);
+  EXPECT_EQ(onlyT, 9);
+  EXPECT_EQ(t2->GetEntries("ch == 1"), 2);
   EXPECT_EQ(io::readSlowControl(d, "hv", "20261019", "20261019", &err), nullptr);
   EXPECT_NE(err.find("no hay archivos"), std::string::npos);
   {
@@ -363,4 +370,5 @@ TEST(SlowControlReader, MergesPartsGzAndSchemas) {
   std::unique_ptr<TTree> n(io::readSlowControl(d, "notes", "20261019", "20261019", &err));
   ASSERT_TRUE(n) << err;
   EXPECT_EQ(n->GetEntries(), 1);
+  EXPECT_EQ(n->GetEntries("text == \"hola\""), 1);
 }

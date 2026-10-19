@@ -72,3 +72,18 @@ idénticas y en el mismo orden. Original (310910 bytes, crc32 2f92343c) y su esq
 `/data/daq/slowcontrol/repair_backup/`. Es el mismo esquema de nombres que usa el escritor
 corregido: los lectores deben tomar todas las partes del día (`hv_full_YYYYMMDD*.csv*`) y ordenar
 por `t_resp_utc_ns`.
+
+## 7. Código compartido con el DAQ (DAQ2-5, 2026-10-19)
+
+- `daq/core/include/daq/pulse_finder.h` (C++17, header-only, sin ROOT): búsqueda de pulsos del DAQ
+  (mínimo local, separación mínima, media recortada de la línea base; funciona con muestras ADC o
+  en mV). `daq/core/include/daq/trigger_interval_stats.h`: tasa por máxima verosimilitud, KS y χ²
+  de exponencialidad, huecos y ráfagas, con resolución declarada para v7-v10. Se usan con
+  `-I daq/core/include`; no hace falta el build de CMake.
+- Lector de control lento a TTree (`libdaq_screader.so`, planos y `.gz`, partes `.N`, esquemas):
+  ejemplo `analysis/macros/plot_hv_imon_day.C`.
+- Dato del replay de v8 (entradas 30000-34999): tasa fuera de tiempo de hod2018 > 3 p.e. (ganancias
+  de v8, 91 muestras de la ventana B) mediana 377.75 kHz con el buscador del DAQ y 378.85 kHz con
+  el método de DAQ2-1 sobre los mismos eventos; hod2019 > 3 mV 29.67 / 29.26 kHz. El estudio de
+  DAQ2-1 (otros 9057 eventos repartidos en el run) dio 331.4 y 24.27 kHz: las tasas cambian a lo
+  largo de v8. No se analizó por qué.

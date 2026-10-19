@@ -224,6 +224,9 @@ TTree* readCsv(const std::string& dir, const std::string& kind, const std::vecto
       if (!op.advance()) open.erase(open.begin() + static_cast<std::ptrdiff_t>(best));
     }
   }
+  // Las ramas apuntan a variables locales: sin esto, un GetEntry del llamador escribiría en memoria
+  // liberada en las ramas a las que no les puso dirección.
+  tree->ResetBranchAddresses();
   return tree;
 }
 
@@ -286,6 +289,7 @@ TTree* readJsonl(const std::string& dir, const std::string& kind, const std::vec
     if (err) *err = "no hay archivos " + kind + " en " + dir + " para " + ds.front() + "-" + ds.back();
     return nullptr;
   }
+  tree->ResetBranchAddresses();  // ídem: las ramas no deben apuntar a estas variables locales
   return tree;
 }
 

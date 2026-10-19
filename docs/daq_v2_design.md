@@ -1,6 +1,8 @@
 # DAQ v2 con control lento de HV: documento de diseño
 
-Estado: borrador revisado (tareas DAQ2-0 y DAQ2-1, 2026-10-18). No hay código implementado.
+Estado: borrador revisado (DAQ2-0 y DAQ2-1, 2026-10-18); implementadas las fases 0-3 (DAQ2-2 a
+DAQ2-5, hasta 2026-10-19): `hvmon`, `hvctl`, auto-retry, notificador y `daqrun` con digitizador
+simulado. Las decisiones fijadas por la implementación están en 15.1-15.4.
 Las afirmaciones llevan [V: fuente] si se verificaron en este host, [I: razón] si son
 inferidas, [H: sección] si vienen de `docs/handoff_analysis_2026-10-18.md` (versión de
 referencia: la del proyecto), y "no medido" si nadie las midió.
@@ -333,6 +335,8 @@ prueba, ver 9.3), sincroniza los archivos, persiste el estado de auto-retry, pub
 
 ### 4.1 Archivo ROOT de `daqrun`
 
+Implementado en la fase 3 (DAQ2-5); lo que difiere de esta sección está en 15.4 (decisiones 54-56).
+
 Nombre: `<campaña>_<YYYYMMDDThhmmssZ>_run<NNN>_seg<MMM>.root` en `/data/daq/raw/<campaña>/`.
 
 TTree `events` (una entrada por trigger):
@@ -465,6 +469,9 @@ Esquema `daqv2.hvmon_state/1`:
 Ningún campo contiene secretos.
 
 ### 4.4 Manifiestos de campaña
+
+Implementado en la fase 3 con marcadores `CAMPAIGN_OPEN` / `CAMPAIGN_CLOSED` y la regla de
+simulación (`/data/daq/sim/manifests`); ver 15.4 (decisiones 56-57).
 
 `/data/daq/manifests/<campaña>.json`: creación y cierre (UTC), operador, configuración
 inicial y su SHA256, lista de runs con su índice, SHA256 del `SHA256SUMS` final, y el
@@ -683,7 +690,7 @@ cables de hod2018 no se tocaron, todas con `confirmed = assumed`:
 | 1, 3 | 6 | X Canales {0, 2} |
 | 16, 17 | 6 | uno es Y Canal 1 |
 
-Los otros 22 canales de hod2018 empiezan con `hv_group = null` (`unknown`): bit 4 por
+Los otros 23 canales de hod2018 (32 − 9; el borrador decía 22) empiezan con `hv_group = null` (`unknown`): bit 4 por
 mapeo desconocido (sección 6) hasta la prueba de grupos de la fase 6.
 
 Discrepancia conocida: en mayo el grupo 6 contenía ch1, ch16 y ch17 de hod2018 (más ch3,
@@ -695,6 +702,9 @@ resuelve.
 ## 6. Flags
 
 ### 6.1 Palabra por canal (`ch_flags[64]`, 16 bit)
+
+Fase 3: implementados los bits 0-5 y 9 de `ch_flags` y los bits 0-5 y 7 de `evt_flags` (15.4,
+decisiones 50-53); los demás quedan en 0 hasta las fases 5 y 6.
 
 Para el canal c, g = su grupo HV, h = su canal HV, f = su cara física, s = snapshot HV más
 reciente con `t_resp_utc_ns ≤ t_evento` (y el siguiente, si ya llegó, para el bit 5).
@@ -767,6 +777,10 @@ después de `flag_delay_s`, el evento se escribe con bit 4 y el recálculo offli
   ajustar umbrales y ventanas con datos reales.
 
 ## 7. Monitoreo
+
+Fase 3: el hilo monitor calcula solo tasa de trigger, Δt, tasa de pulsos fuera de tiempo y espectro
+de amplitud por canal (mV, umbrales provisionales), niveles de cola y resumen de flags (15.4,
+decisión 58). El resto de los paneles y los bits 6-8 son de la fase 5.
 
 ### 7.1 Búsqueda de pulsos
 
@@ -1107,7 +1121,7 @@ detiene y lo informa (no se copia un framework al repositorio).
 | 0 HV lib + `FakeHVBackend` + `hvctl` | tests pasan (normal, ASan+UBSan, TSan); `hvctl --fake` y `hvctl` real (solo lectura, tarea autorizada) dan la misma tabla que `hv_readall`; latencia de una lectura completa de 12 canales medida y registrada; el binario de fase 0 no importa `CAENHV_Set*` ni `CAENHV_ExecComm` (verificado con `nm -D --undefined-only`). Resultado DAQ2-2: cumplido salvo la prueba con GECO abierto (GECO estaba cerrado) |
 | 1 `hvmon` + ruta de comandos | Resultado DAQ2-3: 2 h 30 min reales de solo lectura sin errores ni pérdidas (15.2), tests de todos los puntos con fake y tiempo acelerado; detección de GECO por ejecutable confirmada en DAQ2-4 (15.3); pendiente la evaluación de la suscripción. Criterios originales: 24 h con fake acelerado sin pérdida de líneas; cambios del guion con el origen correcto en el 100 % de los casos; reconexión; lector a TTree/RDataFrame validado; 8 h reales de solo lectura con GECO abierto, cada cambio hecho en GECO aparece como `external`; patrón de GECO confirmado; suscripción evaluada; comandos `pw` probados solo contra el fake (con hardware real recién en fase 2 o 6, con autorización) |
 | 2 auto-retry y notificador | Resultado DAQ2-4: transiciones de 8.2 con fake y reloj acelerado (`test_hvmon_retry`), notificador con `FakeSpawner`, compresión verificada; secuencia completa NORMAL → WAIT(1..3) → GAVE_UP con fake en tiempo real y correo real (15.3). Pendiente (DAQ2-5): una vez en hardware real con carga resistiva. Criterio original: todas las transiciones de 8.2 cubiertas con tiempo acelerado; acción manual siempre manda; un correo por episodio; luego una vez en hardware real con carga resistiva e I0Set bajo, con autorización explícita: trip provocado → WAIT → RETRY → NORMAL, GAVE_UP con correo, y verificación de los bits de `Status` |
-| 3 `daqrun` con digitizador fake | 24 h aceleradas sin perder eventos; apagado limpio por señal en cualquier momento; segmentos e índice con SHA256 correctos; flags del guion correctos (incluidas pruebas de Poisson con agregación); estado sin calibración visible; modo calibración con SW trigger fake; RSS sin deriva > 10 % |
+| 3 `daqrun` con digitizador fake | Resultado DAQ2-5 (15.4): 4 corridas de validación con fake y replay, sin pérdidas en la cola de escritura, segmentos e índice con SHA256 correctos, apagado limpio por señal, bits 0 y 9 del guion correctos, estado sin calibración en cabecera y `evt_flags`. Pendientes: 24 h aceleradas, pruebas de Poisson (bits 6-7, fase 5), modo calibración con almacenamiento propio (sección 10). Criterio original: 24 h aceleradas sin perder eventos; apagado limpio por señal en cualquier momento; segmentos e índice con SHA256 correctos; flags del guion correctos (incluidas pruebas de Poisson con agregación); estado sin calibración visible; modo calibración con SW trigger fake; RSS sin deriva > 10 % |
 | 4 digitizador real | autorizado por el operador; `GetRecordLength` = 144; pico de muón en la muestra esperada ±1; paso del TTT medido; SW trigger a 100 Hz sin pérdidas; `DT_NEEDED` con la ruta de `/usr/lib`; 1 h de datos comparables con v8 |
 | 5 monitoreo y flags | todos los paneles de 7.2; flags coherentes con `hv_changes` y con los apagones en una reproducción de v8/v10 |
 | 6 puesta en marcha de octubre | con autorización explícita de escritura HV: prueba de grupos completa; prueba de coincidencias entre vecinos en la primera hora; mapeo con `hv_group` y `strip` confirmados por medición en los 64 canales (o lista de los que no se pudieron determinar); calibración de p.e. versionada |
@@ -1357,6 +1371,122 @@ Validación (DAQ2-4):
   detección, sin falsos positivos. Al final: 5400 lecturas rápidas y 90 completas, 0 errores,
   0 reconexiones, 0 cambios, escritor 0 errores. `board_temperature_degC` = 25.0 en el estado,
   en la página (`/board/BoardTemp_degC`) y en `bd_Temp_degC` de `hv_full`.
+
+### 15.4 Fase 3 (DAQ2-5): decisiones fijadas y validación
+
+Parte A (correcciones de DAQ2-4):
+
+47. **Marca de simulación en los correos**: `[SIMULADO]` al inicio del asunto y primera línea del
+    cuerpo "*** SIMULADO *** Evento simulado (FakeHVBackend | test_mode del canal CHnn): ningún
+    canal real estuvo involucrado." para hvmon con fuente fake o canal en `test_mode`;
+    `[PRUEBA]` para `notify-test`. Cuerpo: IMon en µA con 3 decimales, VMon en V con 2, hora
+    `America/Santiago` (`notifier.local_timezone`, TZ del proceso fijada antes de crear hilos)
+    junto a cada hora UTC, espera aplicada en cada `retry` de la secuencia (`wait_min`), y línea
+    `ssh -N -L <puerto>:127.0.0.1:<puerto> <page_ssh_user>@<page_ssh_host>` con el puerto de
+    `http.port`.
+48. **Salida simulada separada**: hvmon con `--fake` o `test_mode` rechaza `slowcontrol_dir`
+    dentro de `/data/daq/slowcontrol` (ruta resuelta, con enlaces); con fake también el
+    `state_dir` real. Valores por omisión: `/data/daq/sim/slowcontrol`, `/dev/shm/daqv2-sim`,
+    `$XDG_RUNTIME_DIR/daqv2-sim`. Las corridas fake de DAQ2-4 escribieron en el scratchpad de la
+    sesión (copias en `/data/daq/sim/archive_daq2-4/`), nunca en `/data/daq/slowcontrol`.
+49. **`.gz` con el modo y dueño del original** (gzopen creaba 0666 & umask = 664).
+    hvmon publica además `last_read` (`read_seq`, `kind`, `t_req_utc_ns`, `t_resp_utc_ns`).
+
+Fase 3:
+
+50. **Bibliotecas**: `daq_dig` (interfaz, `FakeDigitizer`, `ReadoutLoop`; sin ROOT),
+    `daq_dig_replay` (ROOT, READ), `daq_daqrun` (configuración, campañas, cliente HV y flags,
+    monitor, notas; sin ROOT), `daq_io` (escritor ROOT), `libdaq_screader.so` (lector de control
+    lento para macros). Compartidos con el análisis, header-only y sin ROOT:
+    `daq/core/include/daq/pulse_finder.h` y `daq/core/include/daq/trigger_interval_stats.h`.
+    Tests con ROOT en un binario aparte (`daq_root_tests`); LeakSanitizer suprime solo
+    `libCling.so` en ese binario (cling pierde 227 asignaciones al salir también en un programa
+    mínimo con un TFile).
+51. **Bloques compartidos**: `shared_ptr<const EventBlock>` a la cola de escritura (push
+    bloqueante, contado) y a la del monitor (descarte del más antiguo); el diseño hablaba de copia.
+52. **Línea de retardo**: un evento se escribe cuando la hora del escritor pasa t_utc +
+    `flag_delay_s`; al cerrar el run se espera `flag_delay_s` + 1 s con lecturas HV nuevas y sin
+    rotar segmento.
+53. **Bits HV** (FlagEngine, hilo escritor): lecturas deduplicadas por `read_seq`; bit 5 en
+    (t_req(a) − backdate, t_resp(b)] de cada par consecutivo visto por daqrun (si daqrun saltea
+    una lectura el intervalo crece: conservador); bit 4 sin lectura posterior al liberar el
+    evento, con hvmon no vivo/stale, lectura previa con más de `stale_after_s` o grupo
+    desconocido; bit 1 = bit `overcurrent` o IMon > `ovc_k_over_baseline` × mediana de IMon en
+    NORMAL de la última hora (≥ 60 lecturas; sin offset todavía); bit 9 estático del mapeo (con
+    el JSON actual, todos los canales salvo ch48). `evt_flags`: 0 y 1 con la tasa de la última hora
+    (≥ 20 triggers; ráfaga con μ = 5 en la ventana), 2 (contador de 24 bit), 3, 4 (|t_utc − t_read| >
+    `ttt_pc_tolerance_s` = 1 s), 5 y 7. El resto en 0 (fases 5-6). hvmon ausente: bit 4 en todos
+    los canales y aviso en la página.
+54. **TTT**: t_utc = UTC antes del start + ttt_ns, desenrollado con la hora de lectura
+    (`ttt_wrap_bits` = 31 por omisión: 17.18 s con 8 ns) y sin retroceder. Replay: TTT al ritmo de
+    entrega (intervalos originales / speed; speed 0 = hora de lectura): con speed 0 los eventos de
+    un bloque comparten tiempo y los bits 0/1 no significan nada (usar speed 1 para tiempos).
+55. **Archivo**: ZSTD nivel 5 (`compression` = 505); `adc[64][N]/s`; árbol `hv` con
+    received/state_seq/read_seq/t_req/t_resp/file_ok/alive/stale/connected y arreglos [12]
+    (`retry_state` como `vector<string>`; la estimación de corriente es de la fase 5);
+    `hv_changes` con old/new en texto JSON; `monitor` cada `summary_period_s` (60 s) con tasas,
+    colas y eventos con cada bit en el período. Cabecera por segmento (TNamed): `config_json`,
+    `config_sha256`, `mapping_json`, `mapping_version`, `mapping_sha256`, `calibration_json` y
+    `calibration_version` ("none"), `run_info_json` (con `digitizer` al arrancar y
+    `digitizer_final` al terminar la lectura), `hvmon_state_at_start`.
+56. **Junto a los datos**: `<base>.config.json` (configuración resuelta, 0444), segmentos 0444,
+    `<base>.index.json` (reemplazo atómico; 0444 al terminar), `SHA256SUMS` (flock), marcadores
+    `CAMPAIGN_OPEN` → `CAMPAIGN_CLOSED` (rename) y directorio 0555 al cerrar; lock `.run.lock` (un
+    run por campaña); número de run = 1 + el mayor encontrado. Manifiesto por campaña
+    `<manifests>/<campaña>.json` con los runs y el SHA256 de `SHA256SUMS`. Campaña real:
+    `daqcampaign` exige `--authorize`.
+57. **Simulación**: digitizador fake o replay → `raw_root` y `manifests_dir` nunca dentro de
+    `/data/daq/raw` ni `/data/daq/manifests`; por omisión `/data/daq/sim/raw` y
+    `/data/daq/sim/manifests`. `hodo::resolveRawFile` encuentra los segmentos simulados solo con
+    `HODO_RAW_DIR=/data/daq/sim/raw`.
+58. **Monitor de la fase 3**: umbrales provisionales hod2018 20 mV y hod2019 3 mV; zonas fuera de
+    tiempo pedestal + control + post (+ tail si el canal no tiene pulso en tiempo); espectro desde
+    2 LSB hasta 100 mV con paso de 1 LSB; Δt en log10(Δt/s) de −4 a 3.
+59. **Commit del build** en cada build (`daq_build_info.h`); `git_dirty` mira solo `daq/`.
+60. El mapeo JSON tiene 23 canales de hod2018 sin grupo (5.1 decía 22).
+
+Validación (DAQ2-5; números copiados de la salida):
+
+- Builds: compilación limpia (`--clean-first`) de las tres variantes, con el código de la parte A
+  (0 warnings, 51 unidades compiladas en cada una) y otra vez con el código final de la fase 3 (0
+  warnings, 70 unidades en cada una). Tests con el código final: 155/155 en normal, ASan+UBSan
+  (0 reportes) y TSan (0 reportes).
+- Validación 1 (sintético 0.6 Hz, 1 h, hvmon real de solo lectura): 2208 eventos en 2204 bloques
+  (span 3599.304712608 s), 1 segmento de 12215430 bytes, SHA256 correctos, índice completo; colas:
+  escritura máx. 1, 0 bloqueos, monitor 0 descartes; CPU 53 s en 3602 s; RSS 263672 kB al
+  arrancar, 296056 kB a los 5 min (primer AutoSave), 300148 kB al final (+4092 kB en 55 min).
+  Árbol hv: 343 filas, todas con hvmon vivo, las 343 con su read_seq en `hv_`/`hv_full_20261019`
+  y 0 distintas (Pw, Status, V0Set, VMon, IMon de los 12 canales; diferencia máxima 0 V,
+  1.32e-23 A).
+- Defecto encontrado en la validación 1 y corregido: el lector de control lento dejaba las ramas
+  apuntando a variables locales; un macro que ponía dirección solo a algunas ramas escribía en
+  memoria liberada (violación de segmento). Ahora `ResetBranchAddresses()` antes de devolver el
+  árbol, con test.
+- Correo: `hvctl notify-test` desde el hvmon real (solo lectura) → "curl salió con 0 (intentos 1)".
+- Validación 2 (sintético 200 Hz, 10 min, segmentos de 2 min, hvmon real): 120217 eventos en
+  79707 bloques (máx. 16 eventos por bloque), 5 segmentos contiguos de 120 s (22870, 24552,
+  24278, 24449, 24068 eventos), 621476986 bytes, SHA256 correctos, índice completo; cola de
+  escritura: 0 bloqueos, ocupación máxima 228 de 256; monitor: 0 descartes, máx. 2; CPU 346 s en
+  605 s; RSS 267416 kB al arrancar, 396416 kB al final. Entrada ADC 2215839744 bytes (3.69 MB/s),
+  escrito 1.04 MB/s (span de eventos 600.267 s).
+- Validación 3 (replay de las entradas 30000-34999 de v8, speed 0, run 2 con el TTT corregido):
+  5000 eventos en 313 bloques, 22101516 bytes, RSS máximo 661300 kB. 100 eventos al azar:
+  921600 muestras, 0 fuera de LSB/2, diferencia máxima 0.000014 mV, contador = `event` en todos;
+  residuo máximo de redondeo 6.242741153528186e-05 ADC. Tasas fuera de tiempo en esos 5000
+  eventos (91 muestras): hod2018 > 3 p.e. (ganancias de v8) mediana 377.75 kHz con el buscador
+  nuevo y 378.85 kHz con el método de DAQ2-1 (31 canales); hod2019 > 3 mV 29.67 y 29.26 kHz (32
+  canales). DAQ2-1 midió 331.4 y 24.27 kHz con otros 9057 eventos repartidos en el run.
+- Validación 4 (sintético 5 Hz, hvmon simulado con CH02 apagado 299.0 s según el árbol hv):
+  2743 eventos; 1457 eventos con CH02 apagado lejos de los cambios, bit 0 exactamente en los
+  canales 33, 38 y 49 (grupo 3 del mapeo) en todos; 1119 con todo encendido, ningún bit 0; bit 9
+  distinto de lo esperado en 0 casos (63 canales sin confirmar); bit 4 distinto de lo esperado en
+  0 casos (23 canales sin grupo); bit 5 en 24 eventos, todos a ±8 s de un cambio y solo en 33, 38,
+  49.
+- Apagado por SIGINT (dos señales) a mitad de un run de 20 Hz: salida 0, índice
+  `complete: true`, `closed_cleanly: true`, SHA256 correctos.
+- Pendiente respecto del criterio de 13.3: 24 h aceleradas, pruebas de Poisson (bits 6-7, fase
+  5) y el almacenamiento del modo calibración (sección 10; el fake y el bucle ya envían SW
+  triggers).
 
 ## 16. Preguntas resueltas por el handoff y la revisión
 
