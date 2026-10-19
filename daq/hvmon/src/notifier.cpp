@@ -384,7 +384,9 @@ bool Notifier::submit(NotifyEvent e) {
 }
 
 bool Notifier::sendOnce(Pending& p, std::string& err, int& exitCode) {
-  const std::string path = tmpDir_ + "/mail_" + std::to_string(clock_.now_utc_ns()) + "_" + std::to_string(seq_) + ".eml";
+  // pid en el nombre: dos procesos (p. ej. tests en paralelo con el mismo reloj simulado) no chocan.
+  const std::string path = tmpDir_ + "/mail_" + std::to_string(::getpid()) + "_" + std::to_string(clock_.now_utc_ns()) +
+                           "_" + std::to_string(seq_) + ".eml";
   const int fd = ::open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
   if (fd < 0) {
     err = "no se pudo crear " + path;
