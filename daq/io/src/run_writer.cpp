@@ -214,6 +214,7 @@ nlohmann::json RunWriter::runInfo(bool final) const {
             {"caen_comm", st_.digitizerInfo.value("caen_comm_version", "unknown")},
             {"caen_vme", st_.digitizerInfo.value("caen_vme_version", "unknown")}}},
           {"digitizer", st_.digitizerInfo},
+          {"digitizer_final", st_.digitizerInfoFinal},
           {"ttt_origin", {{"utc_before_start_ns", st_.origin.utcBeforeStart}, {"utc_after_start_ns", st_.origin.utcAfterStart}}},
           {"ttt_tick_ns", cfg_.digitizer.tttTickNs},
           {"ttt_wrap_bits", cfg_.tttWrapBits},

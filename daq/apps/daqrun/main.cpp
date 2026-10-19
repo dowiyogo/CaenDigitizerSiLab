@@ -334,6 +334,8 @@ int main(int argc, char** argv) {
           break;
         }
       }
+      // La lectura cerró la cola después de su último uso del backend: ya se puede consultar.
+      if (writerQ.closed()) writer->setFinalDigitizerInfo(backend->info());
       // Cierre: se espera flag_delay_s (con lecturas HV nuevas) para fijar los bits del final.
       const SteadyTime until = clock.now_steady() + std::chrono::duration_cast<std::chrono::nanoseconds>(
                                                           std::chrono::duration<double>(cfg.flagDelayS + 1.0));

@@ -31,8 +31,10 @@ Acquisition and analysis for two scintillator hodoscopes read by MPPCs:
 
     repository            /home/xplus/digitizer/CaenDigitizerSiLab-jai
     raw data (read-only)  /data/daq/raw/<campaign>/   (also /home/xplus/digitizer/data/raw -> /data/daq/raw)
-    slow control (new)    /data/daq/slowcontrol/      (does not exist yet)
+    slow control          /data/daq/slowcontrol/YYYY/ (hvmon; closed days gzipped)
     raw manifests         /data/daq/manifests/
+    simulated output      /data/daq/sim/ (raw/, manifests/, slowcontrol/, logs/, config/): every
+                          run or hvmon with a fake/replay digitizer, FakeHVBackend or test_mode
     DAQ v2 user config    ~/.config/daqv2/ (secrets.env mode 600, hvmon.json, hvctl.json)
     DAQ v2 runtime        $XDG_RUNTIME_DIR/daqv2/ (hvmon.lock, hvmon.sock), /dev/shm/daqv2/
     analysis outputs      outputs/  (not in git)
@@ -99,8 +101,9 @@ Analysis (Makefile, C++17, run everything from the repository root):
     make -C analysis                      # binaries in analysis/bin/
     analysis/scripts/run_*.sh             # pipeline scripts, cd to the root themselves
 
-New DAQ (CMake, `daq/`; phases 0-2 exist: core, HV library, `hvctl`, `hvmon` with auto-retry,
-notifier and compression, `sctool`). Tests use
+New DAQ (CMake, `daq/`; phases 0-3 exist: core, HV library, `hvctl`, `hvmon` with auto-retry,
+notifier and compression, `sctool`, `daqrun` and `daqcampaign` with fake/replay digitizer only).
+Tests (`daq_tests`, and `daq_root_tests` for the parts that need ROOT) use
 GoogleTest from apt (`libgtest-dev` 1.14) through `gtest_discover_tests`. If GoogleTest is
 missing, stop and say so; do not vendor a test framework. Details for René: `daq/README.md`.
 
@@ -119,7 +122,8 @@ missing, stop and say so; do not vendor a test framework. Details for René: `da
     timeout 3600 systemd-run --user --scope --quiet -p MemoryMax=4G -p MemorySwapMax=0 \
         ctest --test-dir daq/build-thread --output-on-failure -j4
 
-ROOT must be findable at configure time (`ROOTSYS` or `~/root6`); no phase 0 target links it.
+ROOT must be findable at configure time (`ROOTSYS` or `~/root6`); it is linked by `hvmon`,
+`daqrun`, `daq_io`, `daq_dig_replay` and `libdaq_screader.so`, not by the other libraries.
 The CAEN HV Wrapper is the IMPORTED target `caen::hvwrapper` (adds `-DUNIX`).
 
 Tests must run against the fakes only (`FakeHVBackend`, fake digitizer, fake temperature
@@ -155,9 +159,28 @@ unless the task authorizes e-mail and count the messages. Closed days in `/data/
 are gzipped by `hvmon` after verification (design 8.5); readers must accept `.gz`. A test
 `hvmon` beside a running one needs its own `runtime_dir` (socket path ≤ 107 bytes, e.g.
 `/run/user/1000/daqv2-test`), `state_dir`, `slowcontrol_dir`, `state_file` and HTTP port.
+`hvmon --fake` (or `test_mode`) refuses `slowcontrol_dir` inside `/data/daq/slowcontrol` and, for
+fakes, the real state dir; with the keys absent it uses `/data/daq/sim/slowcontrol`,
+`/dev/shm/daqv2-sim`, `$XDG_RUNTIME_DIR/daqv2-sim`. E-mails from a fake or test_mode start with
+`[SIMULADO]`, notify-test with `[PRUEBA]`.
 Secrets: `DAQ_HV_HOST`, `DAQ_HV_USER`, `DAQ_HV_PASSWORD` (and `DAQ_SMTP_*`, `DAQ_NOTIFY_*`) from
 the environment or `~/.config/daqv2/secrets.env`; template `daq/config/secrets.env.example`.
 `~/.config/daqv2/hv_credentials.json` is a deprecated fallback (warning); René removes it.
+
+DAQ runs (phase 3: no digitizer access; `digitizer.backend` is `fake` or `replay` only). A
+simulated run refuses `raw_root`/`manifests_dir` inside `/data/daq/raw`/`/data/daq/manifests`
+and defaults to `/data/daq/sim/raw`, `/data/daq/sim/manifests`. A run needs an open campaign.
+
+    daq/build/apps/daqcampaign/daqcampaign --sim open|close|status <name>   # real: --authorize "<reason>"
+    daq/build/apps/daqrun/daqrun --config <cfg.json> [--campaign N] [--max-duration S] [--no-http]
+    # example config daq/config/daqrun.example.json, synthetic scenario daq/config/fake/
+    # page http://127.0.0.1:8080/ ; SIGINT/SIGTERM closes the segment and the index cleanly
+    root -l -b -q 'analysis/macros/plot_hv_imon_day.C("20261019")'   # slow-control reader example
+
+Run files: `<raw_root>/<campaign>/<campaign>_<UTC>_runNNN_segMMM.root` (read-only after close),
+`..._runNNN.index.json`, `..._runNNN.config.json`, `SHA256SUMS`, `CAMPAIGN_OPEN|CAMPAIGN_CLOSED`;
+design 4.1-4.4 and 15.4. Shared with the analysis (header-only, no ROOT):
+`daq/core/include/daq/pulse_finder.h`, `daq/core/include/daq/trigger_interval_stats.h`.
 
 ## Coding conventions for daq/
 

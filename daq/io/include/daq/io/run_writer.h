@@ -46,7 +46,8 @@ struct RunStatic {
   nlohmann::json configJson;
   std::string configSha256;
   std::string mappingText;  // contenido del archivo de mapeo
-  nlohmann::json digitizerInfo;
+  nlohmann::json digitizerInfo;       // al arrancar
+  nlohmann::json digitizerInfoFinal;  // al terminar la lectura (p. ej. residuo de redondeo del replay)
   dig::AcqOrigin origin;
   nlohmann::json hvAtStart;  // estado de hvmon al arrancar (o null)
   std::string gitCommit = "unknown";
@@ -83,6 +84,10 @@ class RunWriter {
   // cierre del run se llama con allowRotate = false: no se abre un segmento vacío al final.
   Status tick(bool allowRotate = true);
   Status finish(bool cleanShutdown);  // cierre del run
+  // Información del digitizador al terminar la lectura; va en run_info_json del último segmento.
+  // Se llama desde el hilo escritor después de que la cola de eventos se cerró (el hilo de lectura
+  // ya no usa el backend).
+  void setFinalDigitizerInfo(nlohmann::json j) { st_.digitizerInfoFinal = std::move(j); }
   const nlohmann::json& index() const { return index_; }
   std::string segmentPath(int seg) const;
   std::string indexPath() const;
