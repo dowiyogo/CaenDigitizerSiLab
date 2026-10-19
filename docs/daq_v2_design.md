@@ -1488,6 +1488,70 @@ Validación (DAQ2-5; números copiados de la salida):
   5) y el almacenamiento del modo calibración (sección 10; el fake y el bucle ya envían SW
   triggers).
 
+### 15.5 Fase 4 (DAQ2-6): decisiones fijadas por el hardware
+
+Robustez y servicio:
+
+61. **Cola de escritura**: `queues.writer_capacity` = 1024 bloques por omisión. Con la ventana B y
+    16 eventos por bloque (máximo de `max_events_blt`), el peor caso es 1024 × 16 × 18432 B =
+    301989888 B (~288 MiB) de muestras retenidas.
+62. **Outbox del notificador**: un JSON por correo pendiente en `$XDG_STATE_HOME/daqv2/outbox`
+    (modo 600, sin secretos; el mensaje se arma al enviar), reintentos a 1, 5, 15 y 60 min y
+    luego cada hora hasta 48 h (después `outbox/failed/`); cada correo dice la hora del evento y el
+    retraso de entrega; se recupera al reiniciar. daqrun usa `outbox-daqrun`.
+63. **hvmon caído durante un run**: `HvmonWatchdog` en daqrun manda un correo por episodio si el
+    estado no está vivo o está stale más de `notifier.hvmon_stale_alert_min` (5 min), con la
+    campaña y el run en el asunto; el run sigue con el bit 4.
+64. **hvmon como servicio de usuario** (`hvmon.service`, linger activo), binarios en
+    `~/.local/opt/daqv2/bin/` (`daq/systemd/install.sh`: copia nueva + rename, así recompilar no
+    toca el binario en ejecución), configuración `~/.config/daqv2/hvmon.json`
+    (`allow_commands: false`, sin canales de auto-retry, notificador deshabilitado hasta que René
+    lo active). **Hueco de 1805.124 s** en el control lento (12:44:14.747Z → 13:14:19.871Z del
+    2026-10-19): vino del cambio a servicio, porque el hvmon interactivo de DAQ2-5 se detuvo a las
+    12:44 y la unidad se instaló y arrancó media hora después. Un `systemctl --user restart` deja
+    2.434 s (13:14:55.767Z → 13:14:58.201Z). **Regla para futuras instalaciones**: la unidad nueva
+    se deja instalada, recargada (`daemon-reload`) y con la configuración validada
+    (`hvmon --config … --print-config`) ANTES de detener la anterior, y el cambio se hace con un solo
+    `systemctl --user restart` (o `stop` seguido de inmediato por `start`). Las dos instancias no
+    pueden convivir: hvmon toma el lock exclusivo de la sesión de la Wrapper, así que el hueco
+    mínimo es el de un reinicio (~2.4 s), no cero.
+65. Operaciones largas con hardware: siempre con `systemd-run --user --unit=… RuntimeMaxSec=…` y
+    log a `/data/daq/logs/`, independientes de la terminal (red inestable por la tarde).
+
+VX1740 (serie 21, ROC 04.29 build 8716, AMC 00.13 build 8A15; CAENDigitizer 2.17.3, CAENComm
+1.7.0, CAENVME 4.0.2):
+
+66. **Registros al abrir** (sin reset): estado por omisión, no el del DAQ antiguo: offset DC 0x8000
+    por grupo (el antiguo escribe 0x7FFF), 0x8114 = 0 (antiguo 364), umbrales 0, 0x810C =
+    0xC0000000 (SW y TRG IN habilitados; el antiguo deja solo TRG IN, 0x40000000), 0x811C = 0
+    (NIM, igual que el antiguo tras SetIOLevel), 0x8120 = 0xFF, 0xEF1C = 1, 0x800C = 0xA (1024
+    buffers). `CAENComm_Info` no da serie ni firmware del A4818 (cadenas vacías).
+67. **Longitud de registro**: 625 pedidas → 624; 144 → 144. `custom_size` (0x8020) = 0x60 con 144
+    muestras. El run usa la longitud que relee la placa.
+68. **Post-trigger**: se escribe 0x8114 y se relee el mismo valor (93 en la ventana B, 364 en el
+    registro completo).
+69. **Memoria llena**: bit 4 (0x10) de 0x8104 (Acquisition Status), observado: 0x18C → 0x19C al
+    llegar a 1024 eventos guardados (0x812C), con SW trigger sin leer. Los triggers perdidos con la
+    memoria llena **no avanzan** el contador de eventos (tras 1500 triggers y 1024 guardados, los
+    siguientes llegan con 1024-1028): el bit 2 de `evt_flags` (salto de contador) no detecta
+    pérdidas en esta placa; el bit 3 (memoria llena) sí.
+70. **TTT**: tick 8.000015 ns (ajuste contra la hora del PC, run002), contador de 31 bit, vuelta
+    2^31 × 8 ns = 17.180 s; el bit 31 es una marca que queda en 1 tras la primera vuelta. Desenrollado
+    compartido en `daq/core/include/daq/ttt.h`. Los runs 1-2 (anteriores a la máscara) se
+    revisaron y sus `ttt_ns`/`t_utc_ns` son correctos: el bit 31 vale exactamente una vuelta y la
+    elección de vueltas por la hora del PC lo absorbe (archivos `*.ttt_check.json` y README de la
+    campaña).
+71. **Decodificación**: el formato crudo del x740 (encabezado de 4 palabras; por grupo bloques de 9
+    palabras con 3 muestras × 8 canales de 12 bit en flujo continuo de bits) se verificó contra
+    `CAEN_DGTZ_DecodeEvent` en buffers capturados (0 de 9216 muestras distintas por evento); se
+    guarda como test sin hardware.
+72. **Pedestal con HV apagada**: RMS por muestra (mediana por canal) 0.3006 mV en hod2018 y 0.2265 mV
+    en hod2019 en la región de la ventana B; en mayo, con HV encendida, la dispersión del
+    pedestal de hod2018 era ~1.9 mV (estudio de 1.3). La diferencia es la contribución de los
+    pulsos oscuros (y del ruido del MPPC polarizado): el estimador de pedestal tiene que seguir
+    siendo robusto a pulsos (media recortada, no media simple), y el ruido electrónico solo no
+    sirve para fijar umbrales con HV encendida.
+
 ## 16. Preguntas resueltas por el handoff y la revisión
 
 | pregunta (DAQ2-0) | respuesta |

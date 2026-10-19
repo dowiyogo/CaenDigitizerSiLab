@@ -3,6 +3,9 @@
 # binario en ejecución) y la unidad de usuario de hvmon. No arranca nada.
 #   daq/systemd/install.sh            # binarios + mapeo + unidad (y daemon-reload)
 # La configuración ~/.config/daqv2/hvmon.json y secrets.env no se tocan si ya existen.
+# Procedimiento (diseño 15.5, decisión 64): instalar y validar ANTES de detener el hvmon actual
+#   daq/systemd/install.sh && ~/.local/opt/daqv2/bin/hvmon --config ~/.config/daqv2/hvmon.json --print-config
+#   systemctl --user restart hvmon        # hueco ~2.4 s; dos hvmon no pueden convivir (lock)
 set -euo pipefail
 repo=$(cd "$(dirname "$0")/../.." && pwd)
 prefix="$HOME/.local/opt/daqv2"
