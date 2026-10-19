@@ -10,6 +10,7 @@
 #include "daq/core/file_system.h"
 #include "daq/core/logger.h"
 #include "daq/trigger_interval_stats.h"
+#include "daq/ttt.h"
 
 namespace daq::daqrun {
 
@@ -355,24 +356,8 @@ std::uint32_t EventFlagger::flags(UtcNs tUtc, UtcNs tRead, std::uint32_t counter
   return f;
 }
 
-TttUnwrapper::TttUnwrapper(UtcNs originUtc, double tickNs, int wrapBits)
-    : origin_(originUtc),
-      tick_(tickNs),
-      mask_(wrapBits >= 32 ? 0u : static_cast<std::uint32_t>((1ull << wrapBits) - 1)),
-      period_(static_cast<std::int64_t>(std::llround(static_cast<double>(wrapBits >= 32 ? (1ull << 32) : (1ull << wrapBits)) * tickNs))) {}
+TttUnwrapper::TttUnwrapper(UtcNs originUtc, double tickNs, int wrapBits) : origin_(originUtc), p_{tickNs, wrapBits} {}
 
-std::int64_t TttUnwrapper::tttNs(std::uint32_t rawIn, UtcNs tReadUtc) {
-  // VX1740 (DAQ2-6): contador de 31 bit; el bit 31 es una marca (queda en 1 tras la primera
-  // vuelta) y no forma parte del valor.
-  const std::uint32_t raw = mask_ ? (rawIn & mask_) : rawIn;
-  const auto base = static_cast<std::int64_t>(std::llround(static_cast<double>(raw) * tick_));
-  const std::int64_t elapsed = tReadUtc - origin_;
-  std::int64_t k = static_cast<std::int64_t>(std::floor(static_cast<double>(elapsed - base) / static_cast<double>(period_) + 0.5));
-  if (k < 0) k = 0;
-  std::int64_t t = base + k * period_;
-  if (last_ >= 0 && t < last_) t += ((last_ - t) / period_ + 1) * period_;
-  last_ = t;
-  return t;
-}
+std::int64_t TttUnwrapper::tttNs(std::uint32_t raw, UtcNs tReadUtc) { return ttt::unwrap(raw, tReadUtc, origin_, p_, last_); }
 
 }  // namespace daq::daqrun

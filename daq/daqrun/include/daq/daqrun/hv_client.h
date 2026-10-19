@@ -34,6 +34,7 @@
 #include "daq/daqrun/config.h"
 #include "daq/hvmon/mapping.h"
 #include "daq/hvmon/notifier.h"
+#include "daq/ttt.h"
 
 namespace daq::daqrun {
 
@@ -180,9 +181,7 @@ class TttUnwrapper {
 
  private:
   UtcNs origin_;
-  double tick_;
-  std::uint32_t mask_;  // bits del contador (los demás se ignoran)
-  std::int64_t period_;
+  ttt::Params p_;  // tick y bits del contador (daq/ttt.h, compartido con el análisis)
   std::int64_t last_ = -1;
 };
 

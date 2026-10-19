@@ -14,6 +14,7 @@
 
 #include "daq/daqrun/hv_client.h"
 #include "daq/dig/x740_raw.h"
+#include "daq/ttt.h"
 
 using namespace daq;
 using namespace daq::dig;
@@ -104,4 +105,42 @@ TEST(TttUnwrapper, RealVx1740SequenceAcrossTwoWraps) {
   double maxLag32 = 0;
   for (const auto& e : ev) maxLag32 = std::max(maxLag32, std::fabs(static_cast<double>(e.second - (origin + u32.tttNs(e.first, e.second)))));
   EXPECT_GT(maxLag32, 1e9);
+}
+
+TEST(TttRecompute, ReproducesStoredValuesOfCommissioningRuns1And2) {
+  // Runs 1 y 2 de commissioning_2026_10 se escribieron antes de la máscara de 31 bit. La revisión de
+  // DAQ2-6 mostró que sus ttt_ns y t_utc_ns igual son correctos (el bit 31 vale exactamente una
+  // vuelta y la elección de vueltas por la hora del PC lo absorbe). daq::ttt::recompute() los
+  // reproduce desde ttt_raw y t_read_utc_ns, y coincide con un conteo de vueltas independiente.
+  for (const char* r : {"001", "002"}) {
+    std::ifstream in(kData + "ttt_check_run" + r + ".csv");
+    std::string line;
+    std::int64_t origin = 0;
+    std::vector<std::uint32_t> raw;
+    std::vector<std::int64_t> tRead, storedTtt, storedUtc, byCount;
+    while (std::getline(in, line)) {
+      if (line.rfind("# origin_utc_ns=", 0) == 0) origin = std::stoll(line.substr(16));
+      if (line.empty() || line[0] == '#') continue;
+      std::stringstream ss(line);
+      std::string f;
+      std::vector<std::string> v;
+      while (std::getline(ss, f, ',')) v.push_back(f);
+      ASSERT_EQ(v.size(), 6u);
+      raw.push_back(static_cast<std::uint32_t>(std::stoul(v[1])));
+      tRead.push_back(std::stoll(v[2]));
+      storedTtt.push_back(std::stoll(v[3]));
+      storedUtc.push_back(std::stoll(v[4]));
+      byCount.push_back(std::stoll(v[5]));
+    }
+    ASSERT_GT(origin, 0);
+    ASSERT_GT(raw.size(), 400u);
+    const auto rc = ttt::recompute(raw, tRead, origin);
+    ASSERT_EQ(rc.tttNs.size(), raw.size());
+    for (std::size_t i = 0; i < raw.size(); ++i) {
+      EXPECT_EQ(rc.tttNs[i], byCount[i]) << r << " " << i;
+      EXPECT_EQ(rc.tttNs[i], storedTtt[i]) << r << " " << i;
+      EXPECT_EQ(rc.tUtcNs[i], storedUtc[i]) << r << " " << i;
+      EXPECT_LT(std::llabs(tRead[i] - rc.tUtcNs[i]), 10000000LL);  // < 10 ms de latencia de lectura
+    }
+  }
 }
