@@ -1,6 +1,9 @@
 // http_page.cpp
 #include "http_page.h"
 
+#include "dash_html.h"  // kDashHtml, generado desde dash.html
+#include "daq/io/dash_server.h"
+
 #include <cstdio>
 #include <sstream>
 
@@ -25,7 +28,7 @@ Result<std::unique_ptr<HttpPage>> HttpPage::create(const HvmonConfig& cfg, const
   std::unique_ptr<HttpPage> page(new HttpPage());
   page->cfg_ = &cfg;
   const std::string engine = "http:" + std::to_string(cfg.httpPort) + "?bind=" + bindAddress + "&thrds=2";
-  page->server_ = std::make_unique<THttpServer>(engine.c_str());
+  page->server_ = std::make_unique<io::DashServer>(engine.c_str(), kDashHtml);  // + /dash/
   if (!page->server_->IsAnyEngine()) return R::failure(-1, "THttpServer no pudo iniciar " + engine);
   page->server_->SetReadOnly(kTRUE);
   page->server_->SetTimer(0, kTRUE);  // solo atiende en processRequests() (hilo principal)

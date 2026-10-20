@@ -13,6 +13,7 @@
 #include "daq/core/gzip.h"
 #include "daq/daqrun/campaign.h"
 #include "daq/daqrun/config.h"
+#include "daq/daqrun/dash.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/daqrun/notes.h"
 #include "daq/dig/fake_digitizer.h"
@@ -465,4 +466,56 @@ TEST(TriggerWatchdog, SparseTriggersCountAsLowRate) {
     n += old.tick(now, std::nullopt).has_value();
   }
   EXPECT_EQ(n, 0);
+}
+
+// Objeto "dash" de daqrun (DAQ2-8): tasas de 1 y 10 min, canales vivos (> 2 LSB en 10 min),
+// mediana entre vivos y avisos.
+TEST(DaqrunDash, RatesLiveChannelsMedianAndAlerts) {
+  using namespace daq::daqrun;
+  constexpr daq::UtcNs kS = 1000000000LL, t0 = 1792500000LL * kS;
+  MonitorView v;
+  v.events = 1000;
+  v.lastEventUtcNs = t0 + 590 * kS;
+  for (int k = 0; k < 10; ++k) {
+    MonitorSummary s;
+    s.tStartUtcNs = t0 + k * 60 * kS;
+    s.tEndUtcNs = s.tStartUtcNs + 60 * kS;
+    s.nEvents = 42 + static_cast<std::uint64_t>(k);
+    s.triggerRateHz = static_cast<double>(s.nEvents) / 60.0;
+    for (int c = 0; c < 64; ++c) {
+      if (c == 3 || c == 38) continue;  // sin pulsos: no vivos
+      s.lowCounts[static_cast<std::size_t>(c)] = 5;
+      s.ootCounts[static_cast<std::size_t>(c)] = static_cast<std::uint32_t>(c < 32 ? c : 0);
+      s.ootTimeS[static_cast<std::size_t>(c)] = 0.001;
+    }
+    v.recent.push_back(s);
+    v.last = s;
+  }
+  HvSample hv;
+  hv.alive = true;
+  hv.stale = false;
+  hv.stateUtcNs = t0 + 599 * kS;
+  DashInputs in;
+  in.campaign = "c";
+  in.runName = "r";
+  in.runStartUtcNs = t0;
+  in.nowUtcNs = t0 + 600 * kS;
+  in.view = &v;
+  in.hv = &hv;
+  in.diskFreeBytes = 400e9;
+  in.watchTriggers = true;
+  const auto j = dashJson(in);
+  EXPECT_NEAR(j["rate_1min_Hz"].get<double>(), 51.0 / 60.0, 1e-12);
+  EXPECT_NEAR(j["rate_10min_Hz"].get<double>(), 465.0 / 600.0, 1e-12);
+  EXPECT_NEAR(j["since_last_trigger_s"].get<double>(), 10.0, 1e-9);
+  EXPECT_EQ(j["stations"][0]["live"], 31);
+  EXPECT_EQ(j["stations"][1]["live"], 31);
+  // hod2018: canales 0-31 sin el 3, tasa = c / 0.001 s por período -> mediana de 31 valores = canal 16.
+  EXPECT_NEAR(j["stations"][0]["median_oot_Hz"].get<double>(), 16000.0, 1e-6);
+  EXPECT_NEAR(j["stations"][1]["median_oot_Hz"].get<double>(), 0.0, 1e-12);
+  EXPECT_TRUE(j["alerts"].empty()) << j["alerts"].dump();
+  hv.stale = true;
+  in.noTriggerAlert = true;
+  in.readout = {{"read_errors", 2}};
+  EXPECT_EQ(dashJson(in)["alerts"].size(), 3u);
 }

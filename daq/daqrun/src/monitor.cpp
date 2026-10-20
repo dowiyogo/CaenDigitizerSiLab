@@ -74,6 +74,7 @@ void Monitor::process(const dig::EventBlock& blk) {
       const auto ci = static_cast<std::size_t>(c);
       cur_.ootCounts[ci] += above;
       cur_.ootTimeS[ci] += exposed;
+      cur_.lowCounts[ci] += static_cast<std::uint32_t>(pulses.size());
       cur_.inTimeCounts[ci] += static_cast<std::uint32_t>(nIn);
       v_.ootCounts[ci] += above;
       v_.ootTimeS[ci] += exposed;
@@ -94,6 +95,8 @@ bool Monitor::takeSummary(UtcNs now, MonitorSummary& out, std::uint64_t monitorD
   v_.last = cur_;
   v_.rateHistory.emplace_back(now, cur_.triggerRateHz);
   if (v_.rateHistory.size() > 1440) v_.rateHistory.erase(v_.rateHistory.begin());
+  v_.recent.push_back(cur_);
+  if (v_.recent.size() > MonitorView::kRecent) v_.recent.erase(v_.recent.begin());
   cur_ = MonitorSummary{};
   cur_.tStartUtcNs = now;
   return true;

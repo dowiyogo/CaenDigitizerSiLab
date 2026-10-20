@@ -76,7 +76,14 @@ nlohmann::json StateHub::compose(const HvmonConfig& cfg, UtcNs now, std::uint64_
     nlohmann::json retry{{"state", "UNINIT"}};
     for (const auto& r : p.retry)
       if (r.value("ch", -1) == ch) retry = r;
-    channels.push_back({{"ch", ch}, {"values", values}, {"status_flags", flags}, {"auto_retry", retry}});
+    nlohmann::json win;  // null sin lecturas rápidas todavía
+    if (auto wi = p.window.find(ch); wi != p.window.end()) {
+      auto js = [](const WindowSummary& x) {
+        return nlohmann::json{{"n", x.n}, {"mean", x.mean}, {"std", x.std}, {"min", x.min}, {"max", x.max}};
+      };
+      win = {{"window_s", p.windowS}, {"VMon_V", js(wi->second.first)}, {"IMon_A", js(wi->second.second)}};
+    }
+    channels.push_back({{"ch", ch}, {"values", values}, {"status_flags", flags}, {"auto_retry", retry}, {"stats_10min", win}});
   }
   nlohmann::json changes = nlohmann::json::array();
   for (const auto& c : p.recentChanges) changes.push_back(c.toJson());

@@ -32,7 +32,10 @@
 #include "daq/core/jthread.h"
 #include "daq/core/logger.h"
 #include "daq/core/sha256.h"
+#include <sys/statvfs.h>
+
 #include "daq/daqrun/campaign.h"
+#include "daq/daqrun/dash.h"
 #include "daq/daqrun/config.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/daqrun/monitor.h"
@@ -363,6 +366,7 @@ int main(int argc, char** argv) {
   TriggerWatchdog trigWatch(cfg.noTriggerAlertMin * 60.0,
                             "daqrun campaña " + cfg.campaign + " run " + std::to_string(run.run()) + " (" + run.baseName() + ")",
                             rs.origin.utcBeforeStart, cfg.minTriggerRateHz, cfg.triggerRateWindowMin * 60.0);
+  std::atomic<bool> trigAlerted{false};  // para la página /dash/ (el vigilante es del hilo monitor)
   auto trigEvent = [&](std::optional<hvmon::NotifyEvent> e) {
     if (!e) return;
     logWarn(e->kind == "no_triggers" ? "sin triggers externos: " : "triggers de vuelta: ", e->reason);
@@ -378,6 +382,7 @@ int main(int argc, char** argv) {
         const auto temp = hvClient.latest().first.boardTempDegC;
         if (b) trigEvent(trigWatch.onTriggers((*b)->tReadUtcNs, (*b)->events.size(), temp));
         trigEvent(trigWatch.tick(clock.now_utc_ns(), temp));
+        trigAlerted.store(trigWatch.alerted());
       }
       MonitorSummary s;
       if (monitor.takeSummary(clock.now_utc_ns(), s, rstats.monitorDropped.load())) sumQ.try_push(std::move(s), DropPolicy::DropOldest);
@@ -452,7 +457,26 @@ int main(int argc, char** argv) {
                                           std::chrono::duration<double>(cfg.writerShutdownTimeoutS));
     }
     if (page && clock.now_steady() >= nextPage) {
+      DashInputs di;
+      di.campaign = cfg.campaign;
+      di.runName = run.baseName();
+      di.simulated = cfg.simulated();
+      di.runStartUtcNs = rs.origin.utcBeforeStart;
+      di.nowUtcNs = clock.now_utc_ns();
+      const auto view = monitor.view().first;
+      const auto hvNow = hvClient.latest().first;
+      di.view = &view;
+      di.hv = &hvNow;
+      struct statvfs fsInfo {};
+      if (::statvfs(cfg.campaignDir().c_str(), &fsInfo) == 0)
+        di.diskFreeBytes = static_cast<double>(fsInfo.f_bavail) * static_cast<double>(fsInfo.f_frsize);
+      di.watchTriggers = watchTriggers;
+      di.noTriggerAlert = trigAlerted.load();
+      di.noTriggerAlertS = cfg.noTriggerAlertMin * 60.0;
+      di.thresholdMv = {cfg.provisionalThresholdMv[0], cfg.provisionalThresholdMv[1]};
+      di.readout = rstats.toJson();
       const nlohmann::json status{{"run_name", run.baseName()},
+                                  {"dash", dashJson(di)},
                                   {"simulated", cfg.simulated()},
                                   {"readout", rstats.toJson()},
                                   {"writer", wstats.toJson()},
@@ -460,7 +484,7 @@ int main(int argc, char** argv) {
                                   {"writer_capacity", writerQ.capacity()},
                                   {"monitor_queue", monitorQ.size()},
                                   {"monitor_capacity", monitorQ.capacity()}};
-      page->update(monitor.view().first, hvClient.latest().first, status);
+      page->update(view, hvNow, status);
       nextPage = clock.now_steady() + std::chrono::seconds(1);
     }
     if (page) page->processRequests();

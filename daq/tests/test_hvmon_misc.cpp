@@ -14,6 +14,7 @@
 #include "daq/hv/reading_json.h"
 #include "daq/hvmon/config.h"
 #include "daq/hvmon/system_probe.h"
+#include "daq/hvmon/window_stats.h"
 #include "daq/temp/temp_backend.h"
 
 using namespace std::chrono_literals;
@@ -160,4 +161,28 @@ TEST(HvmonConfig, SimulatedOutputNeverGoesToRealSlowcontrol) {
   EXPECT_FALSE(pathIsWithin(base + "/realx", base + "/real"));
   EXPECT_FALSE(pathIsWithin(base + "/other", base + "/real"));
   EXPECT_EQ(resolvePath("/a/./b/../c//d/"), "/a/c/d");
+}
+
+// Estadística de 10 min de la página /dash/ (DAQ2-8): media, desviación poblacional, mín y máx de
+// las muestras con t > now − 600 s; las viejas se descartan.
+TEST(WindowStats, TenMinuteMeanStdAndExpiry) {
+  using namespace daq::hvmon;
+  constexpr daq::UtcNs kS = 1000000000LL, t0 = 1792500000LL * kS;
+  WindowStats w(600.0);
+  EXPECT_EQ(w.summary(t0).n, 0u);
+  w.add(t0, 100.0);  // queda fuera de la ventana al final
+  for (int i = 1; i <= 600; ++i) w.add(t0 + i * kS, i % 2 ? 65.40 : 65.42);
+  auto s = w.summary(t0 + 600 * kS);
+  EXPECT_EQ(s.n, 600u);
+  EXPECT_NEAR(s.mean, 65.41, 1e-9);
+  EXPECT_NEAR(s.std, 0.01, 1e-9);
+  EXPECT_DOUBLE_EQ(s.min, 65.40);
+  EXPECT_DOUBLE_EQ(s.max, 65.42);
+  s = w.summary(t0 + 1200 * kS);  // ventana sin muestras nuevas
+  EXPECT_EQ(s.n, 0u);
+  w.add(t0 + 1300 * kS, 4.5e-6);
+  s = w.summary(t0 + 1300 * kS);
+  EXPECT_EQ(s.n, 1u);
+  EXPECT_DOUBLE_EQ(s.mean, 4.5e-6);
+  EXPECT_DOUBLE_EQ(s.std, 0.0);
 }

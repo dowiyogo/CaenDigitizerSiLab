@@ -22,6 +22,7 @@
 #include "daq/hv/hv_types.h"
 #include "daq/hvmon/config.h"
 #include "daq/hvmon/records.h"
+#include "daq/hvmon/window_stats.h"
 
 namespace daq::hvmon {
 
@@ -53,6 +54,9 @@ struct PollerState {
   nlohmann::json activeOffsets;
   nlohmann::json lastOffsets;
   nlohmann::json retry = nlohmann::json::array();  // estado de reintento por canal (RetryMachine::publish)
+  // VMon e IMon de las lecturas rápidas de los últimos window_s (600 s): canal -> {VMon, IMon}
+  double windowS = 600.0;
+  std::map<int, std::pair<WindowSummary, WindowSummary>> window;
 };
 
 struct WriterHealth {

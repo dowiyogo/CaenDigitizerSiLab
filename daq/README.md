@@ -57,6 +57,12 @@ daq/build/apps/hvmon/hvmon --config daq/config/hvmon.example.json      # Ctrl+C 
 - Página de solo lectura en `http://127.0.0.1:8081/` (gráficos de VMon e IMon de CH00-07 de las
   últimas 24 h y tabla de estado). Desde otro equipo: `ssh -L 8081:127.0.0.1:8081
   xplus@100.114.138.29` y abrir `http://localhost:8081/`.
+- Panel numérico (solo números, refresco 2 s, liviano para el teléfono y túneles lentos):
+  `http://localhost:8081/dash/`. Por canal CH00-07: V0Set, VMon e IMon (ahora y media ± desviación
+  de los últimos 10 min, calculadas en hvmon: `stats_10min` del JSON de estado), margen
+  I0Set/IMon y estado en palabras (ON verde, OFF gris, RAMP UP/DOWN azul, OVC naranja, TRIP rojo);
+  IMon en amarillo sobre 60 % de I0Set y en rojo sobre 80 %. Arriba: conexión OK/STALE con la edad,
+  hora de la última lectura (UTC y Chile), GECO sí/no y temperatura de la placa.
 - Un solo `hvmon` a la vez (el segundo sale con un mensaje).
 - Servicio de usuario: `daq/systemd/hvmon.service` (instrucciones dentro del archivo; requiere
   `sudo loginctl enable-linger xplus`).
@@ -136,6 +142,11 @@ $C --sim close prueba_1         # después del último run: la campaña queda de
 
 - Página de solo lectura en `http://127.0.0.1:8080/` (tasa de trigger, Δt, tasas por canal,
   amplitudes en mV con umbrales PROVISIONALES, colas, flags; aviso si hvmon no corre).
+- Panel numérico: `http://localhost:8080/dash/` (refresco 2 s): campaña, run, tiempo, eventos,
+  tasa de trigger de 1 y 10 min, segundos desde el último trigger, disco libre, frescura de hvmon y
+  por estación los canales vivos (al menos un pulso > 2 LSB en 10 min) y la mediana de la tasa
+  fuera de tiempo sobre el umbral provisional; avisos activos en rojo. Objeto `dash` del JSON de
+  estado.
 - Ctrl+C (o SIGTERM) cierra el segmento y el índice de forma limpia.
 - Archivos: `<campaña>_<UTC>_runNNN_segMMM.root` (sin permiso de escritura al cerrarse),
   `..._runNNN.index.json`, `..._runNNN.config.json` y `SHA256SUMS` (`sha256sum -c SHA256SUMS`).

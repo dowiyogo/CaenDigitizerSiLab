@@ -33,6 +33,7 @@ struct MonitorSummary {
   double triggerRateHz = 0;
   std::array<std::uint32_t, 64> ootCounts{}, inTimeCounts{};
   std::array<double, 64> ootTimeS{}, ootRateHz{};
+  std::array<std::uint32_t, 64> lowCounts{};  // pulsos fuera de tiempo > 2 LSB (canal vivo; no va al árbol)
   nlohmann::json queues;  // niveles de cola al cerrar el período
   std::uint64_t monitorDropped = 0;
 };
@@ -50,6 +51,8 @@ struct MonitorView {
   std::array<std::uint32_t, kDtBins> dtHist{};
   std::vector<std::pair<UtcNs, double>> rateHistory;  // (fin del período, tasa Hz)
   MonitorSummary last;
+  std::vector<MonitorSummary> recent;  // últimos kRecent períodos (10 × 60 s): página /dash/
+  static constexpr std::size_t kRecent = 10;
 };
 
 class Monitor {

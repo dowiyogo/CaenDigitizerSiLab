@@ -204,6 +204,14 @@ void Poller::fastRead(SteadyTime now) {
   state_.lastReadRespUtcNs = rd.tRespUtcNs;
   state_.lastReadSeq = readSeq_;
   state_.lastReadKind = "fast";
+  for (std::size_t p = 0; p < rd.params.size(); ++p) {
+    const bool v = rd.params[p].name == "VMon", i = rd.params[p].name == "IMon";
+    if (!v && !i) continue;
+    for (std::size_t c = 0; c < rd.channels.size(); ++c) {
+      auto& w = window_.try_emplace(rd.channels[c], WindowStats(state_.windowS), WindowStats(state_.windowS)).first->second;
+      (v ? w.first : w.second).add(rd.tRespUtcNs, rd.values[p][c].si);
+    }
+  }
   verifyCommand(rd, now);
   accumulateOffsets(rd, now);
   prevFast_ = rd;
@@ -598,6 +606,7 @@ void Poller::publish(SteadyTime now) {
   state_.connected = connected_;
   state_.everConnected = everConnected_;
   state_.stats = stats_;
+  for (const auto& [ch, w] : window_) state_.window[ch] = {w.first.summary(state_.lastGoodReadUtcNs), w.second.summary(state_.lastGoodReadUtcNs)};
   state_.nextConnectInS =
       connected_ ? 0.0 : std::max(0.0, std::chrono::duration<double>(nextConnect_ - now).count());
   if (active_)

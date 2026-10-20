@@ -32,7 +32,7 @@ add_executable(daq_root_tests test_root_io.cpp)
 target_compile_definitions(daq_root_tests PRIVATE DAQ_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_include_directories(daq_root_tests PRIVATE ${PROJECT_SOURCE_DIR}/../analysis/src)
 target_link_libraries(daq_root_tests PRIVATE daq_io daq_dig_replay daq_screader daq_daqrun daq_dig daq_hvmon daq_core
-                      ROOT::Core ROOT::RIO ROOT::Tree GTest::gtest GTest::gtest_main daq_warnings)
+                      ROOT::Core ROOT::RIO ROOT::Tree ROOT::Hist GTest::gtest GTest::gtest_main daq_warnings)
 # TSan de GCC 13 falla con "unexpected memory mapping" con la entropía ASLR de este kernel; se
 # corre el binario con ASLR deshabilitado solo para ese proceso (setarch -R), sin tocar sysctl.
 if(DAQ_SANITIZE MATCHES "thread")

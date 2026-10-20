@@ -2,7 +2,8 @@
 // Página de solo lectura de daqrun (THttpServer en 127.0.0.1:8080 por omisión; remoto por túnel
 // SSH). Fase 3: tasa de trigger, Δt, tasa de pulsos fuera de tiempo por canal, espectro de
 // amplitud (mV, umbrales PROVISIONALES: estado sin calibración), niveles de cola, resumen de flags
-// y estado de hvmon (aviso si no corre). Todo objeto ROOT pertenece al hilo principal; update() y
+// y estado de hvmon (aviso si no corre). /dash/: página numérica (dash.html embebido) que lee
+// /status/state_json/root.json.gz (objeto "dash") cada 2 s. Todo objeto ROOT pertenece al hilo principal; update() y
 // processRequests() se llaman solo desde él.
 #pragma once
 

@@ -1,6 +1,10 @@
 // http_page.cpp
 #include "http_page.h"
 
+#include "dash_html.h"  // kDashHtml, generado desde dash.html
+#include "daq/io/dash_server.h"
+#include "daq/io/hist_util.h"
+
 #include <TGraph.h>
 #include <TH1D.h>
 #include <TH2F.h>
@@ -15,7 +19,7 @@ Result<std::unique_ptr<DaqrunPage>> DaqrunPage::create(const DaqrunConfig& cfg, 
   using R = Result<std::unique_ptr<DaqrunPage>>;
   std::unique_ptr<DaqrunPage> p(new DaqrunPage());
   const std::string engine = "http:" + std::to_string(cfg.httpPort) + "?bind=" + bindAddress + "&thrds=2";
-  p->server_ = std::make_unique<THttpServer>(engine.c_str());
+  p->server_ = std::make_unique<io::DashServer>(engine.c_str(), kDashHtml);  // + /dash/
   if (!p->server_->IsAnyEngine()) return R::failure(-1, "THttpServer no pudo iniciar " + engine);
   p->server_->SetReadOnly(kTRUE);
   p->server_->SetTimer(0, kTRUE);  // solo atiende en processRequests() (hilo principal)
@@ -67,6 +71,8 @@ void DaqrunPage::update(const MonitorView& v, const HvSample& hv, const nlohmann
   const auto evf = w.value("evt_flag_events", nlohmann::json::array());
   for (std::size_t b = 0; b < chf.size() && b < 16; ++b) chFlags_->SetBinContent(static_cast<int>(b) + 1, chf[b].get<double>());
   for (std::size_t b = 0; b < evf.size() && b < 9; ++b) evtFlags_->SetBinContent(static_cast<int>(b) + 1, evf[b].get<double>());
+  // SetBinContent suma una entrada por llamada: Entries = suma de contenidos (DAQ2-8).
+  for (TH1* h : std::initializer_list<TH1*>{dt_.get(), oot_.get(), amp_.get(), chFlags_.get(), evtFlags_.get()}) io::refreshEntries(*h);
   rate_->Set(0);
   const UtcNs t0 = v.firstEventUtcNs;
   for (const auto& r : v.rateHistory) rate_->AddPoint(static_cast<double>(r.first - t0) / 3.6e12, r.second);

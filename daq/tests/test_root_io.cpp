@@ -25,6 +25,9 @@
 #include "daq/daqrun/config.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/dig/fake_digitizer.h"
+#include "daq/io/hist_util.h"
+#include <TH1D.h>
+#include <TH2F.h>
 #include "daq/dig/replay_digitizer.h"
 #include "daq/io/run_writer.h"
 #include "daq/io/sc_reader.h"
@@ -372,4 +375,23 @@ TEST(SlowControlReader, MergesPartsGzAndSchemas) {
   ASSERT_TRUE(n) << err;
   EXPECT_EQ(n->GetEntries(), 1);
   EXPECT_EQ(n->GetEntries("text == \"hola\""), 1);
+}
+
+// pulses/amp de la página de daqrun (DAQ2-8): SetBinContent repetido suma entradas en cada refresco;
+// refreshEntries() las deja iguales a la suma de contenidos.
+TEST(HistUtil, RefreshEntriesEqualsSumOfContentsAfterRepeatedRefills) {
+  TH2F h("amp_test", "", 4, 0, 4, 3, 0, 3);
+  h.SetDirectory(nullptr);
+  for (int refresh = 0; refresh < 3; ++refresh)
+    for (int x = 1; x <= 4; ++x)
+      for (int y = 1; y <= 3; ++y) h.SetBinContent(x, y, x * y);
+  EXPECT_EQ(h.GetEntries(), 36.0);  // 3 refrescos × 12 bins: el error visto en la página
+  daq::io::refreshEntries(h);
+  EXPECT_EQ(h.GetEntries(), 60.0);  // (1+2+3+4) × (1+2+3)
+  TH1D g("dt_test", "", 3, 0, 3);
+  g.SetDirectory(nullptr);
+  g.SetBinContent(1, 7);
+  g.SetBinContent(1, 7);
+  daq::io::refreshEntries(g);
+  EXPECT_EQ(g.GetEntries(), 7.0);
 }

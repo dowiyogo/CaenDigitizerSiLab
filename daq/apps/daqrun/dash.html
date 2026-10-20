@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>daqrun dash</title>
+<!-- Panel numérico de daqrun (solo lectura). Lee ../status/state_json/root.json.gz (objeto "dash")
+     cada 2 s. Sin bibliotecas ni CDN. -->
+<style>
+  :root { --bg: #fff; --fg: #111; --mut: #666; --line: #ddd; --ok: #1b7f3b; --bad: #c62828; --bad-bg: #ffe0e0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111; --fg: #eee; --mut: #999; --line: #333; --ok: #4cc26e; --bad: #ff6b6b; --bad-bg: #4a1616; }
+  }
+  body { margin: 0; padding: 8px 10px; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; }
+  table { border-collapse: collapse; width: 100%; max-width: 560px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 4px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { text-align: left; font-weight: 500; color: var(--mut); }
+  td { text-align: right; }
+  h2 { font-size: 15px; margin: 12px 0 4px; color: var(--mut); font-weight: 600; }
+  .ok { color: var(--ok); font-weight: 600; } .bad { color: var(--bad); font-weight: 600; }
+  #alerts div { background: var(--bad-bg); color: var(--bad); font-weight: 600; padding: 4px 6px; margin: 3px 0; max-width: 548px; }
+  .mut { color: var(--mut); font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="alerts"></div>
+<table id="main"><tr><td>cargando…</td></tr></table>
+<h2>Estaciones (últimos 10 min)</h2>
+<table id="st"></table>
+<div class="mut" style="margin-top:6px">Vivos: canales con al menos un pulso fuera de tiempo &gt; 2 LSB en 10 min.
+Tasa: mediana entre los vivos, sobre el umbral PROVISIONAL en mV (sin calibración).</div>
+<div id="err" class="bad"></div>
+<script>
+"use strict";
+const URL_STATE = "../status/state_json/root.json.gz";
+function num(v, d) { return typeof v === "number" && isFinite(v) ? v.toFixed(d) : "–"; }
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function dur(s) {
+  if (typeof s !== "number" || !isFinite(s)) return "–";
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = Math.floor(s % 60);
+  return (h ? h + " h " : "") + String(m).padStart(h ? 2 : 1, "0") + " min " + String(x).padStart(2, "0") + " s";
+}
+function rate(hz) {
+  if (typeof hz !== "number" || !isFinite(hz)) return "–";
+  return hz >= 1000 ? (hz / 1000).toFixed(2) + " kHz" : hz.toFixed(1) + " Hz";
+}
+function render(d) {
+  const hv = d.hvmon || {};
+  const hvOk = hv.alive && !hv.stale;
+  const rows = [
+    ["campaña", esc(d.campaign) + (d.simulated ? " <span class='bad'>[SIMULADO]</span>" : "")],
+    ["run", esc(d.run)],
+    ["tiempo", dur(d.elapsed_s)],
+    ["eventos", d.events],
+    ["tasa 1 min", num(d.rate_1min_Hz, 3) + " Hz"],
+    ["tasa 10 min", num(d.rate_10min_Hz, 3) + " Hz"],
+    ["desde el último trigger", num(d.since_last_trigger_s, 1) + " s"],
+    ["disco libre", num(d.disk_free_GB, 1) + " GB"],
+    ["hvmon", `<span class="${hvOk ? "ok" : "bad"}">${hvOk ? "OK" : "STALE"}</span> (edad ${num(hv.age_s, 1)} s)`],
+  ];
+  document.getElementById("main").innerHTML = rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join("");
+  document.getElementById("st").innerHTML = `<tr><th>estación</th><th style="text-align:right">vivos</th><th style="text-align:right">tasa fuera de tiempo</th></tr>` +
+    (d.stations || []).map(s => `<tr><th>${esc(s.name)} (&gt; ${num(s.threshold_mV, 0)} mV)</th><td>${s.live}/${s.channels}</td><td>${rate(s.median_oot_Hz)}</td></tr>`).join("");
+  document.getElementById("alerts").innerHTML = (d.alerts || []).map(a => `<div>${esc(a)}</div>`).join("");
+}
+async function tick() {
+  try {
+    const r = await fetch(URL_STATE, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const obj = await r.json();
+    const st = JSON.parse(obj.fTitle);
+    if (!st.dash) throw new Error("el estado no trae el objeto dash");
+    render(st.dash);
+    document.getElementById("err").textContent = "";
+  } catch (e) {
+    document.getElementById("err").textContent = "sin respuesta de daqrun: " + e.message;
+  } finally {
+    setTimeout(tick, 2000);
+  }
+}
+tick();
+</script>
+</body>
+</html>

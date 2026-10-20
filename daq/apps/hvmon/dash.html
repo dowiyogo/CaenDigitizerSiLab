@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hvmon dash</title>
+<!-- Panel numérico de hvmon (solo lectura). Lee ../status/state_json/root.json.gz cada 2 s
+     (~1.6 kB comprimido). Sin bibliotecas ni CDN. -->
+<style>
+  :root { --bg: #fff; --fg: #111; --mut: #666; --line: #ddd;
+          --ok: #1b7f3b; --off: #777; --ramp: #1f5fbf; --ovc: #c76a00; --trip: #c62828;
+          --warn-bg: #fff3b0; --bad-bg: #ffd0d0; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111; --fg: #eee; --mut: #999; --line: #333;
+            --ok: #4cc26e; --off: #999; --ramp: #6aa0ff; --ovc: #ffa640; --trip: #ff6b6b;
+            --warn-bg: #5a4d00; --bad-bg: #5c1a1a; }
+  }
+  body { margin: 0; padding: 8px 10px; background: var(--bg); color: var(--fg);
+         font: 15px/1.35 system-ui, sans-serif; }
+  #hdr { margin-bottom: 8px; }
+  #hdr span { margin-right: 12px; white-space: nowrap; }
+  .ok { color: var(--ok); font-weight: 600; } .bad { color: var(--trip); font-weight: 600; }
+  .mut { color: var(--mut); }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { padding: 3px 5px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th { font-weight: 600; font-size: 13px; color: var(--mut); }
+  td.ch, th.ch { text-align: left; }
+  td.st { text-align: left; font-weight: 700; }
+  .s-ON { color: var(--ok); } .s-OFF { color: var(--off); } .s-RAMPUP, .s-RAMPDOWN { color: var(--ramp); }
+  .s-OVC { color: var(--ovc); } .s-TRIP { color: var(--trip); }
+  td.iw { background: var(--warn-bg); } td.ib { background: var(--bad-bg); }
+  .sd { color: var(--mut); font-size: 12px; }
+  #wrap { overflow-x: auto; }
+  #err { color: var(--trip); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div id="hdr">cargando…</div>
+<div id="wrap"><table>
+  <thead><tr>
+    <th class="ch">CH</th><th>V0Set V</th><th>VMon V</th><th>10 min</th>
+    <th>IMon µA</th><th>10 min</th><th>I0Set/IMon</th><th class="ch">estado</th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table></div>
+<div class="mut" style="margin-top:6px;font-size:12px">10 min: media ± desviación de las lecturas de 1 s.
+IMon en amarillo sobre 60 % de I0Set, en rojo sobre 80 %. Temperatura: placa A7030DP (no del detector).</div>
+<div id="err"></div>
+<script>
+"use strict";
+const URL_STATE = "../status/state_json/root.json.gz";
+const fmtUtc = new Intl.DateTimeFormat("es-CL", { timeZone: "UTC", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+const fmtChile = new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function num(v, d) { return typeof v === "number" && isFinite(v) ? v.toFixed(d) : "–"; }
+// Estado como palabra: TRIP > OVC > RAMP UP/DOWN > ON > OFF.
+function statusWord(flags, pw) {
+  const f = new Set(flags || []);
+  if (f.has("internal_trip") || f.has("external_trip")) return "TRIP";
+  if (f.has("overcurrent")) return "OVC";
+  if (f.has("ramp_up")) return "RAMP UP";
+  if (f.has("ramp_down")) return "RAMP DOWN";
+  if (f.has("on") && pw === 1) return "ON";
+  return "OFF";
+}
+function render(st) {
+  const c = st.connection || {};
+  const okConn = c.connected && !c.stale;
+  const tRead = c.last_good_read_utc_ns ? new Date(c.last_good_read_utc_ns / 1e6) : null;
+  const temp = st.board_temperature_degC;
+  document.getElementById("hdr").innerHTML =
+    `<span class="${okConn ? "ok" : "bad"}">${okConn ? "conexión OK" : "STALE"} (edad ${num(c.age_s, 1)} s)</span>` +
+    `<span>última lectura ${tRead ? fmtUtc.format(tRead) + " UTC / " + fmtChile.format(tRead) + " Chile" : "–"}</span>` +
+    `<span>GECO: ${st.geco_running ? "<b>sí</b>" : "no"}</span>` +
+    `<span>placa: ${typeof temp === "number" ? temp.toFixed(1) + " °C" : "–"}</span>` +
+    (st.final ? `<span class="bad">hvmon terminó</span>` : "");
+  const rows = [];
+  for (const ch of st.channels || []) {
+    if (ch.ch > 7) continue;
+    const v = ch.values || {}, w = ch.stats_10min || null;
+    const i0 = v.I0Set_A, im = v.IMon_A;
+    const frac = typeof i0 === "number" && i0 > 0 && typeof im === "number" ? im / i0 : NaN;
+    const icls = frac > 0.8 ? "ib" : frac > 0.6 ? "iw" : "";
+    const word = statusWord(ch.status_flags, v.Pw);
+    const vs = w && w.VMon_V && w.VMon_V.n ? `${num(w.VMon_V.mean, 3)}<span class="sd"> ± ${num(w.VMon_V.std, 3)}</span>` : "–";
+    const is = w && w.IMon_A && w.IMon_A.n ? `${num(w.IMon_A.mean * 1e6, 3)}<span class="sd"> ± ${num(w.IMon_A.std * 1e6, 3)}</span>` : "–";
+    rows.push(`<tr><td class="ch">CH${String(ch.ch).padStart(2, "0")}</td><td>${num(v.V0Set_V, 2)}</td><td>${num(v.VMon_V, 2)}</td>` +
+      `<td>${vs}</td><td class="${icls}">${typeof im === "number" ? (im * 1e6).toFixed(3) : "–"}</td><td>${is}</td>` +
+      `<td>${typeof im === "number" && im > 0 && typeof i0 === "number" ? (i0 / im).toFixed(2) : "–"}</td>` +
+      `<td class="st s-${word.replace(" ", "")}">${esc(word)}</td></tr>`);
+  }
+  document.getElementById("rows").innerHTML = rows.join("");
+}
+async function tick() {
+  try {
+    const r = await fetch(URL_STATE, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const obj = await r.json();
+    render(JSON.parse(obj.fTitle));
+    document.getElementById("err").textContent = "";
+  } catch (e) {
+    document.getElementById("err").textContent = "sin respuesta de hvmon: " + e.message;
+  } finally {
+    setTimeout(tick, 2000);
+  }
+}
+tick();
+</script>
+</body>
+</html>

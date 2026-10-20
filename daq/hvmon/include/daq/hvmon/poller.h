@@ -151,6 +151,7 @@ class Poller {
   std::optional<ActiveCommand> active_;
   std::optional<ActiveOffsets> offsets_;
   RetryMachine retry_;
+  std::map<int, std::pair<WindowStats, WindowStats>> window_;  // canal -> (VMon, IMon), 600 s
   FileSystem* fs_ = nullptr;
   BoundedQueue<NotifyEvent>* notifyQ_ = nullptr;
 };

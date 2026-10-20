@@ -7,6 +7,8 @@
 //                                      detector; sigue la del rack), 24 h
 //   /status/table                      TNamed; el título es la tabla de estado (texto)
 //   /status/state_json                 TNamed; el título es el JSON completo del estado
+//   /dash/                             página numérica (dash.html embebido), refresco 2 s desde
+//                                      /status/state_json/root.json.gz (stats_10min de cada canal)
 // SetReadOnly(kTRUE) y ningún comando registrado: no hay acciones por HTTP. SetTimer(0): las
 // peticiones solo se atienden cuando el hilo principal llama processRequests().
 // Seguridad entre hilos: TODO objeto ROOT de esta clase pertenece al hilo principal.
