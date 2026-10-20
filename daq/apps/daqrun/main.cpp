@@ -342,7 +342,11 @@ int main(int argc, char** argv) {
     } else {
       const std::string tmp = std::string(std::getenv("XDG_RUNTIME_DIR") ? std::getenv("XDG_RUNTIME_DIR") : "/tmp") + "/daqv2-daqrun";
       ensurePrivateDirectory(tmp, 0700);
-      notifier = std::make_unique<hvmon::Notifier>(ncfg.value(), smtp.value(), mapping.value(), spawner, clock, tmp, notifyHub);
+      hvmon::NotifierConfig ncv = ncfg.value();
+      ncv.senderName = "daqrun";  // firma y línea de la página: la de daqrun, no la de hvmon
+      ncv.pagePort = cfg.httpPort;
+      ncv.pagePath = "/dash/";
+      notifier = std::make_unique<hvmon::Notifier>(ncv, smtp.value(), mapping.value(), spawner, clock, tmp, notifyHub);
       notifier->setSimulatedBackend(cfg.simulated());
       logInfo("notificador de daqrun: aviso si hvmon no responde más de ", cfg.hvmonStaleAlertMin, " min");
     }

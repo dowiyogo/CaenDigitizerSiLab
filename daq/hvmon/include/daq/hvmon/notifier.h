@@ -62,6 +62,8 @@ struct NotifierConfig {
   std::string pageSshUser = "xplus";                // línea "ssh -N -L ..." del correo
   std::string pageSshHost;                          // host Tailscale; vacío: la línea lo indica
   int pagePort = 8081;                              // = http.port de hvmon (no es clave de notifier)
+  std::string pagePath;                             // ruta de la página (daqrun: /dash/)
+  std::string senderName = "hvmon";                 // firma del correo (daqrun pone "daqrun")
   static Result<NotifierConfig> fromJson(const nlohmann::json& j);
   nlohmann::json toJson() const;
 };

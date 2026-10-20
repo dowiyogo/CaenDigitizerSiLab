@@ -198,6 +198,26 @@ TEST(Notifier, MaxMessagesCapsAcceptedMailsButNotTests) {
   EXPECT_FALSE(NotifierConfig::fromJson({{"max_messages", -1}}).ok());
 }
 
+TEST(Notifier, DaqrunMailsAreSignedByDaqrunAndPointToItsDashboard) {
+  NRig r({{"enabled", true}, {"page_ssh_host", "100.114.138.29"}});
+  r.cfg.senderName = "daqrun";
+  r.cfg.pagePort = 8080;
+  r.cfg.pagePath = "/dash/";
+  r.n = std::make_unique<Notifier>(r.cfg, smtp(), mapping(), r.spawner, r.clock, ::testing::TempDir(), r.hub, "host-test");
+  auto e = gaveUp(-1, 1);
+  e.kind = "no_triggers";
+  e.ch = -1;
+  ASSERT_TRUE(r.n->submit(e));
+  r.n->processDue();
+  ASSERT_EQ(r.spawner.calls.size(), 1u);
+  const std::string& b = r.spawner.calls[0].body;
+  EXPECT_NE(b.find("ssh -N -L 8080:127.0.0.1:8080"), std::string::npos);
+  EXPECT_NE(b.find("http://localhost:8080/dash/"), std::string::npos);
+  EXPECT_NE(b.find("daqrun (DAQ v2, hodoscopio)"), std::string::npos);
+  EXPECT_EQ(b.find("hvmon (DAQ v2"), std::string::npos);
+  EXPECT_EQ(b.find("8081"), std::string::npos);
+}
+
 TEST(Notifier, OnlyKindsFiltersByKind) {
   NRig r({{"enabled", true}, {"notify_each_trip", true}, {"only_kinds", {"light_leak", "no_triggers"}}});
   auto trip = gaveUp(0, 1);

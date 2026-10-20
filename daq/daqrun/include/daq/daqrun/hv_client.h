@@ -185,6 +185,7 @@ class TriggerWatchdog {
   std::deque<std::pair<UtcNs, std::uint64_t>> recent_;  // (hora de lectura, eventos) en la ventana
   bool any_ = false, alerted_ = false;
   UtcNs episodeStart_ = 0;
+  UtcNs maxGap_ = 0, maxGapFrom_ = 0, maxGapTo_ = 0;  // hueco más largo del episodio
   std::uint64_t episode_ = 0;
 };
 

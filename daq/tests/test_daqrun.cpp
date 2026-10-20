@@ -409,7 +409,7 @@ TEST(TriggerWatchdog, NoTriggersAndResumedWithFakeDigitizerGap) {
   const double gap = ev[1].context["gap_s"].get<double>();
   EXPECT_GT(gap, 720.0);   // el hueco del guion más los intervalos de Poisson a ambos lados
   EXPECT_LT(gap, 760.0);
-  EXPECT_NE(ev[1].reason.find("tras un episodio de"), std::string::npos);
+  EXPECT_NE(ev[1].reason.find("hueco más largo"), std::string::npos);
   EXPECT_EQ(ev[1].origin, "daqrun campaña commissioning_2026_10 run 4");
   // Sin triggers desde el inicio del run: el aviso lo dice; un solo aviso por episodio.
   TriggerWatchdog wd2(300.0, "x", t0);
@@ -615,4 +615,31 @@ TEST(TttClock, FollowsTickWanderOfAFewPpm) {
     worst = std::max(worst, std::fabs(v[v.size() / 2]));
   }
   EXPECT_LT(worst, 1e-3) << worst;
+}
+
+// Episodio por tasa baja como el del 2026-10-20 (DAQ2-9): triggers a 0.7 Hz, silencio desde 600 s,
+// aviso por tasa < 0.1 Hz, vuelven a 2340 s. El correo de vuelta mide desde el último trigger
+// anterior al aviso (no desde now − ventana) y da el hueco más largo con su inicio y fin.
+TEST(TriggerWatchdog, ResumedReportsEpisodeFromLastTriggerAndLongestGap) {
+  using namespace daq::daqrun;
+  constexpr daq::UtcNs kS = 1000000000LL, t0 = 1792514830LL * kS;
+  TriggerWatchdog wd(300.0, "x", t0, 0.1, 600.0);
+  std::vector<hvmon::NotifyEvent> ev;
+  daq::UtcNs lastBefore = 0;
+  for (double t = 1.0; t < 3000; t += 1.0) {
+    const daq::UtcNs now = t0 + static_cast<daq::UtcNs>(t * kS);
+    const bool trig = (t < 600 && std::fmod(t, 1.4) < 1.0) || (t >= 2340 && std::fmod(t, 1.4) < 1.0);
+    if (trig) {
+      if (t < 600) lastBefore = now;
+      if (auto e = wd.onTriggers(now, 1, std::nullopt)) ev.push_back(*e);
+    }
+    if (auto e = wd.tick(now, std::nullopt)) ev.push_back(*e);
+  }
+  ASSERT_EQ(ev.size(), 2u);
+  EXPECT_EQ(ev[0].kind, "no_triggers");
+  EXPECT_EQ(ev[1].kind, "triggers_resumed");
+  EXPECT_EQ(ev[1].context["episode_start_utc_ns"].get<daq::UtcNs>(), lastBefore);
+  EXPECT_EQ(ev[1].context["longest_gap_from_utc_ns"].get<daq::UtcNs>(), lastBefore);
+  EXPECT_NEAR(ev[1].context["gap_s"].get<double>(), 2340.0 - static_cast<double>(lastBefore - t0) / 1e9, 1.0);
+  EXPECT_GE(ev[1].context["episode_s"].get<double>(), ev[1].context["gap_s"].get<double>());
 }

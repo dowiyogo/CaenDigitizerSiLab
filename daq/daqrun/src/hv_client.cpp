@@ -210,19 +210,31 @@ std::optional<hvmon::NotifyEvent> TriggerWatchdog::onTriggers(UtcNs tReadUtc, st
   if (nEvents == 0) return std::nullopt;
   recent_.emplace_back(tReadUtc, nEvents);
   while (!recent_.empty() && recent_.front().first < tReadUtc - static_cast<UtcNs>(windowS_ * kNs)) recent_.pop_front();
-  const UtcNs prevLast = last_;
+  const UtcNs prevLast = any_ ? last_ : runStart_;
+  // Hueco más largo dentro del episodio (incluye el silencio que llevó al aviso).
+  if (alerted_ && tReadUtc - prevLast > maxGap_) {
+    maxGap_ = tReadUtc - prevLast;
+    maxGapFrom_ = prevLast;
+    maxGapTo_ = tReadUtc;
+  }
   last_ = tReadUtc;
   any_ = true;
   if (!alerted_ || lowRate(tReadUtc)) return std::nullopt;  // sigue el episodio si la tasa no se recuperó
-  const double gap = static_cast<double>(tReadUtc - episodeStart_) / kNs;
+  const double episode = static_cast<double>(tReadUtc - episodeStart_) / kNs;
+  const double gap = static_cast<double>(maxGap_) / kNs;
   auto e = make("triggers_resumed", tReadUtc, temp);
-  char g[160];
-  std::snprintf(g, sizeof g, "%.0f s (%.1f min); tasa en los últimos %.0f min: %.3f Hz", gap, gap / 60.0, windowS_ / 60.0,
-                windowRateHz(tReadUtc));
-  e.reason = "los triggers volvieron a las " + formatUtcIso(tReadUtc) + " tras un episodio de " + g +
-             " (último trigger antes de esta lectura: " + formatUtcIso(prevLast) + ")";
+  char g[320];
+  std::snprintf(g, sizeof g,
+                "episodio de %.0f s (%.1f min) desde el último trigger anterior al aviso; hueco más largo %.1f s (%.1f min); tasa "
+                "en los últimos %.0f min: %.3f Hz",
+                episode, episode / 60.0, gap, gap / 60.0, windowS_ / 60.0, windowRateHz(tReadUtc));
+  e.reason = "los triggers volvieron (tasa sobre el mínimo) a las " + formatUtcIso(tReadUtc) + ": " + g + " (hueco más largo: " +
+             formatUtcIso(maxGapFrom_) + " -> " + formatUtcIso(maxGapTo_) + ")";
   e.context["gap_s"] = gap;
+  e.context["episode_s"] = episode;
   e.context["episode_start_utc_ns"] = episodeStart_;
+  e.context["longest_gap_from_utc_ns"] = maxGapFrom_;
+  e.context["longest_gap_to_utc_ns"] = maxGapTo_;
   alerted_ = false;
   return e;
 }
@@ -234,7 +246,11 @@ std::optional<hvmon::NotifyEvent> TriggerWatchdog::tick(UtcNs now, std::optional
   if (!silent && !low) return std::nullopt;
   alerted_ = true;
   ++episode_;
-  episodeStart_ = silent ? last_ : now - static_cast<UtcNs>(windowS_ * kNs);
+  // Inicio del episodio: el último trigger antes del aviso (o el inicio del run sin ninguno). Antes,
+  // con tasa baja, era now − ventana: el correo del 2026-10-20 dijo 2310 s en vez de 1740 s.
+  episodeStart_ = any_ ? last_ : runStart_;
+  maxGap_ = static_cast<UtcNs>(0);
+  maxGapFrom_ = maxGapTo_ = 0;
   auto e = make("no_triggers", last_, temp);
   char m[160];
   if (silent)

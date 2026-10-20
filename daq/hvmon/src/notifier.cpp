@@ -410,11 +410,11 @@ std::string Notifier::composeMessage(const NotifyEvent& e, std::string* subjectO
   const std::string port = std::to_string(cfg_.pagePort);
   body << "\nPágina de estado (solo lectura): ";
   if (cfg_.pageSshHost.empty())
-    body << "notifier.page_ssh_host sin configurar en hvmon.json.\n";
+    body << "notifier.page_ssh_host sin configurar en la configuración de " << cfg_.senderName << ".\n";
   else
     body << "ssh -N -L " << port << ":127.0.0.1:" << port << " " << cfg_.pageSshUser << "@" << cfg_.pageSshHost
-         << " y abrir http://localhost:" << port << "\n";
-  body << "\n-- \nhvmon (DAQ v2, hodoscopio). Mensaje automático; no responder.\n";
+         << " y abrir http://localhost:" << port << cfg_.pagePath << "\n";
+  body << "\n-- \n" << cfg_.senderName << " (DAQ v2, hodoscopio). Mensaje automático; no responder.\n";
 
   // Encabezados y cuerpo con CRLF (SMTP).
   std::string to;

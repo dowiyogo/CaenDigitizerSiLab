@@ -285,9 +285,13 @@ std::vector<hvmon::NotifyEvent> DataFlagEngine::addPeriod(const MonitorSummary& 
       ++u.st.episode;
       u.st.since = p.t1;
       char why[256];
-      std::snprintf(why, sizeof why, "%s: IMon medio %.3f µA en %.0f s, base %.3f µA (razón %.2f), I0Set %.1f µA (%.0f %%)",
-                    u.st.name.c_str(), u.st.rateHz * 1e6, cfg_.imonWindowS, u.st.baselineHz * 1e6, u.st.ratio, i0 * 1e6,
-                    i0 > 0 ? 100.0 * u.st.rateHz / i0 : 0.0);
+      char base[48];
+      if (u.st.baselineHz > 0)
+        std::snprintf(base, sizeof base, "base %.3f µA (razón %.2f)", u.st.baselineHz * 1e6, u.st.ratio);
+      else
+        std::snprintf(base, sizeof base, "sin base todavía");
+      std::snprintf(why, sizeof why, "%s: IMon medio %.3f µA en %.0f s, %s, I0Set %.1f µA (%.0f %%)", u.st.name.c_str(),
+                    u.st.rateHz * 1e6, cfg_.imonWindowS, base, i0 * 1e6, i0 > 0 ? 100.0 * u.st.rateHz / i0 : 0.0);
       out.push_back(event("imon_warning", u, p.t1, why));
     }
     if (cond) {
