@@ -48,6 +48,9 @@ struct NotifierConfig {
   // Máximo de correos aceptados por proceso (sin contar los de prueba; los recuperados del outbox
   // cuentan); 0 = sin límite. Sirve para respetar un tope de correos autorizado por tarea.
   int maxMessages = 0;
+  // Si no está vacío, solo se aceptan estos tipos (los de prueba siempre): p. ej. una tarea que
+  // autoriza correos solo de fuga de luz y de triggers (DAQ2-9).
+  std::vector<std::string> onlyKinds;
   std::vector<double> retryDelaysMin{1, 5, 15, 60};  // luego cada retry_hourly_min hasta max_age_h
   double retryHourlyMin = 60;
   double maxAgeH = 48;     // un correo sin entregar se abandona (outbox/failed/) a las 48 h del evento

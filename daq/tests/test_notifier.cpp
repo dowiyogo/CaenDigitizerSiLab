@@ -198,6 +198,21 @@ TEST(Notifier, MaxMessagesCapsAcceptedMailsButNotTests) {
   EXPECT_FALSE(NotifierConfig::fromJson({{"max_messages", -1}}).ok());
 }
 
+TEST(Notifier, OnlyKindsFiltersByKind) {
+  NRig r({{"enabled", true}, {"notify_each_trip", true}, {"only_kinds", {"light_leak", "no_triggers"}}});
+  auto trip = gaveUp(0, 1);
+  trip.kind = "trip";
+  EXPECT_FALSE(r.n->submit(trip));
+  EXPECT_FALSE(r.n->submit(gaveUp(1, 1)));
+  auto leak = gaveUp(-1, 1);
+  leak.kind = "light_leak";
+  leak.ch = -1;
+  leak.context = {{"unit", "face:hod2019 Trasera"}, {"unit_name", "hod2019 Trasera"}};
+  EXPECT_TRUE(r.n->submit(leak));
+  r.n->processDue();
+  EXPECT_EQ(r.spawner.calls.size(), 1u);
+}
+
 TEST(Notifier, ProblemMailsAtMostOnePer30Min) {
   NRig r;
   WriterHealth w;
