@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cmath>
+#include <optional>
 
 #include "daq/core/file_system.h"
 #include "daq/core/logger.h"
@@ -476,23 +477,22 @@ UtcNs TttClock::model(std::int64_t u) const {
   return a.tUtcNs + static_cast<std::int64_t>(std::llround(static_cast<double>(u - a.uNs) * (a.tickNs / p_.nominalTickNs)));
 }
 
-void TttClock::reanchor(std::int64_t u, UtcNs tRead, const std::string& reason) {
-  lastAnchorRead_ = tRead;
-  if (!p_.fit) return;
-  if (win_.size() < p_.minPoints) return;
-  const double span = static_cast<double>(win_.back().first - win_.front().first) * 1e-9;
-  if (span < p_.minSpanS) return;
-  // Primer ajuste: con first_fit_s de lecturas desde el inicio (la ventana se amplía hasta entonces).
-  if (!fitted_ && static_cast<double>(win_.back().second) * 1e-9 < p_.firstFitS) return;
-  // Ajuste robusto (la latencia de lectura tiene cola larga: hasta ~67 ms en el run 8): mínimos
-  // cuadrados, se descartan los residuos a más de 5 × 1.4826 × MAD de la mediana y se ajusta de nuevo;
-  // la ordenada es la mediana de los residuos (no la media). Coordenadas centradas en la primera
-  // muestra (precisión en double).
-  const double u0 = static_cast<double>(win_.front().first), y0 = static_cast<double>(win_.front().second);
+namespace {
+struct ClockFit {
+  double s = 1, cAbs = 0, rmsNs = 0, spanS = 0;
+  std::size_t kept = 0;
+};
+// Ajuste robusto y = cAbs + s·u (la latencia de lectura tiene cola larga: hasta ~67 ms en el run 8):
+// mínimos cuadrados, se descartan los residuos a más de 5 × 1.4826 × MAD de la mediana y se ajusta
+// de nuevo; la ordenada es la mediana de los residuos (no la media). Coordenadas centradas en la
+// primera muestra (precisión en double).
+std::optional<ClockFit> robustFit(const std::vector<std::pair<std::int64_t, std::int64_t>>& pts, std::size_t minPoints) {
+  if (pts.size() < minPoints || pts.size() < 2) return std::nullopt;
+  const double u0 = static_cast<double>(pts.front().first), y0 = static_cast<double>(pts.front().second);
   std::vector<double> xs, ys;
-  xs.reserve(win_.size());
-  ys.reserve(win_.size());
-  for (const auto& [uu, yy] : win_) {
+  xs.reserve(pts.size());
+  ys.reserve(pts.size());
+  for (const auto& [uu, yy] : pts) {
     xs.push_back(static_cast<double>(uu) - u0);
     ys.push_back(static_cast<double>(yy) - y0);
   }
@@ -517,7 +517,7 @@ void TttClock::reanchor(std::int64_t u, UtcNs tRead, const std::string& reason) 
   };
   std::vector<char> keep(xs.size(), 1);
   double s = 0;
-  if (!lsq(keep, s)) return;
+  if (!lsq(keep, s)) return std::nullopt;
   std::vector<double> res(xs.size());
   for (std::size_t i = 0; i < xs.size(); ++i) res[i] = ys[i] - s * xs[i];
   const double m = medianOf(res);
@@ -526,34 +526,58 @@ void TttClock::reanchor(std::int64_t u, UtcNs tRead, const std::string& reason) 
   const double cut = 5.0 * 1.4826 * std::max(medianOf(dev), 1e5);  // al menos 0.1 ms
   std::size_t kept = 0;
   for (std::size_t i = 0; i < res.size(); ++i) kept += (keep[i] = std::fabs(res[i] - m) <= cut);
-  if (kept < p_.minPoints || !lsq(keep, s)) return;
-  std::vector<double> r2v;
-  r2v.reserve(kept);
-  double r2 = 0;
+  if (kept < minPoints || !lsq(keep, s)) return std::nullopt;
+  std::vector<double> r;
+  r.reserve(kept);
   for (std::size_t i = 0; i < xs.size(); ++i)
-    if (keep[i]) r2v.push_back(ys[i] - s * xs[i]);
-  const double c = medianOf(r2v);
-  for (double r : r2v) r2 += (r - c) * (r - c);
-  const double n = static_cast<double>(kept);
+    if (keep[i]) r.push_back(ys[i] - s * xs[i]);
+  const double c = medianOf(r);
+  double r2 = 0;
+  for (double x : r) r2 += (x - c) * (x - c);
+  ClockFit f;
+  f.s = s;
+  f.cAbs = y0 + c - s * u0;
+  f.kept = kept;
+  f.rmsNs = std::sqrt(r2 / static_cast<double>(kept));
+  f.spanS = (static_cast<double>(pts.back().first) - u0) * 1e-9;
+  return f;
+}
+}  // namespace
+
+void TttClock::reanchor(std::int64_t u, UtcNs tRead, const std::string& reason) {
+  lastAnchorRead_ = tRead;
+  if (!p_.fit || win_.empty()) return;
+  // Latencia de referencia (una vez por run): ajuste de las lecturas de los primeros first_fit_s
+  // del run, cerca del origen (ahí la ordenada en u = 0 no depende del error de la pendiente). Si
+  // hay menos de 20 (p. ej. el trigger se cortó al empezar: 31 eventos en el run de prueba de la
+  // fase 5), se usan todas las lecturas desde el inicio.
+  if (!fitted_) {
+    if (static_cast<double>(win_.back().second) * 1e-9 < p_.firstFitS) return;
+    std::vector<std::pair<std::int64_t, std::int64_t>> early, all(win_.begin(), win_.end());
+    for (const auto& q : win_)
+      if (static_cast<double>(q.second) * 1e-9 <= p_.firstFitS) early.push_back(q);
+    auto f0 = robustFit(early.size() >= 20 ? early : all, 20);
+    if (!f0) return;
+    latencyNs_ = f0->cAbs;
+    fitted_ = true;
+    latencyPoints_ = f0->kept;
+  }
+  // Ancla: recta de las lecturas de los últimos window_s menos la latencia de referencia.
+  std::vector<std::pair<std::int64_t, std::int64_t>> recent;
+  const std::int64_t ws = win_.back().second - static_cast<std::int64_t>(p_.windowS * 1e9);
+  for (const auto& q : win_)
+    if (q.second >= ws) recent.push_back(q);
+  auto f = robustFit(recent, p_.minPoints);
+  if (!f || f->spanS < p_.minSpanS) return;
   Anchor a;
   a.uNs = u;
-  a.tickNs = s * p_.nominalTickNs;
-  a.nFit = kept;
-  a.spanS = span;
-  a.residualRmsMs = std::sqrt(r2 / n) * 1e-6;
+  a.tickNs = f->s * p_.nominalTickNs;
+  a.nFit = f->kept;
+  a.spanS = f->spanS;
+  a.residualRmsMs = f->rmsNs * 1e-6;
   a.reason = reason;
-  // Recta del ajuste en coordenadas absolutas: y = cAbs + s·u (y = t_read − origen); cAbs es la
-  // latencia mediana de lectura más el error acumulado del modelo. La del primer ajuste (latencyNs_)
-  // se toma como la latencia: el ancla queda en origen + (cAbs − latencia) + s·u. Así no se acumulan
-  // los errores de pendiente de cada tramo; el salto en el ancla queda registrado (del orden del
-  // ruido del ajuste).
-  const double cAbs = y0 + c - s * u0;
-  if (!fitted_) {
-    latencyNs_ = cAbs;
-    fitted_ = true;
-  }
   const UtcNs cont = model(u);
-  a.tUtcNs = origin_ + static_cast<std::int64_t>(std::llround(cAbs - latencyNs_ + s * static_cast<double>(u)));
+  a.tUtcNs = origin_ + static_cast<std::int64_t>(std::llround(f->cAbs - latencyNs_ + f->s * static_cast<double>(u)));
   a.jumpNs = a.tUtcNs - cont;
   anchors_.push_back(a);
 }
@@ -568,8 +592,11 @@ std::pair<std::int64_t, UtcNs> TttClock::map(std::uint32_t raw, UtcNs tReadUtc) 
   const std::int64_t u = ttt::unwrap(raw, readU, origin_, tp, lastU_);
   win_.emplace_back(u, tReadUtc - origin_);
   // Antes del primer ajuste la ventana guarda todo desde el inicio (first_fit_s); después, window_s.
-  const std::int64_t windowNs = static_cast<std::int64_t>((fitted_ ? p_.windowS : std::max(p_.windowS, p_.firstFitS)) * 1e9);
-  while (!win_.empty() && win_.back().second - win_.front().second > windowNs) win_.pop_front();
+  // Hasta fijar la latencia de referencia se guarda todo desde el inicio; después, window_s.
+  if (fitted_) {
+    const std::int64_t windowNs = static_cast<std::int64_t>(p_.windowS * 1e9);
+    while (!win_.empty() && win_.back().second - win_.front().second > windowNs) win_.pop_front();
+  }
   if (!pendingReason_.empty()) {
     reanchor(u, tReadUtc, pendingReason_);
     pendingReason_.clear();

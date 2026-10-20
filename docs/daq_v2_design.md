@@ -1648,12 +1648,15 @@ Validación offline con `daqoffline` (mismo código que daqrun, salida en
     unos ppm en 10-20 min (run 8: con tick fijo t_read − t_utc crece entre 4.0 y 6.8 ms cada
     10 min, y el percentil 5 de la latencia lo sigue). Ajuste robusto (mínimos cuadrados, descarte a
     5 MAD, nuevo ajuste, ordenada = mediana de los residuos) sobre los últimos `window_s` = 300 s,
-    re-anclado cada `reanchor_s` = 60 s y al abrir cada segmento en la recta ajustada menos la
-    latencia del primer ajuste, que espera `first_fit_s` = 600 s (con 70 s el error de la
-    latencia, ~1 ms, quedaba como desplazamiento fijo). Resultado offline: mediana de
-    t_read − t_utc por 10 min entre 3.873 y 4.174 ms en el run 8 tras el primer ajuste (tick fijo:
-    7.249 → 61.617 ms en 1.8 h), entre 4.018 y 4.742 ms en las 15.8 h de la noche; salto máximo en
-    un ancla 0.993 ms (runs 7-8) y 1.269 ms (noche). Método y anclas por segmento en
+    re-anclado cada `reanchor_s` = 60 s y al abrir cada segmento en la recta ajustada menos una
+    latencia de referencia fija por run, que sale de las lecturas de los primeros `first_fit_s` =
+    600 s (cerca del origen; con menos de 20, de todas las lecturas desde el inicio). Con 70 s de
+    datos su error (~1 ms) quedaba fijo; tomada de un ajuste lejos del origen (el trigger se cortó a
+    los 9.5 min del run de prueba de la fase 5) dejó t_utc ~9 ms adelantado (decisión 95).
+    Resultado offline: mediana de t_read − t_utc por 10 min entre 3.878 y 4.290 ms en el run 8 tras
+    el primer ajuste (tick fijo: 7.249 → 61.617 ms en 1.8 h), entre 4.044 y 4.748 ms en las 15.8 h
+    de la noche, entre 5.467 y 6.000 ms en el run de prueba tras el corte; salto máximo en un ancla
+    0.993 ms (runs 7-8) y 1.269 ms (noche). Método y anclas por segmento en
     `run_info_json.ttt_clock`. Con 3600/600 s la dispersión era 1.4 ms en el run 8.
 88. **Bit 7 (fuga de luz)** por cara física de hod2019 (hod2018 no tiene caras en el mapeo de
     octubre): pulsos fuera de tiempo > 20/3 mV en `window_s` = 600 s; base = mediana de las
@@ -1702,6 +1705,18 @@ Validación offline con `daqoffline` (mismo código que daqrun, salida en
       la noche (Trasera 6718.4 Hz, mediana 23:00-08:00Z) y razón 2, desde 10:57:53Z (3 episodios).
     - sintético (grupo 3 apagado 600 s): bit 6 de 5 min después del apagado a 3 min después de
       volver; 1 episodio, 0 falsos positivos.
+95. **Run de prueba** (`phase5_test_2026_10_20`, 2026-10-20 16:47:10Z-17:47:10Z, 942 eventos):
+    tercera pérdida de trigger, de 16:56:41.315Z a 17:25:41.275Z (1739.96 s), por cable o
+    conector intermitente (volvió al mover el cable; la misma causa que la del 2026-10-19 16:35Z;
+    la de la mañana del 2026-10-19 fue el apagado térmico del NIM8302). Dos de las tres ocurrieron
+    entre las 13:35 y las 13:56 hora de Chile. Avisos por correo `no_triggers` (16:57:15Z) y
+    `triggers_resumed` (17:25:44Z); este decía 2310 s porque el episodio por tasa baja empezaba en
+    now − ventana: ahora empieza en el último trigger anterior al aviso y el correo da el hueco más
+    largo. Los correos de daqrun firmaban "hvmon" y apuntaban a 8081: ahora "daqrun" y
+    8080/dash/. Bit 7 en Trasera, Delantera y Frontal desde las 17:42Z (luz de la tarde) y aviso de
+    IMon en CH06, CH02 y CH03 sobre 60 % de I0Set desde las 17:07-17:21Z (sin correo: tipos y tope
+    de la tarea). El t_utc escrito por este run queda ~9 ms adelantado tras 17:26:26Z (README de
+    la campaña).
 
 ## 16. Preguntas resueltas por el handoff y la revisión
 

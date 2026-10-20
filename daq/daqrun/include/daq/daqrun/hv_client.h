@@ -243,8 +243,9 @@ class TttClock {
     // re-anclaje frecuente la siguen (dispersión 0.41 ms en el run 8 con 300/60 s frente a 1.4 ms con 3600/600 s).
     double windowS = 300, reanchorS = 60, minSpanS = 120;
     std::size_t minPoints = 50;
-    // El primer ajuste fija la latencia de referencia de todo el run: espera first_fit_s de datos
-    // (con 70 s el error de la latencia, ~1 ms, quedaba como desplazamiento fijo: runs 7 y 8).
+    // La latencia de referencia de todo el run sale de las lecturas de los primeros first_fit_s
+    // (con 70 s su error, ~1 ms, quedaba fijo: runs 7 y 8; tomarla de un ajuste lejos del origen,
+    // tras un corte de trigger, dejó t_utc ~9 ms adelantado en el run de prueba de la fase 5).
     double firstFitS = 600;
   };
   struct Anchor {
@@ -271,11 +272,12 @@ class TttClock {
   UtcNs origin_;
   Params p_;
   std::int64_t lastU_ = -1;
-  std::deque<std::pair<std::int64_t, std::int64_t>> win_;  // (u, t_read − origen)
+  std::deque<std::pair<std::int64_t, std::int64_t>> win_;  // (u, t_read − origen); todo hasta fijar la latencia
   std::vector<Anchor> anchors_;
   UtcNs lastAnchorRead_ = 0;
   bool fitted_ = false;
-  double latencyNs_ = 0;  // latencia mediana de lectura del primer ajuste
+  double latencyNs_ = 0;  // latencia de referencia (mediana) de los primeros first_fit_s del run
+  std::size_t latencyPoints_ = 0;
   std::string pendingReason_;
 };
 

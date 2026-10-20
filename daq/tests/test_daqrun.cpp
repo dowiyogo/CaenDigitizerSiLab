@@ -643,3 +643,35 @@ TEST(TriggerWatchdog, ResumedReportsEpisodeFromLastTriggerAndLongestGap) {
   EXPECT_NEAR(ev[1].context["gap_s"].get<double>(), 2340.0 - static_cast<double>(lastBefore - t0) / 1e9, 1.0);
   EXPECT_GE(ev[1].context["episode_s"].get<double>(), ev[1].context["gap_s"].get<double>());
 }
+
+// Corte de trigger poco después de empezar (run de prueba de la fase 5, DAQ2-9: 31 eventos antes de
+// cortarse a los 570 s, vuelven a los 2340 s). La latencia de referencia sale de las lecturas cercanas
+// al origen; tras la vuelta la deriva sigue bajo 1 ms (antes t_utc quedaba ~9 ms adelantado).
+TEST(TttClock, TriggerCutBeforeTheFirstFitKeepsTheReference) {
+  using namespace daq::daqrun;
+  constexpr double kTrue = 8.000095;
+  const daq::UtcNs origin = 1792514830LL * 1000000000LL;
+  TttClock::Params p;
+  p.initialTickNs = 8.000071;
+  TttClock fit(origin, p);
+  std::mt19937_64 rng(9);
+  std::exponential_distribution<double> gap(0.73);
+  std::uniform_real_distribution<double> lat(0.7e-3, 7.1e-3);
+  std::map<long, std::vector<double>> binErr;
+  double t = 0.5;
+  while (t < 3600.0) {
+    t += gap(rng);
+    if (t > 570 && t < 2340) t = 2340 + gap(rng);
+    const double ticks = t * 1e9 / kTrue;
+    const auto raw = static_cast<std::uint32_t>(static_cast<std::uint64_t>(ticks) & 0x7FFFFFFFu);
+    const auto a = fit.map(raw, origin + static_cast<daq::UtcNs>((t + lat(rng)) * 1e9));
+    if (t > 2340 + 300) binErr[static_cast<long>(t / 600)].push_back(static_cast<double>(a.second - origin) * 1e-9 - t);
+  }
+  ASSERT_FALSE(binErr.empty());
+  double worst = 0;
+  for (auto& [b, v] : binErr) {
+    std::sort(v.begin(), v.end());
+    worst = std::max(worst, std::fabs(v[v.size() / 2]));
+  }
+  EXPECT_LT(worst, 1e-3) << worst;
+}
