@@ -1,6 +1,9 @@
 // run_writer.cpp
 #include "daq/io/run_writer.h"
 
+#include <algorithm>
+#include <tuple>
+
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -73,7 +76,10 @@ RunWriter::RunWriter(const daqrun::DaqrunConfig& cfg, const daqrun::RunReservati
       stats_(stats),
       flags_(cfg, mapping),
       evtFlagger_(cfg.gapProbability, cfg.burstProbability, cfg.tttPcToleranceS),
-      ttt_(st_.origin.utcBeforeStart, cfg.digitizer.tttTickNs, cfg.tttWrapBits),
+      ttt_(st_.origin.utcBeforeStart,
+           daqrun::TttClock::Params{8.0, cfg.digitizer.tttTickNs, cfg.tttWrapBits, cfg.tttClockFit, cfg.tttClockWindowS,
+                                    cfg.tttClockReanchorS, cfg.tttClockMinSpanS,
+                                    static_cast<std::size_t>(std::max(2, cfg.tttClockMinPoints))}),
       N_(cfg.digitizer.recordLength) {
   ev_.adc.resize(static_cast<std::size_t>(64 * N_));
   runStartUtc_ = st_.origin.utcBeforeStart;
@@ -110,6 +116,8 @@ Status RunWriter::open() { return openSegment(); }
 
 Status RunWriter::openSegment() {
   ++seg_;
+  if (seg_ > 1) ttt_.requestReanchor("segmento");  // se aplica con el primer evento del segmento
+  segAnchorFirst_ = ttt_.anchors().size() - 1;
   const std::string path = segmentPath(seg_);
   if (daqrun::fileNameUsedInAnyCampaign(run_.location().rawRoot, run_.segmentFile(seg_)))
     return Status::failure(-1, "el segmento " + run_.segmentFile(seg_) + " ya existe");
@@ -218,6 +226,15 @@ nlohmann::json RunWriter::runInfo(bool final) const {
           {"ttt_origin", {{"utc_before_start_ns", st_.origin.utcBeforeStart}, {"utc_after_start_ns", st_.origin.utcAfterStart}}},
           {"ttt_tick_ns", cfg_.digitizer.tttTickNs},
           {"ttt_tick_source", cfg_.digitizer.tttTickSource},
+          {"ttt_clock", [&] {
+             nlohmann::json j = ttt_.paramsJson();
+             nlohmann::json a = nlohmann::json::array();
+             const auto& an = ttt_.anchors();
+             for (std::size_t i = std::min(segAnchorFirst_, an.size() - 1); i < an.size(); ++i) a.push_back(an[i].toJson());
+             j["segment_anchors"] = a;  // ancla vigente al abrir el segmento y las nuevas
+             j["tick_ns_now"] = ttt_.tickNs();
+             return j;
+           }()},
           {"ttt_wrap_bits", cfg_.tttWrapBits},
           {"run_start_utc_ns", runStartUtc_},
           {"segment_open_utc_ns", segOpenUtc_},
@@ -308,8 +325,7 @@ Status RunWriter::addBlock(const dig::EventBlockPtr& b) {
     p.blk = b;
     p.idx = i;
     p.seq = nextSeq_++;
-    p.tttNs = ttt_.tttNs(e.tttRaw, b->tReadUtcNs);
-    p.tUtc = st_.origin.utcBeforeStart + p.tttNs;
+    std::tie(p.tttNs, p.tUtc) = ttt_.map(e.tttRaw, b->tReadUtcNs);
     p.dtPrev = lastTttNs_ >= 0 ? p.tttNs - lastTttNs_ : 0;
     lastTttNs_ = p.tttNs;
     p.evtFlags = evtFlagger_.flags(p.tUtc, b->tReadUtcNs, e.counterHw, b->boardFull && i == 0, p.dtPrev);

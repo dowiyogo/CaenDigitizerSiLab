@@ -218,4 +218,57 @@ class TttUnwrapper {
   std::int64_t last_ = -1;
 };
 
+// Reloj del TTT ajustado al PC (DAQ2-9). Con un tick fijo, t_utc se separa de la hora del PC a
+// razón del error del tick (run 8: 8.000071 frente a 8 ns, ~0.77 s por día). Aquí:
+//  - u = TTT desenrollado en ns de tick nominal; la vuelta se elige con la hora de lectura pasada a
+//    la escala de u con el modelo vigente (no se pierde aunque el run dure días);
+//  - ajuste por mínimos cuadrados y = c + s·u (y = t_read − origen) sobre las lecturas de los
+//    últimos window_s; s = tick real / nominal; c absorbe la latencia media de lectura;
+//  - re-anclaje cada reanchor_s (hora de lectura) y cuando lo pide el escritor (segmento nuevo):
+//    el modelo t_utc = t_ancla + (u − u_ancla)·s sigue continuo en el ancla, salvo en el primer
+//    ajuste válido, que ancla en el origen del run (t = origen + s·u) y deja registrado el salto
+//    (corrige el tick provisional de los primeros minutos);
+//  - con menos de min_points lecturas o un tramo menor que min_span_s se mantiene el tick vigente.
+// Determinista y sin hilos: pertenece al hilo escritor.
+class TttClock {
+ public:
+  struct Params {
+    double nominalTickNs = 8.0;   // escala de u (unwrap)
+    double initialTickNs = 8.0;   // tick provisional hasta el primer ajuste (digitizer.ttt_tick_ns)
+    int wrapBits = 31;
+    bool fit = true;              // false: tick fijo (comportamiento anterior)
+    double windowS = 3600, reanchorS = 600, minSpanS = 300;
+    std::size_t minPoints = 100;
+  };
+  struct Anchor {
+    UtcNs tUtcNs = 0;       // t_utc del ancla
+    std::int64_t uNs = 0;   // u del ancla
+    double tickNs = 0;      // tick usado desde el ancla
+    std::size_t nFit = 0;   // lecturas del ajuste (0: tick provisional)
+    double spanS = 0, residualRmsMs = 0;
+    std::int64_t jumpNs = 0;  // salto de t_utc en el ancla (solo el primer ajuste)
+    std::string reason;     // "inicio", "periódico", "segmento"
+    nlohmann::json toJson() const;
+  };
+  TttClock(UtcNs originUtc, const Params& p);
+  // Un evento, en orden: ttt_ns (= t_utc − origen) y t_utc.
+  std::pair<std::int64_t, UtcNs> map(std::uint32_t raw, UtcNs tReadUtc);
+  void requestReanchor(const std::string& reason) { pendingReason_ = reason; }
+  const std::vector<Anchor>& anchors() const { return anchors_; }
+  double tickNs() const { return anchors_.back().tickNs; }
+  nlohmann::json paramsJson() const;
+
+ private:
+  void reanchor(std::int64_t u, UtcNs tRead, const std::string& reason);
+  UtcNs model(std::int64_t u) const;
+  UtcNs origin_;
+  Params p_;
+  std::int64_t lastU_ = -1;
+  std::deque<std::pair<std::int64_t, std::int64_t>> win_;  // (u, t_read − origen)
+  std::vector<Anchor> anchors_;
+  UtcNs lastAnchorRead_ = 0;
+  bool fitted_ = false;
+  std::string pendingReason_;
+};
+
 }  // namespace daq::daqrun

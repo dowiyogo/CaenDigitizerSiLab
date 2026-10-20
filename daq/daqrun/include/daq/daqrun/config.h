@@ -41,6 +41,11 @@ struct DaqrunConfig {
   dig::DigitizerConfig digitizer;
   int tttWrapBits = 31;
   double tttPcToleranceS = 1.0;  // bit 4 de evt_flags
+  // digitizer.ttt_clock (DAQ2-9): t_utc con el tick ajustado contra el PC (TttClock); ttt_tick_ns es
+  // el tick provisional hasta el primer ajuste.
+  bool tttClockFit = true;
+  double tttClockWindowS = 3600, tttClockReanchorS = 600, tttClockMinSpanS = 300;
+  int tttClockMinPoints = 100;
   WindowLayout window;
   // run
   std::string mode = "physics";

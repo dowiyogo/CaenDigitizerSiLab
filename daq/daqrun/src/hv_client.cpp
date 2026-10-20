@@ -432,4 +432,95 @@ TttUnwrapper::TttUnwrapper(UtcNs originUtc, double tickNs, int wrapBits) : origi
 
 std::int64_t TttUnwrapper::tttNs(std::uint32_t raw, UtcNs tReadUtc) { return ttt::unwrap(raw, tReadUtc, origin_, p_, last_); }
 
+nlohmann::json TttClock::Anchor::toJson() const {
+  return {{"t_utc_ns", tUtcNs}, {"u_ns", uNs}, {"tick_ns", tickNs}, {"n_fit", nFit}, {"span_s", spanS},
+          {"residual_rms_ms", residualRmsMs}, {"jump_ns", jumpNs}, {"reason", reason}};
+}
+
+TttClock::TttClock(UtcNs originUtc, const Params& p) : origin_(originUtc), p_(p) {
+  Anchor a;
+  a.tUtcNs = originUtc;
+  a.tickNs = p.initialTickNs;
+  a.reason = "inicio";
+  anchors_.push_back(a);
+  lastAnchorRead_ = originUtc;
+}
+
+nlohmann::json TttClock::paramsJson() const {
+  return {{"method", p_.fit ? "ajuste lineal TTT contra la hora de lectura del PC en ventana deslizante, re-anclado periódico y por "
+                              "segmento, continuo en el ancla"
+                            : "tick fijo"},
+          {"nominal_tick_ns", p_.nominalTickNs}, {"initial_tick_ns", p_.initialTickNs}, {"window_s", p_.windowS},
+          {"reanchor_s", p_.reanchorS}, {"min_points", p_.minPoints}, {"min_span_s", p_.minSpanS}};
+}
+
+UtcNs TttClock::model(std::int64_t u) const {
+  const Anchor& a = anchors_.back();
+  return a.tUtcNs + static_cast<std::int64_t>(std::llround(static_cast<double>(u - a.uNs) * (a.tickNs / p_.nominalTickNs)));
+}
+
+void TttClock::reanchor(std::int64_t u, UtcNs tRead, const std::string& reason) {
+  lastAnchorRead_ = tRead;
+  if (!p_.fit) return;
+  if (win_.size() < p_.minPoints) return;
+  const double span = static_cast<double>(win_.back().first - win_.front().first) * 1e-9;
+  if (span < p_.minSpanS) return;
+  // Mínimos cuadrados centrados en la primera muestra (precisión en double).
+  const double u0 = static_cast<double>(win_.front().first), y0 = static_cast<double>(win_.front().second);
+  double su = 0, sy = 0, suu = 0, suy = 0;
+  for (const auto& [uu, yy] : win_) {
+    const double x = static_cast<double>(uu) - u0, y = static_cast<double>(yy) - y0;
+    su += x;
+    sy += y;
+    suu += x * x;
+    suy += x * y;
+  }
+  const double n = static_cast<double>(win_.size());
+  const double den = n * suu - su * su;
+  if (den <= 0) return;
+  const double s = (n * suy - su * sy) / den, c = (sy - s * su) / n;
+  double r2 = 0;
+  for (const auto& [uu, yy] : win_) {
+    const double r = (static_cast<double>(yy) - y0) - (c + s * (static_cast<double>(uu) - u0));
+    r2 += r * r;
+  }
+  Anchor a;
+  a.uNs = u;
+  a.tickNs = s * p_.nominalTickNs;
+  a.nFit = win_.size();
+  a.spanS = span;
+  a.residualRmsMs = std::sqrt(r2 / n) * 1e-6;
+  a.reason = reason;
+  const UtcNs cont = model(u);
+  if (!fitted_) {
+    a.tUtcNs = origin_ + static_cast<std::int64_t>(std::llround(static_cast<double>(u) * s));
+    a.jumpNs = a.tUtcNs - cont;
+    fitted_ = true;
+  } else {
+    a.tUtcNs = cont;
+  }
+  anchors_.push_back(a);
+}
+
+std::pair<std::int64_t, UtcNs> TttClock::map(std::uint32_t raw, UtcNs tReadUtc) {
+  // Hora de lectura en la escala de u con el modelo vigente: la vuelta se elige bien aunque el tick
+  // real difiera del nominal durante días.
+  const Anchor& a = anchors_.back();
+  const double ratio = a.tickNs / p_.nominalTickNs;
+  const UtcNs readU = origin_ + a.uNs + static_cast<std::int64_t>(std::llround(static_cast<double>(tReadUtc - a.tUtcNs) / ratio));
+  ttt::Params tp{p_.nominalTickNs, p_.wrapBits};
+  const std::int64_t u = ttt::unwrap(raw, readU, origin_, tp, lastU_);
+  win_.emplace_back(u, tReadUtc - origin_);
+  const std::int64_t windowNs = static_cast<std::int64_t>(p_.windowS * 1e9);
+  while (!win_.empty() && win_.back().second - win_.front().second > windowNs) win_.pop_front();
+  if (!pendingReason_.empty()) {
+    reanchor(u, tReadUtc, pendingReason_);
+    pendingReason_.clear();
+  } else if (static_cast<double>(tReadUtc - lastAnchorRead_) * 1e-9 >= p_.reanchorS) {
+    reanchor(u, tReadUtc, "periódico");
+  }
+  const UtcNs t = model(u);
+  return {t - origin_, t};
+}
+
 }  // namespace daq::daqrun

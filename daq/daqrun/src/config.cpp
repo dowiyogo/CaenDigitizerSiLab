@@ -48,6 +48,14 @@ Result<DaqrunConfig> DaqrunConfig::fromJson(const nlohmann::json& jIn) {
     c.digitizer = d.value();
     c.tttWrapBits = dj.value("ttt_wrap_bits", c.tttWrapBits);
     c.tttPcToleranceS = dj.value("ttt_pc_tolerance_s", c.tttPcToleranceS);
+    if (dj.contains("ttt_clock")) {
+      const auto& k = dj["ttt_clock"];
+      c.tttClockFit = k.value("fit", c.tttClockFit);
+      c.tttClockWindowS = k.value("window_s", c.tttClockWindowS);
+      c.tttClockReanchorS = k.value("reanchor_s", c.tttClockReanchorS);
+      c.tttClockMinSpanS = k.value("min_span_s", c.tttClockMinSpanS);
+      c.tttClockMinPoints = k.value("min_points", c.tttClockMinPoints);
+    }
     if (dj.contains("window_layout")) {
       const auto& w = dj["window_layout"];
       c.window.refOldRecordStartNs = w.value("ref_old_record_start_ns", c.window.refOldRecordStartNs);
@@ -179,6 +187,8 @@ nlohmann::json DaqrunConfig::toJson() const {
   nlohmann::json dj = digitizer.toJson();
   dj["ttt_wrap_bits"] = tttWrapBits;
   dj["ttt_pc_tolerance_s"] = tttPcToleranceS;
+  dj["ttt_clock"] = {{"fit", tttClockFit}, {"window_s", tttClockWindowS}, {"reanchor_s", tttClockReanchorS},
+                     {"min_span_s", tttClockMinSpanS}, {"min_points", tttClockMinPoints}};
   dj["window_layout"] = window.toJson();
   return {{"campaign", {{"name", campaign}, {"raw_root", rawRoot}, {"manifests_dir", manifestsDir}, {"operator", operatorName}}},
           {"digitizer", dj},

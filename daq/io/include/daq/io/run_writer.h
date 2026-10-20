@@ -3,7 +3,8 @@
 // del TFile y de sus TTree.
 //  - Eventos: línea de retardo flag_delay_s (5 s) antes de escribir, para fijar los bits HV con la
 //    lectura posterior (FlagEngine). Flags de evento: EventFlagger. TTT desenrollado con la hora del
-//    PC (TttUnwrapper); t_utc_ns = origen (UTC antes del start) + ttt_ns.
+//    PC; t_utc_ns = origen + ttt_ns, con el tick ajustado contra el PC por run (TttClock, DAQ2-9;
+//    método y anclas por segmento en run_info_json.ttt_clock).
 //  - Árboles: events (adc UShort_t[64][N], ch_flags[64], evt_flags, ...), hv (cada
 //    hv_snapshot_period_s y en cada cambio, más uno al abrir cada segmento), hv_changes (dedup por
 //    id), notes (las del intervalo del segmento, al cerrarlo), monitor (resúmenes por período).
@@ -119,7 +120,8 @@ class RunWriter {
   WriterStats& stats_;
   daqrun::FlagEngine flags_;
   daqrun::EventFlagger evtFlagger_;
-  daqrun::TttUnwrapper ttt_;
+  daqrun::TttClock ttt_;
+  std::size_t segAnchorFirst_ = 0;
   std::deque<Pending> pending_;
   std::uint64_t nextSeq_ = 0;
   std::int64_t lastTttNs_ = -1;

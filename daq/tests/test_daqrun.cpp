@@ -7,6 +7,8 @@
 
 #include <cstdio>
 #include <fstream>
+#include <cmath>
+#include <random>
 #include <set>
 
 #include "daq/core/file_system.h"
@@ -518,4 +520,53 @@ TEST(DaqrunDash, RatesLiveChannelsMedianAndAlerts) {
   in.noTriggerAlert = true;
   in.readout = {{"read_errors", 2}};
   EXPECT_EQ(dashJson(in)["alerts"].size(), 3u);
+}
+
+// TttClock (DAQ2-9): tick real 8.000071 ns (run 8), latencias de lectura de 1-12 ms, 0.73 Hz durante
+// 16 h, un hueco de 55 s y re-anclaje por segmento cada hora. Tras el primer ajuste el error de
+// t_utc contra la hora real del trigger queda bajo 1 ms; con el tick fijo de 8 ns crece a ~0.4 s.
+TEST(TttClock, FittedTickKeepsUtcWithinOneMillisecondOverSixteenHours) {
+  using namespace daq::daqrun;
+  constexpr double kTrue = 8.000071;
+  const daq::UtcNs origin = 1792444430LL * 1000000000LL;
+  TttClock::Params p;
+  p.initialTickNs = 8.0;
+  TttClock fit(origin, p);
+  p.fit = false;
+  TttClock fixed(origin, p);
+  std::mt19937_64 rng(7);
+  std::exponential_distribution<double> gap(0.73);
+  std::uniform_real_distribution<double> lat(1e-3, 12e-3);
+  double t = 0.5, maxErrAfterFit = 0, maxErrFixed = 0, nextSeg = 3600;
+  std::size_t n = 0;
+  while (t < 16 * 3600.0) {
+    t += gap(rng);
+    if (n == 20000) t += 55.0;  // hueco de 55 s (más de tres vueltas del TTT)
+    if (t > nextSeg) {
+      fit.requestReanchor("segmento");
+      nextSeg += 3600;
+    }
+    const double ticks = t * 1e9 / kTrue;
+    const auto raw = static_cast<std::uint32_t>(static_cast<std::uint64_t>(ticks) & 0x7FFFFFFFu) | (t > 17.2 ? 0x80000000u : 0u);
+    const daq::UtcNs tRead = origin + static_cast<daq::UtcNs>((t + lat(rng)) * 1e9);
+    const daq::UtcNs truth = origin + static_cast<daq::UtcNs>(t * 1e9);
+    const auto a = fit.map(raw, tRead);
+    const auto b = fixed.map(raw, tRead);
+    if (t > 700) maxErrAfterFit = std::max(maxErrAfterFit, std::fabs(static_cast<double>(a.second - truth)) * 1e-9);
+    maxErrFixed = std::max(maxErrFixed, std::fabs(static_cast<double>(b.second - truth)) * 1e-9);
+    ++n;
+  }
+  EXPECT_LT(maxErrAfterFit, 1e-3) << maxErrAfterFit;
+  EXPECT_GT(maxErrFixed, 0.4) << maxErrFixed;
+  EXPECT_NEAR(fit.tickNs(), kTrue, 2e-5);
+  // Anclas: inicio, primer ajuste (con salto), luego continuas (jump 0); una por segmento.
+  const auto& an = fit.anchors();
+  ASSERT_GE(an.size(), 90u);
+  EXPECT_EQ(an[0].reason, "inicio");
+  EXPECT_NE(an[1].jumpNs, 0);
+  for (std::size_t i = 2; i < an.size(); ++i) EXPECT_EQ(an[i].jumpNs, 0);
+  std::size_t seg = 0;
+  for (const auto& x : an) seg += x.reason == "segmento";
+  EXPECT_EQ(seg, 16u);  // t = 1 h, 2 h, ..., 16 h
+  EXPECT_EQ(fixed.anchors().size(), 1u);
 }
