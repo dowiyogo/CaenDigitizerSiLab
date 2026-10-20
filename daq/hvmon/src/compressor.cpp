@@ -1,6 +1,8 @@
 // compressor.cpp
 #include "daq/hvmon/compressor.h"
 
+#include <sys/stat.h>
+
 #include <dirent.h>
 #include <sys/resource.h>
 #include <sys/syscall.h>
@@ -66,6 +68,14 @@ std::vector<std::string> Compressor::closedDailyFiles(const std::string& baseDir
 }
 
 Result<GzipResult> Compressor::compressOne(const std::string& path) {
+  // Encolado dos veces (rotación del escritor y búsqueda de días cerrados): ya está comprimido.
+  struct stat sb {};
+  if (::stat(path.c_str(), &sb) != 0 && ::stat((path + ".gz").c_str(), &sb) == 0) {
+    ++skipped_;
+    logDebug("compresión: ", path, " ya comprimido, se omite");
+    hub_.compressor.publish(status());
+    return GzipResult{};
+  }
   auto r = gzipFileVerified(path, path + ".gz", /*removeSource=*/true);
   if (r) {
     ++done_;
@@ -85,7 +95,7 @@ Result<GzipResult> Compressor::compressOne(const std::string& path) {
 }
 
 nlohmann::json Compressor::status() const {
-  return nlohmann::json{{"compressed", done_}, {"failed", failed_}, {"in_bytes", inBytes_}, {"gz_bytes", outBytes_},
+  return nlohmann::json{{"compressed", done_}, {"failed", failed_}, {"skipped", skipped_}, {"in_bytes", inBytes_}, {"gz_bytes", outBytes_},
                         {"last", last_}};
 }
 

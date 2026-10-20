@@ -17,6 +17,7 @@
 #pragma once
 
 #include <map>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <set>
@@ -80,6 +81,10 @@ class SlowControlWriter {
   const WriterHealth& health() const { return health_; }
   // Fase 2: al rotar, encola los archivos del día cerrado para comprimirlos (nullptr = no).
   void setCompressionQueue(BoundedQueue<std::string>* q) { compressQ_ = q; }
+  // DAQ2-9: se llama una vez por cambio de fecha (con la fecha nueva), después de cerrar TODOS los
+  // archivos del día anterior; hvmon encola ahí los días cerrados que dejaron otros procesos (p. ej.
+  // la parte 1 de hv_full_20261019, escrita antes de un reinicio).
+  void setDayChangeHook(std::function<void(const std::string& newDate)> f) { dayHook_ = std::move(f); }
   static std::string dateKey(UtcNs t);  // "YYYYMMDD" en UTC
 
  private:
@@ -115,6 +120,9 @@ class SlowControlWriter {
   WriterHealth health_;
   std::string lastLoggedError_;
   BoundedQueue<std::string>* compressQ_ = nullptr;
+  std::function<void(const std::string&)> dayHook_;
+  std::string lastDate_;  // fecha de la última línea escrita (cambio de día)
+  void closeOldDays(const std::string& date);
 };
 
 // Esquemas (también se escriben como .schema.json).

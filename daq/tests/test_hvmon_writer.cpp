@@ -257,3 +257,35 @@ TEST(HvmonWriter, MissingBoardReadingNeverMixesColumns) {
   while (auto p = q.try_pop()) queued.insert(*p);
   EXPECT_EQ(queued, (std::set<std::string>{"/sc/2026/hv_full_20261018.csv", "/sc/2026/hv_full_20261018.2.csv"}));
 }
+
+// DAQ2-9 (hv_full_20261019.csv quedó sin comprimir): al cambiar de fecha se cierran TODOS los flujos
+// del día anterior, también los que no reciben líneas el día nuevo (hv_changes), y el gancho del
+// cambio de día se llama una sola vez con la fecha nueva (hvmon encola ahí los días cerrados que
+// dejaron otros procesos).
+TEST(HvmonWriter, DayChangeClosesIdleStreamsAndCallsHookOnce) {
+  WRig r;
+  BoundedQueue<std::string> q(10);
+  r.w.setCompressionQueue(&q);
+  std::vector<std::string> hook;
+  r.w.setDayChangeHook([&](const std::string& d) { hook.push_back(d); });
+  r.w.handle(FastRows{reading(r.clock), 1});  // 23:59:58Z del 18
+  ChangeRecord c;
+  c.id = 1;
+  c.tUtcNs = r.clock.now_utc_ns();
+  c.ch = 0;
+  c.param = "Status";
+  c.oldValue = 1;
+  c.newValue = 3;
+  c.origin = "external";
+  r.w.handle(ChangeItem{c});
+  r.clock.advance(3s);
+  r.w.handle(FastRows{reading(r.clock), 2});  // 00:00:01Z del 19: solo hv recibe líneas
+  std::set<std::string> queued;
+  while (auto p = q.try_pop()) queued.insert(*p);
+  EXPECT_EQ(queued, (std::set<std::string>{"/sc/2026/hv_20261018.csv", "/sc/2026/hv_changes_20261018.jsonl"}));
+  EXPECT_EQ(hook, (std::vector<std::string>{"20261019"}));
+  r.clock.advance(3s);
+  r.w.handle(FastRows{reading(r.clock), 3});
+  EXPECT_EQ(hook.size(), 1u);
+  EXPECT_FALSE(q.try_pop().has_value());
+}

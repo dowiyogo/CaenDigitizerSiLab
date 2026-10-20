@@ -221,15 +221,13 @@ std::string SlowControlWriter::pathForHeader(const std::string& base, const std:
 void SlowControlWriter::writeDaily(const std::string& kind, const std::string& ext, UtcNs t, const std::string& header,
                                    const nlohmann::json& schema, const std::string& line) {
   const std::string date = dateKey(t);
+  if (!lastDate_.empty() && date > lastDate_) closeOldDays(date);  // rotación a medianoche UTC
+  if (date > lastDate_) lastDate_ = date;
   Stream& s = streams_[kind];
-  if (!s.date.empty() && s.date != date) {  // rotación a medianoche UTC
+  if (!s.date.empty() && s.date != date) {  // línea de otra fecha (p. ej. atrasada): solo cierra
     if (s.file) syncStream(s);
     health_.openFiles.erase(s.path);
     s.file.reset();
-    for (const auto& p : s.dayPaths)
-      if (compressQ_ && !compressQ_->try_push(p, DropPolicy::DropNewest))
-        logWarn("cola de compresión llena: ", p, " queda sin comprimir");
-    s.dayPaths.clear();
   } else if (s.file && s.header != header) {  // cambiaron las columnas (p. ej. falló la lectura de la placa)
     syncStream(s);
     health_.openFiles.erase(s.path);
@@ -247,6 +245,24 @@ void SlowControlWriter::writeDaily(const std::string& kind, const std::string& e
     s.dayPaths.insert(path);
   }
   writeTo(s, line);
+}
+
+// Cierra todos los flujos con fecha anterior a `date` (también los que no reciben líneas ese día,
+// como hv_changes o notes sin cambios) y encola sus partes para comprimir; luego avisa al gancho.
+void SlowControlWriter::closeOldDays(const std::string& date) {
+  for (auto& kv : streams_) {
+    Stream& s = kv.second;
+    if (s.date.empty() || s.date >= date) continue;
+    if (s.file) syncStream(s);
+    health_.openFiles.erase(s.path);
+    s.file.reset();
+    for (const auto& p : s.dayPaths)
+      if (compressQ_ && !compressQ_->try_push(p, DropPolicy::DropNewest))
+        logWarn("cola de compresión llena: ", p, " queda sin comprimir");
+    s.dayPaths.clear();
+    s.date.clear();
+  }
+  if (dayHook_) dayHook_(date);
 }
 
 void SlowControlWriter::handle(const WriterItem& item) {

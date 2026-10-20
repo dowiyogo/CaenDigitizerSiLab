@@ -4,7 +4,8 @@
 // gzipFileVerified (zlib en proceso): escribe <archivo>.gz, lo descomprime y compara bytes, líneas
 // y CRC32, y solo entonces borra el archivo plano. Los .schema.json quedan planos. Si la
 // verificación falla, el archivo plano queda y el .gz se renombra a .gz.failed.
-// Al arrancar también se encolan los días cerrados que hayan quedado sin comprimir.
+// Al arrancar y en cada cambio de fecha (gancho del escritor, DAQ2-9) también se encolan los días
+// cerrados que hayan quedado sin comprimir; uno ya comprimido (plano ausente, .gz presente) se omite.
 // Seguridad entre hilos: una instancia pertenece al hilo compresor; publica en StateHub::compressor.
 #pragma once
 
@@ -31,7 +32,7 @@ class Compressor {
 
  private:
   StateHub& hub_;
-  std::uint64_t done_ = 0, failed_ = 0, inBytes_ = 0, outBytes_ = 0;
+  std::uint64_t done_ = 0, failed_ = 0, skipped_ = 0, inBytes_ = 0, outBytes_ = 0;
   nlohmann::json last_;
 };
 

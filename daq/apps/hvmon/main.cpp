@@ -179,6 +179,9 @@ int main(int argc, char** argv) {
   Compressor compressor(hub);
   if (cfg.compressClosedDays) {
     writer.setCompressionQueue(&compressQ);
+    writer.setDayChangeHook([&](const std::string& newDate) {
+      for (const auto& f : Compressor::closedDailyFiles(cfg.slowcontrolDir, newDate)) compressQ.try_push(f, DropPolicy::DropNewest);
+    });
     for (const auto& f : Compressor::closedDailyFiles(cfg.slowcontrolDir, SlowControlWriter::dateKey(clock.now_utc_ns())))
       compressQ.try_push(f, DropPolicy::DropNewest);
   }

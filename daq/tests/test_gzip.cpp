@@ -100,6 +100,10 @@ TEST(Compressor, SelectsOnlyClosedDailyFilesAndKeepsSchemas) {
   EXPECT_TRUE(exists(base + "/2026/hv_20261018.csv.schema.json"));  // el esquema queda plano
   EXPECT_TRUE(exists(base + "/2026/hv_20261019.csv"));              // el día de hoy no se toca
   EXPECT_EQ(hub.compressor.read().first["compressed"], 4);
+  // Encolado otra vez (rotación + búsqueda de días cerrados, DAQ2-9): se omite sin error.
+  ASSERT_TRUE(c.compressOne(base + "/2026/hv_20261018.csv").ok());
+  EXPECT_EQ(hub.compressor.read().first["skipped"], 1);
+  EXPECT_EQ(hub.compressor.read().first["failed"], 0);
 }
 
 TEST(Gzip, CompressedFileKeepsSourceMode) {
