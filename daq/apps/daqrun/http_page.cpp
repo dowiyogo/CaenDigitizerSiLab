@@ -48,11 +48,19 @@ Result<std::unique_ptr<DaqrunPage>> DaqrunPage::create(const DaqrunConfig& cfg, 
   p->json_ = std::make_unique<TNamed>("state_json", "{}");
   p->server_->Register("/status", p->table_.get());
   p->server_->Register("/status", p->json_.get());
+  // Vista general al abrir la página (fase 5): tasa de trigger, mapa de tasas, cara Trasera, vivos,
+  // muestra del mínimo y flags; el resto en carpetas.
+  std::string items;
+  for (const auto& i : io::PanelRoot::defaultDrawItems()) items += (items.empty() ? "" : ",") + ("\"" + i + "\"");
+  p->server_->SetItemField("/", "_layout", "grid3x2");
+  p->server_->SetItemField("/", "_drawitem", ("[" + items + "]").c_str());
+  p->server_->SetItemField("/", "_monitoring", "5000");
   return p;
 }
 
 DaqrunPage::~DaqrunPage() {
   if (server_) {
+    panels_.unregisterFrom(*server_);
     for (TObject* o : std::initializer_list<TObject*>{dt_.get(), oot_.get(), amp_.get(), chFlags_.get(), evtFlags_.get(),
                                                       rate_.get(), table_.get(), json_.get()})
       if (o) server_->Unregister(o);
@@ -90,6 +98,11 @@ void DaqrunPage::update(const MonitorView& v, const HvSample& hv, const nlohmann
   os << "segmento: " << w.value("current_segment", "") << "   cerrados: " << w.value("segments_closed", 0) << "\n";
   table_->SetTitle(os.str().c_str());
   json_->SetTitle(status.dump().c_str());
+}
+
+void DaqrunPage::updatePanels(const PanelView& p, const DataFlagView& d, double leakRatio) {
+  panels_.update(p, d, leakRatio);
+  if (server_) panels_.registerIn(*server_);
 }
 
 void DaqrunPage::processRequests() {

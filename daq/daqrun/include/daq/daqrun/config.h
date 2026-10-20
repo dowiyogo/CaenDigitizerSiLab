@@ -15,6 +15,7 @@
 
 #include "daq/core/result.h"
 #include "daq/dig/digitizer.h"
+#include "daq/daqrun/panels.h"
 #include "daq/hv/status_bits.h"
 
 namespace daq::daqrun {
@@ -121,6 +122,7 @@ struct DaqrunConfig {
   double minTriggerRateHz = 0.1;   // ... o tasa bajo este valor en la ventana
   double triggerRateWindowMin = 10.0;
   DataFlagConfig dataFlags;  // data_flags
+  PanelConfig panels;        // panels (paneles en tiempo, fase 5)
 
   bool simulated() const { return digitizer.backend != "caen"; }
   std::string campaignDir() const { return rawRoot + "/" + campaign; }

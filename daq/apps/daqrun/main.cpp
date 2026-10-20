@@ -300,7 +300,7 @@ int main(int argc, char** argv) {
   auto queueLevels = [&] {
     return nlohmann::json{{"writer", writerQ.size()}, {"monitor", monitorQ.size()}, {"hv", hvQ.size()}};
   };
-  Monitor monitor(cfg, rs.origin.utcBeforeStart, queueLevels);
+  Monitor monitor(cfg, rs.origin.utcBeforeStart, queueLevels, &mapping.value());
 
   std::unique_ptr<DaqrunPage> page;
   if (cfg.httpEnabled) {
@@ -463,6 +463,7 @@ int main(int argc, char** argv) {
   JThread readoutThread([&](StopToken st) { readoutResult = readout.run(st); });
 
   SteadyTime nextPage = clock.now_steady();
+  std::uint64_t lastPanelSeq = 0;
   SteadyTime deadline{};
   bool stopping = false;
   while (!writerDone.load()) {
@@ -504,6 +505,10 @@ int main(int argc, char** argv) {
                                   {"monitor_queue", monitorQ.size()},
                                   {"monitor_capacity", monitorQ.capacity()}};
       page->update(view, hvNow, status);
+      if (const auto [pv, pseq] = monitor.panels(); pseq != lastPanelSeq) {
+        page->updatePanels(pv, dv, cfg.dataFlags.lightLeakRatio);
+        lastPanelSeq = pseq;
+      }
       nextPage = clock.now_steady() + std::chrono::seconds(1);
     }
     if (page) page->processRequests();

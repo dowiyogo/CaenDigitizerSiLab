@@ -1,6 +1,7 @@
 // monitor.cpp
 #include "daq/daqrun/monitor.h"
 
+#include <chrono>
 #include <cmath>
 
 #include "daq/pulse_finder.h"
@@ -12,12 +13,14 @@ constexpr double kSampleS = 16e-9;
 pulse::Region region(std::pair<int, int> p) { return pulse::Region{p.first, p.second}; }
 }  // namespace
 
-Monitor::Monitor(const DaqrunConfig& cfg, UtcNs originUtc, std::function<nlohmann::json()> queueLevels)
+Monitor::Monitor(const DaqrunConfig& cfg, UtcNs originUtc, std::function<nlohmann::json()> queueLevels,
+                 const hvmon::Mapping* mapping)
     : cfg_(cfg),
       ttt_(originUtc, cfg.digitizer.tttTickNs, cfg.tttWrapBits),
       queues_(std::move(queueLevels)),
       lsb_(dig::AdcConversion{cfg.digitizer.nBit, cfg.digitizer.maxVpp, 0x7FFF}.lsbMv()),
-      origin_(originUtc) {
+      origin_(originUtc),
+      mapping_(mapping) {
   v_.ampBinMv = lsb_;
   v_.ampBins = std::max(1, static_cast<int>(cfg.ampHistMaxMv / lsb_));
   v_.amp.assign(static_cast<std::size_t>(64 * v_.ampBins), 0);
@@ -35,6 +38,8 @@ void Monitor::process(const dig::EventBlock& blk) {
   const double trimAdc = cfg_.trimMv / lsb_;
   const double lowest = 2.0 * lsb_;  // espectro: todo pulso sobre 2 LSB
   std::vector<pulse::Pulse> pulses;
+  if (!panels_) panels_ = std::make_unique<Panels>(cfg_, mapping_, n, lsb_);
+  std::array<double, 64> bls{};
   for (const auto& ev : blk.events) {
     const std::int64_t t = ttt_.tttNs(ev.tttRaw, blk.tReadUtcNs);
     const UtcNs tUtc = origin_ + t;
@@ -57,6 +62,7 @@ void Monitor::process(const dig::EventBlock& blk) {
       const int st = c < 32 ? 0 : 1;
       const double thr = cfg_.provisionalThresholdMv[st];
       const double bl = pulse::trimmedMean(x, region(w.pedestal), trimAdc);
+      bls[static_cast<std::size_t>(c)] = bl;
       const int nIn = pulse::countPulses(x, n, bl, lsb_, thr, cfg_.minSeparationSamples, inTime);
       pulses.clear();
       pulse::findPulses(x, n, bl, lsb_, lowest, cfg_.minSeparationSamples, oot, pulses);
@@ -87,6 +93,7 @@ void Monitor::process(const dig::EventBlock& blk) {
       v_.ootTimeS[ci] += exposed;
       v_.inTimeCounts[ci] += static_cast<std::uint64_t>(nIn);
     }
+    panels_->event(ev, bls, tUtc);
   }
 }
 
@@ -102,6 +109,10 @@ bool Monitor::takeSummary(UtcNs now, MonitorSummary& out, std::uint64_t monitorD
   v_.last = cur_;
   v_.rateHistory.emplace_back(now, cur_.triggerRateHz);
   if (v_.rateHistory.size() > 1440) v_.rateHistory.erase(v_.rateHistory.begin());
+  if (panels_) {
+    panels_->period(cur_, v_.amp, v_.ampBins, v_.ampBinMv);
+    panelView_.publish(panels_->view());
+  }
   v_.recent.push_back(cur_);
   if (v_.recent.size() > MonitorView::kRecent) v_.recent.erase(v_.recent.begin());
   cur_ = MonitorSummary{};
@@ -109,6 +120,16 @@ bool Monitor::takeSummary(UtcNs now, MonitorSummary& out, std::uint64_t monitorD
   return true;
 }
 
-void Monitor::publishView() { view_.publish(v_); }
+void Monitor::publishView() {
+  view_.publish(v_);
+  // Paneles: copia más grande (~1 MB), cada 5 s.
+  const auto ms = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                 std::chrono::steady_clock::now().time_since_epoch()).count());
+  if (panels_ && ms - panelPublishMs_ >= 5000) {
+    panels_->refresh();
+    panelView_.publish(panels_->view());
+    panelPublishMs_ = ms;
+  }
+}
 
 }  // namespace daq::daqrun

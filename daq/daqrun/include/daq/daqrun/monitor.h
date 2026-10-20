@@ -16,6 +16,7 @@
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <vector>
 
 #include <nlohmann/json.hpp>
@@ -24,6 +25,7 @@
 #include "daq/daqrun/config.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/dig/digitizer.h"
+#include "daq/daqrun/panels.h"
 
 namespace daq::daqrun {
 
@@ -58,12 +60,15 @@ struct MonitorView {
 
 class Monitor {
  public:
-  Monitor(const DaqrunConfig& cfg, UtcNs originUtc, std::function<nlohmann::json()> queueLevels = {});
+  Monitor(const DaqrunConfig& cfg, UtcNs originUtc, std::function<nlohmann::json()> queueLevels = {},
+          const hvmon::Mapping* mapping = nullptr);
   void process(const dig::EventBlock& blk);
   // Si pasó summary_period_s desde el inicio del período, cierra el período y lo devuelve.
   bool takeSummary(UtcNs now, MonitorSummary& out, std::uint64_t monitorDropped);
   void publishView();
   std::pair<MonitorView, std::uint64_t> view() const { return view_.read(); }
+  // Paneles en tiempo (fase 5): se publican cada 5 s y al cerrar cada período.
+  std::pair<PanelView, std::uint64_t> panels() const { return panelView_.read(); }
 
  private:
   const DaqrunConfig& cfg_;
@@ -77,6 +82,10 @@ class Monitor {
   MonitorView v_;
   Snapshot<MonitorView> view_;
   std::vector<std::uint16_t> scratch_;
+  const hvmon::Mapping* mapping_ = nullptr;
+  std::unique_ptr<Panels> panels_;  // se crea con el primer bloque (longitud de registro)
+  Snapshot<PanelView> panelView_;
+  std::uint64_t panelPublishMs_ = 0;
 };
 
 }  // namespace daq::daqrun

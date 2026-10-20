@@ -16,6 +16,7 @@
 #include "daq/daqrun/config.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/daqrun/monitor.h"
+#include "daq/io/panels_root.h"
 
 class THttpServer;
 class TH1D;
@@ -30,6 +31,8 @@ class DaqrunPage {
   static Result<std::unique_ptr<DaqrunPage>> create(const DaqrunConfig& cfg, const std::string& bindAddress);
   ~DaqrunPage();
   void update(const MonitorView& v, const HvSample& hv, const nlohmann::json& status);
+  // Paneles en tiempo y bits de datos (fase 5); solo cuando cambió la vista del monitor.
+  void updatePanels(const PanelView& p, const DataFlagView& d, double leakRatio);
   void processRequests();
   const std::string& url() const { return url_; }
 
@@ -40,6 +43,7 @@ class DaqrunPage {
   std::unique_ptr<TH2F> amp_;
   std::unique_ptr<TGraph> rate_;
   std::unique_ptr<TNamed> table_, json_;
+  io::PanelRoot panels_;
   std::string url_;
 };
 
