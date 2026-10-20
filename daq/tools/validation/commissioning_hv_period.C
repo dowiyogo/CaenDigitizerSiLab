@@ -6,6 +6,9 @@
 // origen = primer evento), calcula por grupo HV la tasa fuera de tiempo por canal en cada bin
 // (hod2018 > 3·G de v8 y hod2019 > 3 mV: columna A; hod2019 > 5 mV: columna B) y el coeficiente de
 // Pearson con el IMon del canal HV en los mismos bins. Canales de grupo desconocido no entran.
+// day: "YYYYMMDD" o "YYYYMMDD:YYYYMMDD" (rango de días, p. ej. una noche). Por canal también la
+// estadística de VMon en el período (media, desviación, mín, máx y paso de cuantización = menor
+// diferencia no nula entre valores distintos).
 // Uso: root -l -b -q 'daq/tools/validation/commissioning_hv_period.C("20261019", "2026-10-19T16:30:00Z",
 //        "2026-10-19T21:00:00Z", "out", 600, "outputs/daq2-6/s4a_runs78.oot_bins.csv")'
 R__ADD_INCLUDE_PATH(daq/io/include)
@@ -18,6 +21,7 @@ R__LOAD_LIBRARY(daq/build/io/libdaq_screader.so)
 #include <ctime>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -62,12 +66,17 @@ void commissioning_hv_period(const char* day, const char* from, const char* to, 
                              const char* ootBins = "", const char* mappingFile = "daq/config/mapping/hodo_mapping_2026_10.json",
                              const char* scDir = "/data/daq/slowcontrol") {
   const Long64_t t0 = parseUtc(from), t1 = parseUtc(to);
+  const std::string days(day);
+  const std::string dayFrom = days.substr(0, days.find(':')),
+                    dayTo = days.find(':') == std::string::npos ? dayFrom : days.substr(days.find(':') + 1);
+  std::vector<double> vSum(8, 0), vSum2(8, 0), vN(8, 0), vMin(8, 1e9), vMax(8, -1e9);
+  std::vector<std::set<double>> vVals(8);
   const int nbins = static_cast<int>((t1 - t0) / 1e9 / binS) + 1;
   std::vector<std::vector<double>> iS(8, std::vector<double>(nbins, 0)), vS = iS, nS = iS;
   std::vector<double> tS(nbins, 0), tN(nbins, 0), v0set(8, NAN), i0set(8, NAN);
   std::vector<double> iMin(8, 1e9), iMax(8, -1e9);
   std::string err;
-  TTree* sc = daq::io::readSlowControl(scDir, "hv", day, day, &err);
+  TTree* sc = daq::io::readSlowControl(scDir, "hv", dayFrom, dayTo, &err);
   if (!sc) {
     printf("hv: %s\n", err.c_str());
     return;
@@ -95,10 +104,16 @@ void commissioning_hv_period(const char* day, const char* from, const char* to, 
     v0set[ch] = v0;
     i0set[ch] = i0;
     iMin[ch] = std::min(iMin[ch], imon);
+    vSum[ch] += vmon;
+    vSum2[ch] += vmon * vmon;
+    vN[ch] += 1;
+    vMin[ch] = std::min(vMin[ch], vmon);
+    vMax[ch] = std::max(vMax[ch], vmon);
+    vVals[ch].insert(std::round(vmon * 1e4) / 1e4);
     iMax[ch] = std::max(iMax[ch], imon);
   }
   delete sc;
-  TTree* full = daq::io::readSlowControl(scDir, "hv_full", day, day, &err);
+  TTree* full = daq::io::readSlowControl(scDir, "hv_full", dayFrom, dayTo, &err);
   double tempMin = 1e9, tempMax = -1e9;
   if (full) {
     Double_t temp = NAN;
@@ -131,6 +146,17 @@ void commissioning_hv_period(const char* day, const char* from, const char* to, 
       }
     printf("%02d  %7.3f  %8.3f  %6.3f-%6.3f            %5.2f                    %6.3f-%6.3f\n", h, v0set[h], i0set[h] * 1e6, iMin[h] * 1e6,
            iMax[h] * 1e6, i0set[h] / iMax[h], dmin, dmax);
+  }
+  printf("VMon por canal en el período: CH  media_V  desv_V  mín_V  máx_V  paso_V  valores_distintos  lecturas\n");
+  for (int h = 0; h < 8; ++h) {
+    const double m = vN[h] > 0 ? vSum[h] / vN[h] : NAN;
+    const double sd = vN[h] > 1 ? std::sqrt(std::max(0.0, vSum2[h] / vN[h] - m * m)) : NAN;
+    double step = NAN, prev = NAN;
+    for (double v : vVals[h]) {
+      if (std::isfinite(prev) && v - prev > 0 && !(step <= v - prev)) step = v - prev;
+      prev = v;
+    }
+    printf("  %02d  %.4f  %.4f  %.3f  %.3f  %.4f  %zu  %.0f\n", h, m, sd, vMin[h], vMax[h], step, vVals[h].size(), vN[h]);
   }
   FILE* csv = fopen((std::string(out) + ".csv").c_str(), "w");
   fprintf(csv, "bin,t_start_utc_ns,board_temp_degC");
