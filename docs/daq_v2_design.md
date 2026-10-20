@@ -1619,6 +1619,90 @@ Paso 4 con HV encendida (runs 7 y 8, trigger externo, ventana B, 17:08:49Z-19:29
     temperatura de la placa; (d) recalibración de p.e. de octubre (la vista previa del run 6 no
     es una calibración).
 
+### 15.6 DAQ2-7 y DAQ2-8 (run nocturno y paneles numéricos)
+
+82. **Tope de correos por proceso**: `notifier.max_messages` (0 = sin límite; los de prueba no
+    cuentan, los recuperados del outbox sí) y `notifier.only_kinds` (lista de tipos aceptados;
+    vacía = todos, DAQ2-9): una tarea puede autorizar un número y unos tipos de correo.
+83. **Origen del tick en la cabecera**: `digitizer.ttt_tick_source` (texto) va a `run_info_json`.
+84. **Páginas `/dash/`** de hvmon (8081) y daqrun (8080): un HTML estático embebido en el binario,
+    JavaScript sin bibliotecas, lee `/status/state_json/root.json.gz` cada 2 s (~1.6 kB); hvmon
+    publica `stats_10min` (media y desviación de VMon/IMon de 10 min) por canal. `/dash/` lo sirve
+    `daq::io::DashServer` (con `AddLocation`, civetweb responde 403 a un directorio).
+85. **Entradas de los histogramas de la página**: `SetBinContent` suma una entrada por llamada
+    (pulses/amp mostraba 515973120 = 13056 bins × 39520 refrescos); `refreshEntries()` deja la
+    suma de contenidos. Contenidos y `oot_rate` no estaban afectados.
+
+### 15.7 Fase 5 (DAQ2-9): bits de datos, paneles en tiempo, aviso de fuga de luz
+
+Validación offline con `daqoffline` (mismo código que daqrun, salida en
+`/data/daq/sim/offline/`) sobre los runs 7-8 de `commissioning_2026_10`, el run nocturno
+`night_2026_10_19` y un escenario sintético; un run real de 60 min en `phase5_test_2026_10_20`.
+
+86. **Compresión de días cerrados**: al cambiar de fecha el escritor de hvmon cierra todos los
+    flujos del día anterior (también los que no reciben líneas, como `hv_changes` y `notes`) y un
+    gancho encola los días cerrados que dejaron otros procesos; uno ya comprimido se omite. Causa
+    de que `hv_full_20261019.csv` (parte 1, escrita antes de un reinicio) quedara plano hasta el
+    arranque siguiente; se comprimió y verificó entonces (13:37:08Z del 2026-10-20).
+87. **Reloj del TTT por run (`TttClock`, `digitizer.ttt_clock`)**: la razón TTT/reloj del PC varía
+    unos ppm en 10-20 min (run 8: con tick fijo t_read − t_utc crece entre 4.0 y 6.8 ms cada
+    10 min, y el percentil 5 de la latencia lo sigue). Ajuste robusto (mínimos cuadrados, descarte a
+    5 MAD, nuevo ajuste, ordenada = mediana de los residuos) sobre los últimos `window_s` = 300 s,
+    re-anclado cada `reanchor_s` = 60 s y al abrir cada segmento en la recta ajustada menos la
+    latencia del primer ajuste, que espera `first_fit_s` = 600 s (con 70 s el error de la
+    latencia, ~1 ms, quedaba como desplazamiento fijo). Resultado offline: mediana de
+    t_read − t_utc por 10 min entre 3.873 y 4.174 ms en el run 8 tras el primer ajuste (tick fijo:
+    7.249 → 61.617 ms en 1.8 h), entre 4.018 y 4.742 ms en las 15.8 h de la noche; salto máximo en
+    un ancla 0.993 ms (runs 7-8) y 1.269 ms (noche). Método y anclas por segmento en
+    `run_info_json.ttt_clock`. Con 3600/600 s la dispersión era 1.4 ms en el run 8.
+88. **Bit 7 (fuga de luz)** por cara física de hod2019 (hod2018 no tiene caras en el mapeo de
+    octubre): pulsos fuera de tiempo > 20/3 mV en `window_s` = 600 s; base = mediana de las
+    ventanas anteriores de la unidad en `baseline_hours` = 3 h, terminadas antes de la ventana
+    actual y sin episodio activo, con al menos `baseline_min_s` = 1800 s de historia, o una base
+    explícita (`data_flags.baselines`). Condición: razón > `light_leak_ratio` = 2 y
+    P(N ≥ n | μ) < `significance_p` = 1e-6, decidido si μ ≥ `min_expected_counts` = 20 **o** si
+    n ≥ 20 y la base reúne ≥ `min_baseline_counts` = 30 cuentas (cambio respecto de 6.4: en los
+    runs 7-8 la base de la tarde era ~1.4 kHz por canal, μ ≈ 9 en 10 min, y con la regla de 6.4 el
+    bit 7 llegaba a las 19:00:10Z con razón 19; con la nueva, a las 18:06:07Z).
+89. **Bit 6 (apagón inferido)** por grupo HV: pulsos > 3 mV (hod2018) y > 1.5 mV (hod2019) en
+    `blackout_window_s` = 300 s (con HV apagada, run004, la mediana por canal es 0 en ambos
+    umbrales; con HV encendida 1646.6 kHz y 14.1 kHz); razón < 0.1, P(N ≤ n | μ) < 1e-6, μ ≥ 20.
+    Una ventana de 10 min tardaba ~9 min en bajar de 0.1; con 5 min el grupo más chico de hod2019
+    (3 canales a ~14 kHz) llega a μ ≈ 20.
+90. **Bits 8 y 11, bit 6 de evento**: bit 8 con el canal HV en `STABILIZING(k)` del auto-retry;
+    bit 11 cuando la prueba de la unidad no se pudo hacer; bit 6 de evento mientras alguna unidad
+    no tiene base. Una ventana sin decisión no cierra un episodio (tras el hueco de trigger de 55 s
+    del run 8 se cerraba y reabría).
+91. **Aviso de IMon** por canal HV con Pw = 1: media de `imon_window_s` = 120 s sobre
+    `imon_k_over_baseline` = 1.5 × la base o sobre `imon_frac_i0set` = 60 % de I0Set.
+92. **Correos** (notificador existente, uno por unidad y episodio: `light_leak`, `data_blackout`,
+    `imon_warning`; dedup por `context.unit`). Los bits se aplican de forma causal (estado vigente
+    cuando se escribe el evento, ~5 s después del trigger); `daqoffline` los recalcula.
+93. **Paneles en tiempo** (`Panels` en el hilo monitor, sin ROOT; `PanelRoot` en daq_io para la
+    página y los archivos offline): amplitud, integral y muestra del mínimo en tiempo por canal;
+    mapas X × Y, coincidencias 16 × 16 y multiplicidad en dos umbrales por plano; cada uno acumulado y
+    de la última hora (60 rebanadas); persistencia por grupo (~1000 eventos) y último evento; mapa
+    canal × tiempo, vivos por plano, tasa por cara y grupo con su banda de base, IMon; vista general
+    por omisión (grid3x2). Ganancia por hora de hod2018 por separación de picos
+    (`daq/core/include/daq/gain_fit.h`, en lugar del ajuste multigaussiano de 7.3, que necesitaría
+    ROOT en el hilo monitor): picos entre 5 y 26 mV separados al menos 0.3 × semilla, G = pendiente
+    posición-índice, espaciado dentro de 20 %, semilla = hora anterior; G a 2× o ½× de la semilla
+    = ambiguo (no se acepta); cambio > 20 % = "changed". Con 0.6 × semilla, una semilla 2G forzaba
+    2G (test). Noche: 191 de 480 ajustes aceptados en 28 canales, G mediana 4.125 mV (3.182-6.094),
+    0 ambiguos, 59 rechazados, 230 insuficientes. hod2019: tasa > 3 mV por hora.
+94. **Validación offline** (umbrales por omisión salvo que se diga):
+    - runs 7-8: bit 7 en la cara Trasera 18:06:07Z-19:29Z (en DAQ2-6 la subida empieza entre 18:00
+      y 18:10Z), en Delantera desde 18:52:56Z y Frontal desde 18:57:05Z (subidas reales: ch40, ch53,
+      ch49 en DAQ2-6); aviso de IMon solo en CH01 (razón máx 1.51) desde 18:52:56Z; CH00 llegó a
+      1.38× y CH06 a 1.21× (haría falta k ≈ 1.3 para CH00). Sin bit 6.
+    - noche 21:13Z-10:00Z: ningún bit 6 ni 7 ni aviso de IMon (0 falsos positivos); la luz débil de
+      la mañana no da bit 7 con la base adaptativa (razón máx 1.61, p = 1.5e-6 a las 10:58Z; la
+      base sube de ~5.8 a 8.9 kHz entre 02:00 y 10:50Z). Con razón 1.5 y p < 2e-6 aparece a las
+      10:58:53Z sin falsos positivos de noche (razón nocturna máx 1.45); con una base explícita de
+      la noche (Trasera 6718.4 Hz, mediana 23:00-08:00Z) y razón 2, desde 10:57:53Z (3 episodios).
+    - sintético (grupo 3 apagado 600 s): bit 6 de 5 min después del apagado a 3 min después de
+      volver; 1 episodio, 0 falsos positivos.
+
 ## 16. Preguntas resueltas por el handoff y la revisión
 
 | pregunta (DAQ2-0) | respuesta |

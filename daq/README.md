@@ -146,7 +146,38 @@ $C --sim close prueba_1         # después del último run: la campaña queda de
   tasa de trigger de 1 y 10 min, segundos desde el último trigger, disco libre, frescura de hvmon y
   por estación los canales vivos (al menos un pulso > 2 LSB en 10 min) y la mediana de la tasa
   fuera de tiempo sobre el umbral provisional; avisos activos en rojo. Objeto `dash` del JSON de
-  estado.
+  estado. Fase 5: una línea por cara física (tasa, base, razón, aviso) y por grupo HV (vivos, IMon y
+  su base, apagón inferido, aviso de IMon).
+- Fase 5 (diseño 15.7): bits de datos en `ch_flags` (6 apagón inferido por grupo HV, 7 fuga de luz
+  por cara física de hod2019, 8 estabilización de un auto-retry, 11 prueba sin estadística) y aviso
+  de IMon (1.5× la base o 60 % de I0Set), con correo uno por unidad y episodio. Umbrales en la
+  clave `data_flags` de la configuración (por omisión: caras 600 s, razón 2, p < 1e-6, μ ≥ 20 o
+  n ≥ 20 con base de ≥ 30 cuentas; grupos 300 s, razón < 0.1; base = mediana de las 3 h previas o
+  `data_flags.baselines` explícita, p. ej. la de la noche).
+- Paneles en tiempo en la página (carpetas `overview`, `intime`, `hits`, `scope`, `gain`,
+  `dataflags`; cada histograma acumulado y `_1h`), vista general al abrir; G por hora de hod2018
+  (PROVISIONAL sin calibración) y tasa > 3 mV de hod2019. Umbrales en la clave `panels`.
+- `t_utc_ns` con el reloj del TTT ajustado por run (`digitizer.ttt_clock`: ventana 300 s,
+  re-anclaje 60 s y por segmento, primer ajuste a los 600 s); `ttt_tick_ns` es el tick provisional
+  de los primeros 10 min. Método y anclas en `run_info_json.ttt_clock`.
+
+## daqoffline (monitor y bits de datos sobre runs escritos)
+
+Mismo código del monitor, los bits de datos, los paneles y el reloj del TTT, sobre segmentos ya
+escritos (solo lectura) o sobre el digitizador simulado con reloj acelerado. La salida va siempre
+bajo `/data/daq/sim/offline/`:
+
+```bash
+export LD_LIBRARY_PATH=$HOME/root6/lib:$LD_LIBRARY_PATH
+daq/build/apps/daqoffline/daqoffline --config <cfg.json> --out /data/daq/sim/offline/<nombre> RUN_seg*.root ...
+daq/build/apps/daqoffline/daqoffline --config <cfg.json> --out /data/daq/sim/offline/<nombre> \
+    --fake daq/config/fake/dig_synthetic_default.json --duration 5400
+```
+
+Escribe `units.csv` (por período y unidad: tasa, base, μ, n, razón, p), `episodes.csv`,
+`mails.jsonl` (correos que se habrían mandado), `ttt_clock.csv` (t_read − t_utc por 10 min:
+TttClock, tick fijo y archivo), `panels.root`, `gains.json` y `summary.json`. Varios runs seguidos
+se analizan como una sola toma (el estado de los bits continúa); cada run tiene su reloj del TTT.
 - Ctrl+C (o SIGTERM) cierra el segmento y el índice de forma limpia.
 - Archivos: `<campaña>_<UTC>_runNNN_segMMM.root` (sin permiso de escritura al cerrarse),
   `..._runNNN.index.json`, `..._runNNN.config.json` y `SHA256SUMS` (`sha256sum -c SHA256SUMS`).

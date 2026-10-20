@@ -33,7 +33,7 @@ Acquisition and analysis for two scintillator hodoscopes read by MPPCs:
     raw data (read-only)  /data/daq/raw/<campaign>/   (also /home/xplus/digitizer/data/raw -> /data/daq/raw)
     slow control          /data/daq/slowcontrol/YYYY/ (hvmon; closed days gzipped)
     raw manifests         /data/daq/manifests/
-    simulated output      /data/daq/sim/ (raw/, manifests/, slowcontrol/, logs/, config/): every
+    simulated output      /data/daq/sim/ (raw/, manifests/, slowcontrol/, logs/, config/, offline/): every
                           run or hvmon with a fake/replay digitizer, FakeHVBackend or test_mode
     DAQ v2 user config    ~/.config/daqv2/ (secrets.env mode 600, hvmon.json, hvctl.json)
     DAQ v2 runtime        $XDG_RUNTIME_DIR/daqv2/ (hvmon.lock, hvmon.sock), /dev/shm/daqv2/
@@ -114,9 +114,10 @@ Analysis (Makefile, C++17, run everything from the repository root):
     make -C analysis                      # binaries in analysis/bin/
     analysis/scripts/run_*.sh             # pipeline scripts, cd to the root themselves
 
-New DAQ (CMake, `daq/`; phases 0-4 exist: core, HV library, `hvctl`, `hvmon` with auto-retry,
+New DAQ (CMake, `daq/`; phases 0-5 exist: core, HV library, `hvctl`, `hvmon` with auto-retry,
 notifier and compression, `sctool`, `daqrun` and `daqcampaign` with fake, replay or the real
-VX1740 (`digitizer.backend = "caen"`, phase 4), `digprobe`).
+VX1740 (`digitizer.backend = "caen"`, phase 4), `digprobe`; phase 5: data-driven flags 6/7/8/11,
+IMon warning, in-time panels, hourly gain, per-run TTT clock, `daqoffline`).
 Tests (`daq_tests`, and `daq_root_tests` for the parts that need ROOT) use
 GoogleTest from apt (`libgtest-dev` 1.14) through `gtest_discover_tests`. If GoogleTest is
 missing, stop and say so; do not vendor a test framework. Details for René: `daq/README.md`.
@@ -198,11 +199,18 @@ external trigger depends on the NIM8302 crate (trips on temperature) and its cab
     # example config daq/config/daqrun.example.json, synthetic scenario daq/config/fake/
     # page http://127.0.0.1:8080/ ; SIGINT/SIGTERM closes the segment and the index cleanly
     root -l -b -q 'analysis/macros/plot_hv_imon_day.C("20261019")'   # slow-control reader example
+    # phase 5: monitor + flags + panels + TTT clock over written runs (read-only), or the fake with a
+    # manual clock; output only under /data/daq/sim/offline/ (design 15.7)
+    daq/build/apps/daqoffline/daqoffline --config <cfg.json> --out /data/daq/sim/offline/<name> RUN_seg*.root
+    daq/build/apps/daqoffline/daqoffline --config <cfg.json> --out /data/daq/sim/offline/<name> --fake <scenario.json> --duration S
 
 Run files: `<raw_root>/<campaign>/<campaign>_<UTC>_runNNN_segMMM.root` (read-only after close),
 `..._runNNN.index.json`, `..._runNNN.config.json`, `SHA256SUMS`, `CAMPAIGN_OPEN|CAMPAIGN_CLOSED`;
 design 4.1-4.4 and 15.4. Shared with the analysis (header-only, no ROOT):
-`daq/core/include/daq/pulse_finder.h`, `daq/core/include/daq/trigger_interval_stats.h`.
+`daq/core/include/daq/pulse_finder.h`, `daq/core/include/daq/trigger_interval_stats.h`,
+`daq/core/include/daq/ttt.h`, `daq/core/include/daq/gain_fit.h`. Data-driven flags and e-mail kinds:
+`data_flags` config key (design 15.7); a task can restrict daqrun e-mails with `notifier.only_kinds`
+and `notifier.max_messages`.
 
 ## Coding conventions for daq/
 
