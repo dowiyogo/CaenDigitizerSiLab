@@ -48,6 +48,7 @@ Result<DaqrunConfig> DaqrunConfig::fromJson(const nlohmann::json& jIn) {
     c.digitizer = d.value();
     c.tttWrapBits = dj.value("ttt_wrap_bits", c.tttWrapBits);
     c.tttPcToleranceS = dj.value("ttt_pc_tolerance_s", c.tttPcToleranceS);
+    c.dataFlags = DataFlagConfig::fromJson(j.value("data_flags", nlohmann::json::object()));
     if (dj.contains("ttt_clock")) {
       const auto& k = dj["ttt_clock"];
       c.tttClockFit = k.value("fit", c.tttClockFit);
@@ -239,7 +240,8 @@ nlohmann::json DaqrunConfig::toJson() const {
              n["min_trigger_rate_Hz"] = minTriggerRateHz;
              n["trigger_rate_window_min"] = triggerRateWindowMin;
              return n;
-           }()}};
+           }()},
+          {"data_flags", dataFlags.toJson()}};
 }
 
 }  // namespace daq::daqrun

@@ -6,6 +6,8 @@
 // Tipo de valor; se lee una vez al arrancar.
 #pragma once
 
+#include <array>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -28,6 +30,28 @@ bool validCampaignName(const std::string& s);
 struct WindowLayout {
   int refOldRecordStartNs = 3344;
   std::pair<int, int> pedestal{0, 40}, control{40, 49}, signal{49, 58}, tail{58, 102}, post{102, 144};
+  nlohmann::json toJson() const;
+};
+
+// Umbrales y ventanas de los bits de datos (data_flags.h, DAQ2-9).
+struct DataFlagConfig {
+  bool enabled = true;
+  double windowS = 600;          // bit 7 (caras)
+  double blackoutWindowS = 300;  // bit 6 (grupos): μ ≥ 20 en el grupo más chico de hod2019
+  double imonWindowS = 120;      // aviso de IMon
+  double baselineHours = 3;
+  double baselineMinS = 1800;
+  double minExpected = 20;
+  double significanceP = 1e-6;
+  double blackoutRatio = 0.1;
+  double lightLeakRatio = 2.0;
+  std::array<double, 2> blackoutThresholdMv{3.0, 1.5};
+  std::array<double, 2> lightLeakThresholdMv{20.0, 3.0};
+  int clearEvaluations = 3;
+  double imonK = 1.5;
+  double imonFracI0Set = 0.6;
+  std::map<std::string, double> baselines;  // "face:hod2019 Trasera" o "group:3" (Hz por canal), "imon:CH00" (A)
+  static DataFlagConfig fromJson(const nlohmann::json& j);
   nlohmann::json toJson() const;
 };
 
@@ -96,6 +120,7 @@ struct DaqrunConfig {
   double noTriggerAlertMin = 5.0;  // runs con trigger externo: aviso "sin triggers"
   double minTriggerRateHz = 0.1;   // ... o tasa bajo este valor en la ventana
   double triggerRateWindowMin = 10.0;
+  DataFlagConfig dataFlags;  // data_flags
 
   bool simulated() const { return digitizer.backend != "caen"; }
   std::string campaignDir() const { return rawRoot + "/" + campaign; }

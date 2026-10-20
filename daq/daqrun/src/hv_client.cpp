@@ -309,6 +309,7 @@ std::uint16_t FlagEngine::stateBits(const HvChannelSample& c, int h) const {
   if (sb.has(c.status, "overcurrent")) f |= chflag::HvOvc;
   if (ramp) f |= chflag::HvRamp;
   if (c.pw == 1 && !ramp && std::fabs(c.vmonV - c.v0setV) > cfg_.vmonToleranceV) f |= chflag::HvVdev;
+  if (c.retryState.rfind("STABILIZING", 0) == 0) f |= chflag::RetryStab;  // bit 8: estabilización de un auto-retry
   return f;
 }
 

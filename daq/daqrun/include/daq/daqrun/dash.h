@@ -34,6 +34,7 @@ struct DashInputs {
   double noTriggerAlertS = 300;         // aviso directo si no hay trigger en este tiempo
   std::array<double, 2> thresholdMv{20.0, 3.0};
   nlohmann::json readout = nlohmann::json::object();  // ReadoutStats::toJson()
+  nlohmann::json dataFlags = nlohmann::json();         // DataFlagView::toJson() (caras, grupos, IMon)
 };
 
 nlohmann::json dashJson(const DashInputs& in);

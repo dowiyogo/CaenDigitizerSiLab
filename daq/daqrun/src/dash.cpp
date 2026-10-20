@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 
 namespace daq::daqrun {
 
@@ -63,6 +64,39 @@ nlohmann::json dashJson(const DashInputs& in) {
   if (r.value("writer_blocked", 0) > 0) alerts.push_back("cola de escritura llena " + std::to_string(r.value("writer_blocked", 0)) + " veces");
   if (!r.value("last_error", std::string()).empty()) alerts.push_back("último error: " + r.value("last_error", std::string()));
   if (in.diskFreeBytes >= 0 && in.diskFreeBytes < in.diskLowBytes) alerts.push_back("poco disco libre");
+  // Caras, grupos e IMon (bits de datos): una línea por unidad; los activos también como aviso.
+  nlohmann::json faces = nlohmann::json::array(), groups = nlohmann::json::array();
+  std::map<int, nlohmann::json> imonOf;
+  if (in.dataFlags.is_object())
+    for (const auto& u : in.dataFlags.value("units", nlohmann::json::array())) {
+      const std::string kind = u.value("kind", "");
+      if (kind == "imon") imonOf[u["channels"][0].get<int>()] = u;
+    }
+  if (in.dataFlags.is_object())
+    for (const auto& u : in.dataFlags.value("units", nlohmann::json::array())) {
+      const std::string kind = u.value("kind", "");
+      const bool active = u.value("active", false);
+      if (kind == "face") {
+        faces.push_back({{"name", u["name"]}, {"rate_Hz", u["rate"]}, {"baseline_Hz", u["baseline"]}, {"ratio", u["ratio"]},
+                         {"decided", u["decided"]}, {"warning", active}});
+        if (active) alerts.push_back("posible fuga de luz en " + u.value("name", std::string()) + " (bit 7)");
+      } else if (kind == "group") {
+        const int g = std::stoi(u.value("key", std::string("group:0")).substr(6));
+        nlohmann::json row{{"name", u["name"]}, {"group", g}, {"live", u["live"]}, {"channels", u["channels"].size()},
+                           {"decided", u["decided"]}, {"blackout", active}};
+        if (auto it = imonOf.find(g - 1); it != imonOf.end()) {
+          row["imon_A"] = it->second["rate"];
+          row["imon_baseline_A"] = it->second["baseline"];
+          row["i0set_A"] = it->second["mu"];
+          row["imon_warning"] = it->second.value("active", false);
+          if (it->second.value("active", false)) alerts.push_back("IMon alta en " + it->second.value("name", std::string()));
+        }
+        groups.push_back(row);
+        if (active) alerts.push_back("apagón inferido de los datos en " + u.value("name", std::string()) + " (bit 6)");
+      }
+    }
+  j["faces"] = faces;
+  j["groups"] = groups;
   j["alerts"] = alerts;
   return j;
 }

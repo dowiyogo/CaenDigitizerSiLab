@@ -89,6 +89,9 @@ std::string describeEvent(const std::string& kind) {
   if (kind == "hvmon_stale") return "hvmon NO RESPONDE durante un run de daqrun (bit 4 en todos los canales)";
   if (kind == "no_triggers") return "SIN TRIGGERS externos durante un run de daqrun";
   if (kind == "triggers_resumed") return "Los triggers externos VOLVIERON";
+  if (kind == "light_leak") return "AVISO DE FUGA DE LUZ: la tasa de una cara física subió sobre su base (bit 7)";
+  if (kind == "data_blackout") return "APAGÓN INFERIDO DE LOS DATOS: los canales de un grupo HV callaron juntos (bit 6)";
+  if (kind == "imon_warning") return "AVISO DE IMon: la corriente de un grupo subió sobre su base o sobre 60 % de I0Set";
   return kind;
 }
 
@@ -330,6 +333,7 @@ std::string Notifier::composeMessage(const NotifyEvent& e, std::string* subjectO
     if (group > 0) subj << " (grupo " << group << ")";
   } else {
     subj << e.kind;
+    if (e.context.is_object() && e.context.contains("unit_name")) subj << " " << e.context["unit_name"].get<std::string>();
   }
   if (!e.origin.empty()) subj << " — " << e.origin;
   const std::string subject = subj.str();
@@ -464,8 +468,11 @@ bool Notifier::submit(NotifyEvent e) {
     if (e.kind == "connection_lost" && !cfg_.notifyConnectionLost) return drop("notify_connection_lost = false");
     if (cfg_.maxMessages > 0 && accepted_ >= static_cast<std::uint64_t>(cfg_.maxMessages))
       return drop("tope de max_messages = " + std::to_string(cfg_.maxMessages) + " alcanzado");
-    if (e.kind == "trip" || e.kind == "recovery" || e.kind == "gave_up") {
-      const std::string key = e.kind + ":" + std::to_string(e.ch) + ":" + std::to_string(e.episode);
+    if (e.kind == "trip" || e.kind == "recovery" || e.kind == "gave_up" || e.kind == "light_leak" || e.kind == "data_blackout" ||
+        e.kind == "imon_warning") {
+      // Uno por canal (o unidad de daqrun: cara, grupo) y episodio.
+      const std::string unit = e.context.is_object() ? e.context.value("unit", std::string()) : std::string();
+      const std::string key = e.kind + ":" + std::to_string(e.ch) + ":" + unit + ":" + std::to_string(e.episode);
       if (sentKeys_.count(key)) return drop("ya notificado en este episodio (" + key + ")");
       sentKeys_[key] = true;
     } else {

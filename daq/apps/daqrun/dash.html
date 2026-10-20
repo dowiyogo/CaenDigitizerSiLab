@@ -27,6 +27,10 @@
 <table id="main"><tr><td>cargando…</td></tr></table>
 <h2>Estaciones (últimos 10 min)</h2>
 <table id="st"></table>
+<h2>Caras físicas (bit 7, fuga de luz)</h2>
+<table id="faces"></table>
+<h2>Grupos HV (bit 6 e IMon)</h2>
+<table id="groups"></table>
 <div class="mut" style="margin-top:6px">Vivos: canales con al menos un pulso fuera de tiempo &gt; 2 LSB en 10 min.
 Tasa: mediana entre los vivos, sobre el umbral PROVISIONAL en mV (sin calibración).</div>
 <div id="err" class="bad"></div>
@@ -61,6 +65,12 @@ function render(d) {
   document.getElementById("main").innerHTML = rows.map(r => `<tr><th>${r[0]}</th><td>${r[1]}</td></tr>`).join("");
   document.getElementById("st").innerHTML = `<tr><th>estación</th><th style="text-align:right">vivos</th><th style="text-align:right">tasa fuera de tiempo</th></tr>` +
     (d.stations || []).map(s => `<tr><th>${esc(s.name)} (&gt; ${num(s.threshold_mV, 0)} mV)</th><td>${s.live}/${s.channels}</td><td>${rate(s.median_oot_Hz)}</td></tr>`).join("");
+  const warn = (on, decided) => on ? `<span class="bad">AVISO</span>` : (decided ? `<span class="ok">ok</span>` : `<span class="mut">sin base</span>`);
+  document.getElementById("faces").innerHTML = `<tr><th>cara</th><th style="text-align:right">tasa</th><th style="text-align:right">base</th><th style="text-align:right">razón</th><th style="text-align:right">estado</th></tr>` +
+    (d.faces || []).map(f => `<tr><th>${esc(f.name)}</th><td>${rate(f.rate_Hz)}</td><td>${rate(f.baseline_Hz)}</td><td>${num(f.ratio, 2)}</td><td>${warn(f.warning, f.decided)}</td></tr>`).join("");
+  document.getElementById("groups").innerHTML = `<tr><th>grupo</th><th style="text-align:right">vivos</th><th style="text-align:right">IMon µA</th><th style="text-align:right">base µA</th><th style="text-align:right">datos</th><th style="text-align:right">IMon</th></tr>` +
+    (d.groups || []).map(g => `<tr><th>${esc(g.name)}</th><td>${g.live}/${g.channels}</td><td>${typeof g.imon_A === "number" ? (g.imon_A * 1e6).toFixed(3) : "–"}</td>` +
+      `<td>${typeof g.imon_baseline_A === "number" ? (g.imon_baseline_A * 1e6).toFixed(3) : "–"}</td><td>${warn(g.blackout, g.decided)}</td><td>${g.imon_warning ? '<span class="bad">AVISO</span>' : "ok"}</td></tr>`).join("");
   document.getElementById("alerts").innerHTML = (d.alerts || []).map(a => `<div>${esc(a)}</div>`).join("");
 }
 async function tick() {

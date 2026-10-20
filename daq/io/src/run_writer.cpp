@@ -439,10 +439,11 @@ Status RunWriter::writeEvent(const Pending& p) {
   std::copy(e.adc.begin(), e.adc.end(), ev_.adc.begin());
   std::uint16_t anyCh = 0;
   for (int c = 0; c < 64; ++c) {
-    ev_.chFlags[c] = cf.ch[static_cast<std::size_t>(c)];
-    anyCh = static_cast<std::uint16_t>(anyCh | cf.ch[static_cast<std::size_t>(c)]);
+    ev_.chFlags[c] = static_cast<std::uint16_t>(cf.ch[static_cast<std::size_t>(c)] | dataBits_.ch[static_cast<std::size_t>(c)]);
+    anyCh = static_cast<std::uint16_t>(anyCh | ev_.chFlags[c]);
   }
-  ev_.evtFlags = p.evtFlags | (cf.anyHv ? daqrun::evtflag::HvAnyFlag : 0u);
+  ev_.evtFlags = p.evtFlags | (cf.anyHv ? daqrun::evtflag::HvAnyFlag : 0u) |
+                 (dataBits_.provisional ? daqrun::evtflag::MonitorProvisional : 0u);
   ev_.hvSeq = cf.hvSeq;
   events_->Fill();
   for (int b = 0; b < 16; ++b)

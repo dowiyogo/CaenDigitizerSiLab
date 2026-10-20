@@ -33,6 +33,7 @@
 #include "daq/core/result.h"
 #include "daq/daqrun/campaign.h"
 #include "daq/daqrun/config.h"
+#include "daq/daqrun/data_flags.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/daqrun/monitor.h"
 #include "daq/dig/digitizer.h"
@@ -89,6 +90,9 @@ class RunWriter {
   // Se llama desde el hilo escritor después de que la cola de eventos se cerró (el hilo de lectura
   // ya no usa el backend).
   void setFinalDigitizerInfo(nlohmann::json j) { st_.digitizerInfoFinal = std::move(j); }
+  // Bits de datos vigentes (6, 7, 11 por canal; 6 de evento): se aplican a los eventos que se
+  // escriben desde ahora (causal; el recálculo offline puede adelantarlos).
+  void setDataFlags(const daqrun::DataFlagBits& b) { dataBits_ = b; }
   const nlohmann::json& index() const { return index_; }
   std::string segmentPath(int seg) const;
   std::string indexPath() const;
@@ -121,6 +125,7 @@ class RunWriter {
   daqrun::FlagEngine flags_;
   daqrun::EventFlagger evtFlagger_;
   daqrun::TttClock ttt_;
+  daqrun::DataFlagBits dataBits_{{}, cfg_.dataFlags.enabled};
   std::size_t segAnchorFirst_ = 0;
   std::deque<Pending> pending_;
   std::uint64_t nextSeq_ = 0;

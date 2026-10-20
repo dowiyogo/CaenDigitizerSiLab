@@ -34,6 +34,7 @@ struct MonitorSummary {
   std::array<std::uint32_t, 64> ootCounts{}, inTimeCounts{};
   std::array<double, 64> ootTimeS{}, ootRateHz{};
   std::array<std::uint32_t, 64> lowCounts{};  // pulsos fuera de tiempo > 2 LSB (canal vivo; no va al árbol)
+  std::array<std::uint32_t, 64> blackoutCounts{}, leakCounts{};  // sobre los umbrales de data_flags (bits 6 y 7)
   nlohmann::json queues;  // niveles de cola al cerrar el período
   std::uint64_t monitorDropped = 0;
 };

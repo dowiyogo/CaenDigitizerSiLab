@@ -36,6 +36,7 @@
 
 #include "daq/daqrun/campaign.h"
 #include "daq/daqrun/dash.h"
+#include "daq/daqrun/data_flags.h"
 #include "daq/daqrun/config.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/daqrun/monitor.h"
@@ -367,6 +368,12 @@ int main(int argc, char** argv) {
                             "daqrun campaña " + cfg.campaign + " run " + std::to_string(run.run()) + " (" + run.baseName() + ")",
                             rs.origin.utcBeforeStart, cfg.minTriggerRateHz, cfg.triggerRateWindowMin * 60.0);
   std::atomic<bool> trigAlerted{false};  // para la página /dash/ (el vigilante es del hilo monitor)
+  // Bits de datos (6, 7, 11) y aviso de IMon (DAQ2-9): el motor es del hilo monitor; el escritor y la
+  // página leen sus Snapshot.
+  DataFlagEngine dataFlags(cfg.dataFlags, mapping.value(),
+                           "daqrun campaña " + cfg.campaign + " run " + std::to_string(run.run()) + " (" + run.baseName() + ")");
+  Snapshot<DataFlagBits> dataBits{DataFlagBits{{}, cfg.dataFlags.enabled}};  // provisional hasta la primera evaluación
+  Snapshot<DataFlagView> dataView;
   auto trigEvent = [&](std::optional<hvmon::NotifyEvent> e) {
     if (!e) return;
     logWarn(e->kind == "no_triggers" ? "sin triggers externos: " : "triggers de vuelta: ", e->reason);
@@ -385,7 +392,16 @@ int main(int argc, char** argv) {
         trigAlerted.store(trigWatch.alerted());
       }
       MonitorSummary s;
-      if (monitor.takeSummary(clock.now_utc_ns(), s, rstats.monitorDropped.load())) sumQ.try_push(std::move(s), DropPolicy::DropOldest);
+      if (monitor.takeSummary(clock.now_utc_ns(), s, rstats.monitorDropped.load())) {
+        const auto hvNow = hvClient.latest().first;
+        for (auto& e : dataFlags.addPeriod(s, &hvNow)) {
+          logWarn(e.kind, ": ", e.reason);
+          if (notifier) notifyQ.try_push(std::move(e), DropPolicy::DropNewest);
+        }
+        dataBits.publish(dataFlags.bits());
+        dataView.publish(dataFlags.view());
+        sumQ.try_push(std::move(s), DropPolicy::DropOldest);
+      }
       if (clock.now_steady() >= nextView) {
         monitor.publishView();
         nextView = clock.now_steady() + std::chrono::milliseconds(500);
@@ -400,6 +416,7 @@ int main(int argc, char** argv) {
       auto drainSide = [&] {
         while (auto h = hvQ.try_pop()) writer->addHv(*h);
         while (auto m = sumQ.try_pop()) writer->addSummary(*m);
+        writer->setDataFlags(dataBits.read().first);
       };
       for (;;) {
         drainSide();
@@ -475,6 +492,8 @@ int main(int argc, char** argv) {
       di.noTriggerAlertS = cfg.noTriggerAlertMin * 60.0;
       di.thresholdMv = {cfg.provisionalThresholdMv[0], cfg.provisionalThresholdMv[1]};
       di.readout = rstats.toJson();
+      const auto dv = dataView.read().first;
+      di.dataFlags = dv.toJson();
       const nlohmann::json status{{"run_name", run.baseName()},
                                   {"dash", dashJson(di)},
                                   {"simulated", cfg.simulated()},

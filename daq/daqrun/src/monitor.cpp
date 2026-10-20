@@ -66,8 +66,13 @@ void Monitor::process(const dig::EventBlock& blk) {
         exposed += tailS;
       }
       std::uint32_t above = 0;
+      const double thrBlk = cfg_.dataFlags.blackoutThresholdMv[static_cast<std::size_t>(st)];
+      const double thrLeak = cfg_.dataFlags.lightLeakThresholdMv[static_cast<std::size_t>(st)];
+      std::uint32_t nBlk = 0, nLeak = 0;
       for (const auto& p : pulses) {
         if (p.amplitudeMv > thr) ++above;
+        if (p.amplitudeMv > thrBlk) ++nBlk;
+        if (p.amplitudeMv > thrLeak) ++nLeak;
         const int b = static_cast<int>(p.amplitudeMv / lsb_);
         if (b >= 0 && b < v_.ampBins) ++v_.amp[static_cast<std::size_t>(c * v_.ampBins + b)];
       }
@@ -75,6 +80,8 @@ void Monitor::process(const dig::EventBlock& blk) {
       cur_.ootCounts[ci] += above;
       cur_.ootTimeS[ci] += exposed;
       cur_.lowCounts[ci] += static_cast<std::uint32_t>(pulses.size());
+      cur_.blackoutCounts[ci] += nBlk;
+      cur_.leakCounts[ci] += nLeak;
       cur_.inTimeCounts[ci] += static_cast<std::uint32_t>(nIn);
       v_.ootCounts[ci] += above;
       v_.ootTimeS[ci] += exposed;
