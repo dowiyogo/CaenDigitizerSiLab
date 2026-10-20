@@ -79,7 +79,7 @@ RunWriter::RunWriter(const daqrun::DaqrunConfig& cfg, const daqrun::RunReservati
       ttt_(st_.origin.utcBeforeStart,
            daqrun::TttClock::Params{8.0, cfg.digitizer.tttTickNs, cfg.tttWrapBits, cfg.tttClockFit, cfg.tttClockWindowS,
                                     cfg.tttClockReanchorS, cfg.tttClockMinSpanS,
-                                    static_cast<std::size_t>(std::max(2, cfg.tttClockMinPoints))}),
+                                    static_cast<std::size_t>(std::max(2, cfg.tttClockMinPoints)), cfg.tttClockFirstFitS}),
       N_(cfg.digitizer.recordLength) {
   ev_.adc.resize(static_cast<std::size_t>(64 * N_));
   runStartUtc_ = st_.origin.utcBeforeStart;

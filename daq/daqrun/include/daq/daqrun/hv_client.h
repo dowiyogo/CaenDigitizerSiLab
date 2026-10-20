@@ -222,12 +222,13 @@ class TttUnwrapper {
 // razón del error del tick (run 8: 8.000071 frente a 8 ns, ~0.77 s por día). Aquí:
 //  - u = TTT desenrollado en ns de tick nominal; la vuelta se elige con la hora de lectura pasada a
 //    la escala de u con el modelo vigente (no se pierde aunque el run dure días);
-//  - ajuste por mínimos cuadrados y = c + s·u (y = t_read − origen) sobre las lecturas de los
-//    últimos window_s; s = tick real / nominal; c absorbe la latencia media de lectura;
-//  - re-anclaje cada reanchor_s (hora de lectura) y cuando lo pide el escritor (segmento nuevo):
-//    el modelo t_utc = t_ancla + (u − u_ancla)·s sigue continuo en el ancla, salvo en el primer
-//    ajuste válido, que ancla en el origen del run (t = origen + s·u) y deja registrado el salto
-//    (corrige el tick provisional de los primeros minutos);
+//  - ajuste robusto y = c + s·u (y = t_read − origen) sobre las lecturas de los últimos window_s:
+//    mínimos cuadrados, descarte de residuos a más de 5 MAD, nuevo ajuste y ordenada = mediana de
+//    los residuos; s = tick real / nominal; c absorbe la latencia mediana de lectura;
+//  - re-anclaje cada reanchor_s (hora de lectura) y cuando lo pide el escritor (segmento nuevo): el
+//    modelo t_utc = t_ancla + (u − u_ancla)·s pasa a la recta ajustada menos la latencia mediana de
+//    lectura del primer ajuste (DAQ2-9: anclar por continuidad acumulaba los errores de pendiente,
+//    1.045 ms en la última hora del run 8); el salto en cada ancla queda registrado (jump_ns);
 //  - con menos de min_points lecturas o un tramo menor que min_span_s se mantiene el tick vigente.
 // Determinista y sin hilos: pertenece al hilo escritor.
 class TttClock {
@@ -237,8 +238,13 @@ class TttClock {
     double initialTickNs = 8.0;   // tick provisional hasta el primer ajuste (digitizer.ttt_tick_ns)
     int wrapBits = 31;
     bool fit = true;              // false: tick fijo (comportamiento anterior)
-    double windowS = 3600, reanchorS = 600, minSpanS = 300;
-    std::size_t minPoints = 100;
+    // DAQ2-9: la razón TTT/reloj del PC varía unos ppm en 10-20 min (run 8); una ventana corta y
+    // re-anclaje frecuente la siguen (dispersión 0.41 ms en el run 8 con 300/60 s frente a 1.4 ms con 3600/600 s).
+    double windowS = 300, reanchorS = 60, minSpanS = 120;
+    std::size_t minPoints = 50;
+    // El primer ajuste fija la latencia de referencia de todo el run: espera first_fit_s de datos
+    // (con 70 s el error de la latencia, ~1 ms, quedaba como desplazamiento fijo: runs 7 y 8).
+    double firstFitS = 600;
   };
   struct Anchor {
     UtcNs tUtcNs = 0;       // t_utc del ancla
@@ -268,6 +274,7 @@ class TttClock {
   std::vector<Anchor> anchors_;
   UtcNs lastAnchorRead_ = 0;
   bool fitted_ = false;
+  double latencyNs_ = 0;  // latencia mediana de lectura del primer ajuste
   std::string pendingReason_;
 };
 

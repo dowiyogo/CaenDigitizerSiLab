@@ -37,6 +37,7 @@ DataFlagConfig DataFlagConfig::fromJson(const nlohmann::json& j) {
   c.baselineHours = j.value("baseline_hours", c.baselineHours);
   c.baselineMinS = j.value("baseline_min_s", c.baselineMinS);
   c.minExpected = j.value("min_expected_counts", c.minExpected);
+  c.minBaselineCounts = j.value("min_baseline_counts", c.minBaselineCounts);
   c.significanceP = j.value("significance_p", c.significanceP);
   c.blackoutRatio = j.value("blackout_ratio", c.blackoutRatio);
   c.lightLeakRatio = j.value("light_leak_ratio", c.lightLeakRatio);
@@ -58,6 +59,7 @@ nlohmann::json DataFlagConfig::toJson() const {
           {"baseline_hours", baselineHours},
           {"baseline_min_s", baselineMinS},
           {"min_expected_counts", minExpected},
+          {"min_baseline_counts", minBaselineCounts},
           {"significance_p", significanceP},
           {"blackout_ratio", blackoutRatio},
           {"light_leak_ratio", lightLeakRatio},
@@ -112,8 +114,11 @@ DataFlagEngine::DataFlagEngine(const DataFlagConfig& cfg, const hvmon::Mapping& 
   }
 }
 
-double DataFlagEngine::baselineOf(Unit& u, UtcNs windowStart, double windowS) const {
-  if (auto it = cfg_.baselines.find(u.st.key); it != cfg_.baselines.end()) return it->second;
+double DataFlagEngine::baselineOf(Unit& u, UtcNs windowStart, double windowS, double* spanS) const {
+  if (auto it = cfg_.baselines.find(u.st.key); it != cfg_.baselines.end()) {
+    if (spanS) *spanS = 1e12;  // base explícita: sin límite de cuentas
+    return it->second;
+  }
   const UtcNs keepAfter = windowStart - static_cast<UtcNs>(cfg_.baselineHours * 3600 * kNs);
   while (!u.windows.empty() && u.windows.front().first < keepAfter) u.windows.pop_front();
   std::vector<double> v;
@@ -126,6 +131,7 @@ double DataFlagEngine::baselineOf(Unit& u, UtcNs windowStart, double windowS) co
     }
   // Historia mínima: el tramo cubierto por las ventanas usables (inicio de la primera a fin de la última).
   if (v.empty() || static_cast<double>(last - first) / kNs + windowS < cfg_.baselineMinS) return -1;
+  if (spanS) *spanS = static_cast<double>(last - first) / kNs + windowS;
   return median(v);
 }
 
@@ -160,16 +166,23 @@ std::vector<hvmon::NotifyEvent> DataFlagEngine::addPeriod(const MonitorSummary& 
       p.i0set[static_cast<std::size_t>(h)] = c.i0setA;
     }
   periods_.push_back(p);
-  // Se guardan los períodos de la ventana más larga; cada prueba usa la suya.
+  // Se guardan los períodos de la ventana más larga y uno más (los períodos reales duran algo más
+  // de summary_period_s: cierran con la lectura siguiente). Un período está en la ventana si al
+  // menos la mitad de él cae dentro; la ventana está completa si esos períodos cubren 95 % de w.
   const double longest = std::max({cfg_.windowS, cfg_.blackoutWindowS, cfg_.imonWindowS});
-  while (!periods_.empty() && periods_.front().t0 < p.t1 - static_cast<UtcNs>((longest + 1) * kNs)) periods_.pop_front();
-  const UtcNs firstT0 = periods_.front().t0;
-  // Inicio de la ventana de w s y si los períodos la cubren.
+  const UtcNs plen = p.t1 - p.t0;
+  while (periods_.size() > 1 && periods_[1].t0 < p.t1 - static_cast<UtcNs>(longest * kNs) - plen) periods_.pop_front();
+  auto inWindow = [](const Period& q, UtcNs ws) { return q.t1 - (q.t1 - q.t0) / 2 > ws; };
   auto windowOf = [&](double w) {
     const UtcNs ws = p.t1 - static_cast<UtcNs>(w * kNs);
-    return std::make_pair(ws, static_cast<double>(p.t1 - std::max(firstT0, ws - static_cast<UtcNs>(kNs))) / kNs >= 0.95 * w);
+    UtcNs first = p.t0;
+    for (const auto& q : periods_)
+      if (inWindow(q, ws)) {
+        first = q.t0;
+        break;
+      }
+    return std::make_pair(ws, static_cast<double>(p.t1 - first) / kNs >= 0.95 * w);
   };
-  auto inWindow = [](const Period& q, UtcNs ws) { return q.t0 >= ws - static_cast<UtcNs>(1 * kNs); };
 
   bits_ = DataFlagBits{};
   bits_.provisional = false;
@@ -195,10 +208,14 @@ std::vector<hvmon::NotifyEvent> DataFlagEngine::addPeriod(const MonitorSummary& 
     u.st.n = n;
     u.st.live = live;
     u.st.rateHz = T > 0 ? static_cast<double>(n) / T : 0;
-    u.st.baselineHz = fullWindow ? baselineOf(u, wStart, wLen) : -1;
+    double span = 0;
+    u.st.baselineHz = fullWindow ? baselineOf(u, wStart, wLen, &span) : -1;
     u.st.mu = u.st.baselineHz > 0 ? u.st.baselineHz * T : 0;
     u.st.ratio = u.st.mu > 0 ? static_cast<double>(n) / u.st.mu : 0;
-    u.st.decided = fullWindow && u.st.baselineHz >= 0 && u.st.mu >= cfg_.minExpected;
+    // μ ≥ mínimo; para el exceso (bit 7) también n ≥ mínimo con una base de suficientes cuentas.
+    const bool baseCounts = u.st.mu * span / wLen >= cfg_.minBaselineCounts;
+    u.st.decided = fullWindow && u.st.baselineHz >= 0 &&
+                   (u.st.mu >= cfg_.minExpected || (leak && u.st.mu > 0 && static_cast<double>(n) >= cfg_.minExpected && baseCounts));
     bool cond = false;
     if (u.st.decided) {
       u.st.p = leak ? tis::poissonUpperTail(static_cast<std::size_t>(n), u.st.mu) : poissonLowerTail(n, u.st.mu);
@@ -217,9 +234,10 @@ std::vector<hvmon::NotifyEvent> DataFlagEngine::addPeriod(const MonitorSummary& 
                     u.st.baselineHz);
       out.push_back(event(leak ? "light_leak" : "data_blackout", u, p.t1, why));
     }
+    // Sin decisión (p. ej. tras un hueco de trigger) el episodio sigue como estaba.
     if (cond) {
       u.falseRun = 0;
-    } else if (u.st.active && ++u.falseRun >= cfg_.clearEvaluations) {
+    } else if (u.st.decided && u.st.active && ++u.falseRun >= cfg_.clearEvaluations) {
       u.st.active = false;
       u.falseRun = 0;
     }
@@ -255,7 +273,7 @@ std::vector<hvmon::NotifyEvent> DataFlagEngine::addPeriod(const MonitorSummary& 
     const bool on = n > 0 && p.on[h];
     u.st.rateHz = n > 0 ? sum / n : 0;
     u.st.n = static_cast<std::uint64_t>(n);
-    u.st.baselineHz = iFull && on ? baselineOf(u, iStart, cfg_.imonWindowS) : -1;
+    u.st.baselineHz = iFull && on ? baselineOf(u, iStart, cfg_.imonWindowS, nullptr) : -1;
     u.st.ratio = u.st.baselineHz > 0 ? u.st.rateHz / u.st.baselineHz : 0;
     u.st.mu = i0;  // I0Set (A), para el panel
     const bool overK = u.st.baselineHz > 0 && u.st.ratio > cfg_.imonK;

@@ -19,7 +19,9 @@ namespace {
 
 constexpr UtcNs kS = 1000000000LL;
 constexpr UtcNs kT0 = 1792444430LL * kS;
-constexpr double kExposure = 0.0948;  // s por canal y período: 44 eventos × 135 muestras × 16 ns
+// s por canal y período en los tests de lógica (cuentas holgadas); el real es 44 eventos × 135
+// muestras × 16 ns = 9.5e-5 s (Gen::exposure).
+constexpr double kExposure = 0.0948;
 
 hvmon::Mapping mapping() {
   auto m = hvmon::Mapping::fromFile(DAQ_SOURCE_DIR "/config/mapping/hodo_mapping_2026_10.json");
@@ -31,15 +33,16 @@ struct Gen {
   std::mt19937_64 rng{11};
   // Tasas (Hz por canal) por canal para las cuentas del bit 6 y del bit 7.
   std::array<double, 64> blk{}, leak{};
+  double exposure = kExposure;
   MonitorSummary period(int k) {
     MonitorSummary s;
     s.tStartUtcNs = kT0 + k * 60 * kS;
     s.tEndUtcNs = s.tStartUtcNs + 60 * kS;
     s.nEvents = 44;
     for (std::size_t c = 0; c < 64; ++c) {
-      s.ootTimeS[c] = kExposure;
-      s.blackoutCounts[c] = static_cast<std::uint32_t>(std::poisson_distribution<int>(std::max(1e-9, blk[c] * kExposure))(rng));
-      s.leakCounts[c] = static_cast<std::uint32_t>(std::poisson_distribution<int>(std::max(1e-9, leak[c] * kExposure))(rng));
+      s.ootTimeS[c] = exposure;
+      s.blackoutCounts[c] = static_cast<std::uint32_t>(std::poisson_distribution<int>(std::max(1e-9, blk[c] * exposure))(rng));
+      s.leakCounts[c] = static_cast<std::uint32_t>(std::poisson_distribution<int>(std::max(1e-9, leak[c] * exposure))(rng));
       s.lowCounts[c] = s.blackoutCounts[c] + 1;
     }
     return s;
@@ -256,4 +259,49 @@ TEST(DataFlags, RetryStabilizationSetsBit8FromHvmonState) {
   EXPECT_EQ(f.ch[32] & chflag::RetryStab, 0);
   const auto f0 = fe.flagsFor(kT0 + 2 * kS + 500000000);
   EXPECT_EQ(f0.ch[33] & chflag::RetryStab, 0);
+}
+
+// Períodos reales de ~61 s (cierran con la lectura siguiente): la ventana de 10 min debe quedar
+// completa y decidirse (DAQ2-9: con la poda a 601 s nunca se decidía en los runs 7-8).
+TEST(DataFlags, SlightlyLongerRealPeriodsStillFillTheWindow) {
+  const auto m = mapping();
+  DataFlagConfig cfg;
+  DataFlagEngine eng(cfg, m, "test");
+  Gen g;
+  for (int c = 32; c < 64; ++c) g.leak[static_cast<std::size_t>(c)] = 6000;
+  const HvSample hv = hvAll(4.5e-6);
+  for (int k = 0; k < 60; ++k) {
+    MonitorSummary s = g.period(0);
+    s.tStartUtcNs = kT0 + k * 61 * kS;
+    s.tEndUtcNs = s.tStartUtcNs + 61 * kS;
+    eng.addPeriod(s, &hv);
+  }
+  EXPECT_TRUE(unit(eng, "face:hod2019 Trasera")->decided);
+  EXPECT_GT(unit(eng, "face:hod2019 Trasera")->baselineHz, 0);
+}
+
+// Base baja como la de la tarde (1.4 kHz por canal en la cara Trasera): μ ≈ 7 en 10 min, menor que
+// el mínimo de 20, pero la luz da n ≥ 20 y la base tiene cientos de cuentas: el bit 7 se decide y
+// se marca (runs 7-8, DAQ2-9). Con la base de la noche (6 kHz) nada cambia.
+TEST(DataFlags, LowBaselineExcessDecidesWhenObservedCountsAreLarge) {
+  const auto m = mapping();
+  DataFlagConfig cfg;
+  DataFlagEngine eng(cfg, m, "test");
+  Gen g;
+  g.exposure = 9.5e-5;  // real: μ ≈ 10 en 10 min con 1.4 kHz por canal
+  const auto tras = channelsOfFace(m, "hod2019 Trasera");
+  const HvSample hv = hvAll(4.5e-6);
+  int first = -1;
+  for (int k = 0; k < 120; ++k) {
+    for (int c : tras) g.leak[static_cast<std::size_t>(c)] = k >= 90 ? 7000 : 1400;
+    eng.addPeriod(g.period(k), &hv);
+    const auto* u = unit(eng, "face:hod2019 Trasera");
+    if (k == 80) {
+      EXPECT_LT(u->mu, 20);
+      EXPECT_FALSE(u->decided);  // n < 20 sin luz: no se decide
+    }
+    if (u->active && first < 0) first = k;
+  }
+  EXPECT_GE(first, 90);
+  EXPECT_LE(first, 94);
 }

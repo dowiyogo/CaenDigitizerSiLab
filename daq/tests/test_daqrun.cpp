@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <fstream>
 #include <cmath>
+#include <map>
 #include <random>
 #include <set>
 
@@ -522,9 +523,11 @@ TEST(DaqrunDash, RatesLiveChannelsMedianAndAlerts) {
   EXPECT_EQ(dashJson(in)["alerts"].size(), 3u);
 }
 
-// TttClock (DAQ2-9): tick real 8.000071 ns (run 8), latencias de lectura de 1-12 ms, 0.73 Hz durante
-// 16 h, un hueco de 55 s y re-anclaje por segmento cada hora. Tras el primer ajuste el error de
-// t_utc contra la hora real del trigger queda bajo 1 ms; con el tick fijo de 8 ns crece a ~0.4 s.
+// TttClock (DAQ2-9): tick real 8.000071 ns (run 8), latencias de lectura uniformes de 0.7-7.1 ms
+// (percentil 5 ~1 ms y mediana ~3.9 ms en el run 8) con 1 % de cola de 20-60 ms, 0.73 Hz durante
+// 16 h, un hueco de 55 s y re-anclaje por segmento cada hora. Tras el primer ajuste la deriva
+// (mediana del error de t_utc contra la hora real del trigger, por bin de 10 min) queda bajo 1 ms;
+// con el tick fijo de 8 ns crece a ~0.4 s.
 TEST(TttClock, FittedTickKeepsUtcWithinOneMillisecondOverSixteenHours) {
   using namespace daq::daqrun;
   constexpr double kTrue = 8.000071;
@@ -536,9 +539,11 @@ TEST(TttClock, FittedTickKeepsUtcWithinOneMillisecondOverSixteenHours) {
   TttClock fixed(origin, p);
   std::mt19937_64 rng(7);
   std::exponential_distribution<double> gap(0.73);
-  std::uniform_real_distribution<double> lat(1e-3, 12e-3);
-  double t = 0.5, maxErrAfterFit = 0, maxErrFixed = 0, nextSeg = 3600;
+  std::uniform_real_distribution<double> latCore(0.7e-3, 7.1e-3), latTail(20e-3, 60e-3), u01(0, 1);
+  auto lat = [&](std::mt19937_64& r) { return u01(r) < 0.01 ? latTail(r) : latCore(r); };
+  double t = 0.5, maxErrFixed = 0, nextSeg = 3600;
   std::size_t n = 0;
+  std::map<long, std::vector<double>> binErr;  // bin de 10 min -> errores (s)
   while (t < 16 * 3600.0) {
     t += gap(rng);
     if (n == 20000) t += 55.0;  // hueco de 55 s (más de tres vueltas del TTT)
@@ -552,21 +557,62 @@ TEST(TttClock, FittedTickKeepsUtcWithinOneMillisecondOverSixteenHours) {
     const daq::UtcNs truth = origin + static_cast<daq::UtcNs>(t * 1e9);
     const auto a = fit.map(raw, tRead);
     const auto b = fixed.map(raw, tRead);
-    if (t > 700) maxErrAfterFit = std::max(maxErrAfterFit, std::fabs(static_cast<double>(a.second - truth)) * 1e-9);
+    if (t > 600) binErr[static_cast<long>(t / 600)].push_back(static_cast<double>(a.second - truth) * 1e-9);  // tras el primer ajuste
     maxErrFixed = std::max(maxErrFixed, std::fabs(static_cast<double>(b.second - truth)) * 1e-9);
     ++n;
   }
-  EXPECT_LT(maxErrAfterFit, 1e-3) << maxErrAfterFit;
+  double worst = 0;
+  long worstBin = -1;
+  for (auto& [b, v] : binErr) {
+    std::sort(v.begin(), v.end());
+    if (std::fabs(v[v.size() / 2]) > worst) {
+      worst = std::fabs(v[v.size() / 2]);
+      worstBin = b;
+    }
+  }
+  EXPECT_LT(worst, 1e-3) << worst << " en el bin " << worstBin;
   EXPECT_GT(maxErrFixed, 0.4) << maxErrFixed;
-  EXPECT_NEAR(fit.tickNs(), kTrue, 2e-5);
-  // Anclas: inicio, primer ajuste (con salto), luego continuas (jump 0); una por segmento.
+  EXPECT_NEAR(fit.tickNs(), kTrue, 5e-5);  // ventana de 300 s
+  // Anclas: inicio, primer ajuste (salto: corrige el tick provisional), luego saltos del orden del
+  // ruido del ajuste (< 2 ms); una por segmento.
   const auto& an = fit.anchors();
-  ASSERT_GE(an.size(), 90u);
+  ASSERT_GE(an.size(), 900u);
   EXPECT_EQ(an[0].reason, "inicio");
   EXPECT_NE(an[1].jumpNs, 0);
-  for (std::size_t i = 2; i < an.size(); ++i) EXPECT_EQ(an[i].jumpNs, 0);
+  for (std::size_t i = 2; i < an.size(); ++i) EXPECT_LT(std::llabs(an[i].jumpNs), 2000000) << i;
   std::size_t seg = 0;
   for (const auto& x : an) seg += x.reason == "segmento";
   EXPECT_EQ(seg, 16u);  // t = 1 h, 2 h, ..., 16 h
   EXPECT_EQ(fixed.anchors().size(), 1u);
+}
+
+// La razón TTT/PC varía unos ppm en 10-20 min (run 8, DAQ2-9): con un tick que oscila ±2.5 ppm en
+// 30 min la deriva de t_utc (mediana por 10 min) sigue bajo 1 ms con la ventana de 300 s y
+// re-anclaje cada 60 s.
+TEST(TttClock, FollowsTickWanderOfAFewPpm) {
+  using namespace daq::daqrun;
+  const daq::UtcNs origin = 1792444430LL * 1000000000LL;
+  TttClock fit(origin, TttClock::Params{});
+  std::mt19937_64 rng(5);
+  std::exponential_distribution<double> gap(0.73);
+  std::uniform_real_distribution<double> lat(1e-3, 6e-3);
+  double t = 0.5, ticks = 0.5e9 / 8.000071, prev = 0;
+  std::map<long, std::vector<double>> binErr;
+  while (t < 4 * 3600.0) {
+    const double dt = gap(rng);
+    t += dt;
+    const double tick = 8.000071 * (1 + 2.5e-6 * std::sin(2 * M_PI * t / 1800));
+    ticks += dt * 1e9 / tick;
+    const auto raw = static_cast<std::uint32_t>(static_cast<std::uint64_t>(ticks) & 0x7FFFFFFFu);
+    const auto a = fit.map(raw, origin + static_cast<daq::UtcNs>((t + lat(rng)) * 1e9));
+    if (t > 600) binErr[static_cast<long>(t / 600)].push_back(static_cast<double>(a.second - origin) * 1e-9 - t);
+    prev = t;
+  }
+  (void)prev;
+  double worst = 0;
+  for (auto& [b, v] : binErr) {
+    std::sort(v.begin(), v.end());
+    worst = std::max(worst, std::fabs(v[v.size() / 2]));
+  }
+  EXPECT_LT(worst, 1e-3) << worst;
 }

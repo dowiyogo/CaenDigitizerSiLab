@@ -21,11 +21,12 @@
 // sin episodio activo; hace falta historia de baseline_min_s (30 min). Una base explícita en
 // `baselines` (p. ej. la de la noche) la reemplaza.
 //  - bit 6: μ ≥ min_expected, P(N ≤ n | μ) < significance_p y n/μ < blackout_ratio (0.1);
-//  - bit 7: μ ≥ min_expected, P(N ≥ n | μ) < significance_p y n/μ > light_leak_ratio (2);
+//  - bit 7: (μ ≥ min_expected, o n ≥ min_expected con una base de min_baseline_counts cuentas),
+//    P(N ≥ n | μ) < significance_p y n/μ > light_leak_ratio (2);
 //  - bit 11: la prueba de la unidad no se pudo hacer (sin base o μ < mínimo);
 //  - bit 6 de evento (MONITOR_PROVISIONAL): alguna unidad sin base todavía.
 // Episodio: empieza cuando se cumple la condición y termina tras clear_evaluations evaluaciones
-// seguidas sin cumplirla; un correo por unidad y episodio (notifier: light_leak, data_blackout,
+// decididas seguidas sin cumplirla (una ventana sin decisión no lo cierra); un correo por unidad y episodio (notifier: light_leak, data_blackout,
 // imon_warning; dedup por context.unit y episodio).
 // IMon (por canal HV con Pw = 1): media de la ventana > imon_k × base (mediana de las medias por
 // período de las horas anteriores, como arriba) o > imon_frac_i0set × I0Set.
@@ -104,7 +105,7 @@ class DataFlagEngine {
     std::array<double, 12> imon{}, i0set{};
     std::array<bool, 12> on{};
   };
-  double baselineOf(Unit& u, UtcNs windowStart, double windowS) const;
+  double baselineOf(Unit& u, UtcNs windowStart, double windowS, double* spanS) const;
   hvmon::NotifyEvent event(const std::string& kind, const Unit& u, UtcNs t, const std::string& reason) const;
 
   DataFlagConfig cfg_;

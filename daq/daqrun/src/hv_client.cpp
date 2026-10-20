@@ -452,7 +452,7 @@ nlohmann::json TttClock::paramsJson() const {
                               "segmento, continuo en el ancla"
                             : "tick fijo"},
           {"nominal_tick_ns", p_.nominalTickNs}, {"initial_tick_ns", p_.initialTickNs}, {"window_s", p_.windowS},
-          {"reanchor_s", p_.reanchorS}, {"min_points", p_.minPoints}, {"min_span_s", p_.minSpanS}};
+          {"reanchor_s", p_.reanchorS}, {"min_points", p_.minPoints}, {"min_span_s", p_.minSpanS}, {"first_fit_s", p_.firstFitS}};
 }
 
 UtcNs TttClock::model(std::int64_t u) const {
@@ -466,40 +466,79 @@ void TttClock::reanchor(std::int64_t u, UtcNs tRead, const std::string& reason) 
   if (win_.size() < p_.minPoints) return;
   const double span = static_cast<double>(win_.back().first - win_.front().first) * 1e-9;
   if (span < p_.minSpanS) return;
-  // Mínimos cuadrados centrados en la primera muestra (precisión en double).
+  // Primer ajuste: con first_fit_s de lecturas desde el inicio (la ventana se amplía hasta entonces).
+  if (!fitted_ && static_cast<double>(win_.back().second) * 1e-9 < p_.firstFitS) return;
+  // Ajuste robusto (la latencia de lectura tiene cola larga: hasta ~67 ms en el run 8): mínimos
+  // cuadrados, se descartan los residuos a más de 5 × 1.4826 × MAD de la mediana y se ajusta de nuevo;
+  // la ordenada es la mediana de los residuos (no la media). Coordenadas centradas en la primera
+  // muestra (precisión en double).
   const double u0 = static_cast<double>(win_.front().first), y0 = static_cast<double>(win_.front().second);
-  double su = 0, sy = 0, suu = 0, suy = 0;
+  std::vector<double> xs, ys;
+  xs.reserve(win_.size());
+  ys.reserve(win_.size());
   for (const auto& [uu, yy] : win_) {
-    const double x = static_cast<double>(uu) - u0, y = static_cast<double>(yy) - y0;
-    su += x;
-    sy += y;
-    suu += x * x;
-    suy += x * y;
+    xs.push_back(static_cast<double>(uu) - u0);
+    ys.push_back(static_cast<double>(yy) - y0);
   }
-  const double n = static_cast<double>(win_.size());
-  const double den = n * suu - su * su;
-  if (den <= 0) return;
-  const double s = (n * suy - su * sy) / den, c = (sy - s * su) / n;
+  auto lsq = [&](const std::vector<char>& keep, double& sOut) {
+    double n = 0, su = 0, sy = 0, suu = 0, suy = 0;
+    for (std::size_t i = 0; i < xs.size(); ++i)
+      if (keep[i]) {
+        n += 1;
+        su += xs[i];
+        sy += ys[i];
+        suu += xs[i] * xs[i];
+        suy += xs[i] * ys[i];
+      }
+    const double den = n * suu - su * su;
+    if (n < 2 || den <= 0) return false;
+    sOut = (n * suy - su * sy) / den;
+    return true;
+  };
+  auto medianOf = [](std::vector<double> v) {
+    std::nth_element(v.begin(), v.begin() + static_cast<std::ptrdiff_t>(v.size() / 2), v.end());
+    return v[v.size() / 2];
+  };
+  std::vector<char> keep(xs.size(), 1);
+  double s = 0;
+  if (!lsq(keep, s)) return;
+  std::vector<double> res(xs.size());
+  for (std::size_t i = 0; i < xs.size(); ++i) res[i] = ys[i] - s * xs[i];
+  const double m = medianOf(res);
+  std::vector<double> dev(res.size());
+  for (std::size_t i = 0; i < res.size(); ++i) dev[i] = std::fabs(res[i] - m);
+  const double cut = 5.0 * 1.4826 * std::max(medianOf(dev), 1e5);  // al menos 0.1 ms
+  std::size_t kept = 0;
+  for (std::size_t i = 0; i < res.size(); ++i) kept += (keep[i] = std::fabs(res[i] - m) <= cut);
+  if (kept < p_.minPoints || !lsq(keep, s)) return;
+  std::vector<double> r2v;
+  r2v.reserve(kept);
   double r2 = 0;
-  for (const auto& [uu, yy] : win_) {
-    const double r = (static_cast<double>(yy) - y0) - (c + s * (static_cast<double>(uu) - u0));
-    r2 += r * r;
-  }
+  for (std::size_t i = 0; i < xs.size(); ++i)
+    if (keep[i]) r2v.push_back(ys[i] - s * xs[i]);
+  const double c = medianOf(r2v);
+  for (double r : r2v) r2 += (r - c) * (r - c);
+  const double n = static_cast<double>(kept);
   Anchor a;
   a.uNs = u;
   a.tickNs = s * p_.nominalTickNs;
-  a.nFit = win_.size();
+  a.nFit = kept;
   a.spanS = span;
   a.residualRmsMs = std::sqrt(r2 / n) * 1e-6;
   a.reason = reason;
-  const UtcNs cont = model(u);
+  // Recta del ajuste en coordenadas absolutas: y = cAbs + s·u (y = t_read − origen); cAbs es la
+  // latencia mediana de lectura más el error acumulado del modelo. La del primer ajuste (latencyNs_)
+  // se toma como la latencia: el ancla queda en origen + (cAbs − latencia) + s·u. Así no se acumulan
+  // los errores de pendiente de cada tramo; el salto en el ancla queda registrado (del orden del
+  // ruido del ajuste).
+  const double cAbs = y0 + c - s * u0;
   if (!fitted_) {
-    a.tUtcNs = origin_ + static_cast<std::int64_t>(std::llround(static_cast<double>(u) * s));
-    a.jumpNs = a.tUtcNs - cont;
+    latencyNs_ = cAbs;
     fitted_ = true;
-  } else {
-    a.tUtcNs = cont;
   }
+  const UtcNs cont = model(u);
+  a.tUtcNs = origin_ + static_cast<std::int64_t>(std::llround(cAbs - latencyNs_ + s * static_cast<double>(u)));
+  a.jumpNs = a.tUtcNs - cont;
   anchors_.push_back(a);
 }
 
@@ -512,7 +551,8 @@ std::pair<std::int64_t, UtcNs> TttClock::map(std::uint32_t raw, UtcNs tReadUtc) 
   ttt::Params tp{p_.nominalTickNs, p_.wrapBits};
   const std::int64_t u = ttt::unwrap(raw, readU, origin_, tp, lastU_);
   win_.emplace_back(u, tReadUtc - origin_);
-  const std::int64_t windowNs = static_cast<std::int64_t>(p_.windowS * 1e9);
+  // Antes del primer ajuste la ventana guarda todo desde el inicio (first_fit_s); después, window_s.
+  const std::int64_t windowNs = static_cast<std::int64_t>((fitted_ ? p_.windowS : std::max(p_.windowS, p_.firstFitS)) * 1e9);
   while (!win_.empty() && win_.back().second - win_.front().second > windowNs) win_.pop_front();
   if (!pendingReason_.empty()) {
     reanchor(u, tReadUtc, pendingReason_);

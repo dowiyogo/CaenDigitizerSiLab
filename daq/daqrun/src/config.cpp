@@ -57,6 +57,7 @@ Result<DaqrunConfig> DaqrunConfig::fromJson(const nlohmann::json& jIn) {
       c.tttClockReanchorS = k.value("reanchor_s", c.tttClockReanchorS);
       c.tttClockMinSpanS = k.value("min_span_s", c.tttClockMinSpanS);
       c.tttClockMinPoints = k.value("min_points", c.tttClockMinPoints);
+      c.tttClockFirstFitS = k.value("first_fit_s", c.tttClockFirstFitS);
     }
     if (dj.contains("window_layout")) {
       const auto& w = dj["window_layout"];
@@ -190,7 +191,7 @@ nlohmann::json DaqrunConfig::toJson() const {
   dj["ttt_wrap_bits"] = tttWrapBits;
   dj["ttt_pc_tolerance_s"] = tttPcToleranceS;
   dj["ttt_clock"] = {{"fit", tttClockFit}, {"window_s", tttClockWindowS}, {"reanchor_s", tttClockReanchorS},
-                     {"min_span_s", tttClockMinSpanS}, {"min_points", tttClockMinPoints}};
+                     {"min_span_s", tttClockMinSpanS}, {"min_points", tttClockMinPoints}, {"first_fit_s", tttClockFirstFitS}};
   dj["window_layout"] = window.toJson();
   return {{"campaign", {{"name", campaign}, {"raw_root", rawRoot}, {"manifests_dir", manifestsDir}, {"operator", operatorName}}},
           {"digitizer", dj},

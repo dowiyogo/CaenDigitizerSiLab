@@ -79,6 +79,7 @@ add_subdirectory(apps/sctool)
 add_subdirectory(apps/daqrun)
 add_subdirectory(apps/daqcampaign)
 add_subdirectory(apps/digprobe)
+add_subdirectory(apps/daqoffline)
 add_subdirectory(tools/legacy)
 
 if(DAQ_BUILD_TESTS)

@@ -43,6 +43,10 @@ struct DataFlagConfig {
   double baselineHours = 3;
   double baselineMinS = 1800;
   double minExpected = 20;
+  // Bit 7 también decide con μ < min_expected si n ≥ min_expected y la base reúne al menos
+  // min_baseline_counts cuentas (μ × historia / ventana): runs 7-8, base de la tarde ~1.4 kHz por
+  // canal en la cara Trasera, μ ≈ 9 en 10 min con n = 250 y razón 20 (DAQ2-9).
+  double minBaselineCounts = 30;  // incertidumbre relativa de la base ~18 %, frente a la razón 2
   double significanceP = 1e-6;
   double blackoutRatio = 0.1;
   double lightLeakRatio = 2.0;
@@ -69,8 +73,8 @@ struct DaqrunConfig {
   // digitizer.ttt_clock (DAQ2-9): t_utc con el tick ajustado contra el PC (TttClock); ttt_tick_ns es
   // el tick provisional hasta el primer ajuste.
   bool tttClockFit = true;
-  double tttClockWindowS = 3600, tttClockReanchorS = 600, tttClockMinSpanS = 300;
-  int tttClockMinPoints = 100;
+  double tttClockWindowS = 300, tttClockReanchorS = 60, tttClockMinSpanS = 120, tttClockFirstFitS = 600;
+  int tttClockMinPoints = 50;
   WindowLayout window;
   // run
   std::string mode = "physics";
