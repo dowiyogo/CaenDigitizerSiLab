@@ -5,6 +5,13 @@ add_custom_command(OUTPUT ${DASH_H}
           -P ${PROJECT_SOURCE_DIR}/cmake/embed_text.cmake
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dash.html ${PROJECT_SOURCE_DIR}/cmake/embed_text.cmake
   COMMENT "dash.html -> dash_html.h")
-add_executable(hvmon main.cpp http_page.cpp ${DASH_H})
+# /dash/mapping: la misma página que daqrun (apps/daqrun/mapping.html), sin los histogramas en vivo.
+set(MAPPING_H ${CMAKE_CURRENT_BINARY_DIR}/mapping_html.h)
+add_custom_command(OUTPUT ${MAPPING_H}
+  COMMAND ${CMAKE_COMMAND} -DIN=${PROJECT_SOURCE_DIR}/apps/daqrun/mapping.html -DOUT=${MAPPING_H} -DNAME=kMappingHtml
+          -P ${PROJECT_SOURCE_DIR}/cmake/embed_text.cmake
+  DEPENDS ${PROJECT_SOURCE_DIR}/apps/daqrun/mapping.html ${PROJECT_SOURCE_DIR}/cmake/embed_text.cmake
+  COMMENT "mapping.html -> mapping_html.h (hvmon)")
+add_executable(hvmon main.cpp http_page.cpp ${DASH_H} ${MAPPING_H})
 target_include_directories(hvmon PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ${PROJECT_SOURCE_DIR}/io/include)
 target_link_libraries(hvmon PRIVATE daq_hvmon daq_hv_caen daq_temp daq_core ROOT::Core ROOT::Hist ROOT::RHTTP daq_warnings)

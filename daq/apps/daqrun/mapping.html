@@ -4,70 +4,334 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>mapeo de canales</title>
-<!-- Tabla del mapeo en uso por daqrun (solo lectura). Lee ../status/mapping_json/root.json.gz: el
-     JSON del mapeo tal como lo cargó el run; nada está escrito a mano en esta página. -->
+<!-- Mapeo en uso (solo lectura), DAQ2-11b. Todo sale de ../status/mapping_json/root.json.gz (el JSON del
+     mapeo cargado por daqrun o hvmon); nada del mapeo está escrito a mano aquí. En daqrun (8080) se
+     agregan los histogramas de impactos en vivo (../hits/hitmap_*); en hvmon (8081) no existen y la
+     página lo dice. -->
 <style>
-  :root { --bg: #fff; --fg: #111; --mut: #666; --line: #ddd; --bad-bg: #ffe0b0; --ok: #1b7f3b; }
-  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --mut: #999; --line: #333; --bad-bg: #5a3a00; --ok: #4cc26e; } }
-  body { margin: 0; padding: 8px 10px; background: var(--bg); color: var(--fg); font: 14px/1.35 system-ui, sans-serif; }
-  #wrap { overflow-x: auto; }
+  :root { --bg: #fff; --fg: #111; --mut: #666; --line: #ddd; --diff: #ffd8a8; --box: #f4f4f4; --ok: #1b7f3b; --grey: #b8b8b8; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --mut: #999; --line: #333; --diff: #6a4300; --box: #1c1c1c; --ok: #4cc26e; --grey: #555; } }
+  body { margin: 0; padding: 8px 10px 60px; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
+  h2 { font-size: 16px; margin: 18px 0 6px; }
+  p { margin: 4px 0; max-width: 70em; }
+  .mut { color: var(--mut); } .ok { color: var(--ok); } .small { font-size: 12px; }
+  .box { background: var(--box); padding: 6px 10px; border-radius: 4px; display: inline-block; margin: 4px 0; }
+  .wrap { overflow-x: auto; max-width: 100%; }
   table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { padding: 3px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; text-align: left; }
-  th { color: var(--mut); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: var(--bg); }
-  td.diff { background: var(--bad-bg); font-weight: 600; }
-  .ok { color: var(--ok); } .mut { color: var(--mut); }
-  button { font: inherit; padding: 4px 10px; margin: 6px 0; }
+  th, td { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { color: var(--mut); font-weight: 600; font-size: 12px; background: var(--bg); }
+  td.diff { background: var(--diff); font-weight: 600; }
+  td.nm { color: var(--mut); }
+  .sw button { font: inherit; padding: 3px 10px; margin: 2px 4px 2px 0; }
+  .sw button.on { font-weight: 700; outline: 2px solid var(--fg); }
+  button.csv { font: inherit; padding: 4px 10px; margin: 6px 0; }
+  .legend span.sq { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; margin: 0 3px 0 8px; border: 1px solid var(--line); }
+  svg text { fill: var(--fg); }
+  .stations { display: flex; flex-wrap: wrap; gap: 16px; }
 </style>
 </head>
 <body>
-<div id="hdr">cargando…</div>
-<button id="csv" disabled>Descargar CSV</button>
-<div class="mut">Resaltado: la coordenada o el grupo medidos no coinciden con la hoja / planilla.</div>
-<div id="wrap"><table><thead><tr>
-  <th>canal</th><th>estación</th><th>plano</th><th>etiqueta planilla</th><th>coord. hoja</th><th>coord. medida</th>
-  <th>grupo planilla</th><th>grupo medido</th><th>grupo confirmado</th><th>coord. confirmada</th><th>luz</th>
-</tr></thead><tbody id="rows"></tbody></table></div>
+<div id="hdr">cargando el mapeo…</div>
 <div id="err" style="color:#c62828"></div>
+
+<h2>Cómo leer esta página</h2>
+<div id="sources"></div>
+<p class="legend">Colores: <span class="sq" style="background:var(--diff)"></span>naranja = <b>las dos fuentes no coinciden</b>
+  (la hoja o la planilla no describen el montaje como se midió); no significa que un cable esté mal.
+  <span class="sq" style="background:var(--grey)"></span>gris = sin medición: el valor mostrado es el de la hoja o la planilla.</p>
+
+<h2>Resumen por plano</h2>
+<div class="wrap"><table id="summary"></table></div>
+
+<h2>Dibujo de cada estación</h2>
+<div class="sw">Posición de las tiras: <button id="v_meas" class="on">según medición</button><button id="v_sheet">según la hoja del laboratorio</button>
+  &nbsp; Color: <button id="c_meas" class="on">grupo HV medido</button><button id="c_sheet">grupo de la planilla</button></div>
+<p class="small mut" id="drawnote"></p>
+<div class="stations" id="draw"></div>
+<p class="small mut">Se dibujan las 16 tiras X (verticales) y las 16 Y (horizontales), en dos capas de 8 por coordenada que se
+  traslapan 1 mm. El cuadrado MPPC indica el extremo leído. <b>Supuesto:</b> la capa y el extremo leído se asignan por la
+  paridad de la coordenada (regla de mayo: par en un lado, impar en el otro). En hod2019 el nombre de la cara viene de la
+  etiqueta, que también es un supuesto. La orientación absoluta de hod2018 no está determinada.</p>
+
+<h2>Impactos X × Y en vivo (mismo orden que el dibujo)</h2>
+<p class="small mut">Pares (tira X, tira Y) sobre el umbral de impactos en el mismo evento, acumulados desde el inicio del run.
+  Si el mapeo es correcto, hod2018 muestra una mancha compacta sin puntos sueltos. Bajo cada número de tira va el canal del
+  digitizador.</p>
+<div class="stations" id="hits"></div>
+
+<h2>Candidatos de MPPC para cada canal (inferencia)</h2>
+<p class="small">Para cada canal con grupo medido, estas son las etiquetas de la planilla cuyo grupo es el mismo, es decir, los
+  MPPC físicos que podrían estar en ese canal. <b>Es una inferencia</b>: sirve para pedirle al laboratorio que revise esos
+  conectores. En hod2018 se acota más con la hipótesis de que el número de la etiqueta sigue la posición física (k o 15 − k,
+  porque la orientación no se conoce). En hod2019 se acota a las caras del mismo plano según la hoja, que también es un supuesto.</p>
+<div class="sw">Mostrar: <button id="k_diff" class="on">solo canales con grupo distinto</button><button id="k_all">todos</button></div>
+<div class="wrap"><table id="cand"></table></div>
+
+<h2>Tabla completa (64 canales)</h2>
+<button class="csv" id="csv" disabled>Descargar CSV</button>
+<div class="wrap"><table id="tab"></table></div>
+
 <script>
 "use strict";
+const COL = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948", "#b07aa1", "#ff9da7"];
+const NS = "http://www.w3.org/2000/svg";
 function esc(s) { return String(s == null ? "–" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
-let table = [];
-function render(m) {
-  const light = new Set([].concat(...Object.values(m.light_units || {})));
-  table = (m.channels || []).slice().sort((a, b) => a.dig_ch - b.dig_ch).map(c => {
-    const conf = c.confirmed || {};
-    const sheetStrip = c.strip_sheet !== undefined ? c.strip_sheet : c.strip;
-    return { ch: c.dig_ch, station: c.station, plane: c.plane, label: c.label, strip_sheet: sheetStrip, strip: c.strip,
-             group_sheet: c.hv_group_sheet, group: c.hv_group, group_conf: conf.hv_group, strip_conf: conf.strip, light: light.has(c.dig_ch) };
+function grey() { return getComputedStyle(document.documentElement).getPropertyValue("--grey").trim() || "#bbb"; }
+let M = null, rows = [], view = "meas", colorBy = "meas", candMode = "diff";
+
+// ---- modelo por canal: qué dice cada fuente y si hay medición
+function build(m) {
+  return (m.channels || []).slice().sort((a, b) => a.dig_ch - b.dig_ch).map(c => {
+    const gt = c.hv_group_test || {}, stt = c.strip_test || {};
+    const sheet = c.strip_sheet !== undefined ? c.strip_sheet : c.strip;
+    const stripState = stt.result || ((c.confirmed || {}).strip === "measurement" ? "medido" : "no medida");
+    const stripMeasured = stripState === "medido";
+    const groupMeasured = c.hv_group != null;
+    const r = { ch: c.dig_ch, station: c.station, plane: c.plane, label: c.label, labelLink: c.label_link, face: c.face,
+                sheet, strip: c.strip, stripState, stripMeasured, stripTest: stt, gsheet: c.hv_group_sheet, g: c.hv_group, gt, groupMeasured };
+    r.stripDiff = stripMeasured && sheet !== c.strip;
+    r.groupDiff = groupMeasured && r.gsheet != null && r.gsheet !== r.g;
+    const why = [];
+    if (r.stripDiff) why.push("orden de coordenadas distinto");
+    if (r.groupDiff) why.push(r.stripDiff ? "grupo distinto" : "grupo distinto con la coordenada " + (stripMeasured ? "igual" : "sin medir") +
+                              ": apunta al supuesto etiqueta → canal o a la agrupación de la planilla");
+    if (!groupMeasured) why.push("grupo sin medir");
+    if (!stripMeasured) why.push(stripState === "deducido" ? "coordenada deducida" : "coordenada no medida");
+    r.why = why.join("; ");
+    return r;
   });
-  document.getElementById("hdr").innerHTML = `mapeo <b>${esc(m.mapping_version)}</b> (anterior ${esc(m.previous_version)}), ${table.length} canales` +
-    ` — ${table.filter(r => r.group_conf === "measurement").length} con grupo medido`;
-  document.getElementById("rows").innerHTML = table.map(r => {
-    const ds = r.strip_sheet !== r.strip ? "diff" : "", dg = r.group_sheet != null && r.group != null && r.group_sheet !== r.group ? "diff" : "";
-    return `<tr><td>${r.ch}</td><td>${esc(r.station)}</td><td>${esc(r.plane)}</td><td>${esc(r.label)}</td><td>${esc(r.strip_sheet)}</td>` +
-      `<td class="${ds}">${esc(r.strip)}</td><td>${esc(r.group_sheet)}</td><td class="${dg}">${esc(r.group)}</td>` +
-      `<td class="${r.group_conf === "measurement" ? "ok" : "mut"}">${esc(r.group_conf)}</td>` +
-      `<td class="${r.strip_conf === "measurement" ? "ok" : "mut"}">${esc(r.strip_conf)}</td><td>${r.light ? "sí" : ""}</td></tr>`;
-  }).join("");
+}
+
+function header(m) {
+  const nG = rows.filter(r => r.groupMeasured).length, nS = rows.filter(r => r.stripMeasured).length;
+  const rev = (m.revisions || []).join(" ");
+  document.getElementById("hdr").innerHTML =
+    `<p>Esta página muestra qué canal del digitizador corresponde a cada tira y MPPC de los hodoscopios, según el mapeo en uso,
+     <b>${esc(m.mapping_version)}</b> (anterior: ${esc(m.previous_version)}). Compara tres fuentes: la hoja del laboratorio, la planilla
+     de MPPC y las mediciones (prueba de grupos HV del 2026-10-21 y coincidencias entre tiras vecinas de mayo y del 2026-10-19).</p>
+     <p>${nG} de ${rows.length} canales tienen el grupo HV medido y ${nS} la coordenada medida (solo hod2018).</p>
+     <p class="small mut">Cambios respecto de la versión anterior: ${esc(m.description || "")} ${esc(rev)}</p>`;
+  const s = m.sources || {};
+  const names = { strip_sheet: "coord. hoja", label: "etiqueta planilla", hv_group_sheet: "grupo planilla", hv_group: "grupo medido", strip: "coord. medida" };
+  document.getElementById("sources").innerHTML = "<p><b>De dónde sale cada columna</b></p>" +
+    Object.keys(names).map(k => `<p class="small"><b>${names[k]}</b>: ${esc(s[k] || "sin descripción en el JSON")}</p>`).join("") +
+    `<p class="small"><b>Supuesto en hod2018:</b> que la etiqueta "Canal k" corresponde al canal k del digitizador viene de la hoja
+     y no está medido (handoff, sección 5). Por eso "grupo planilla" también es un supuesto.</p>`;
+}
+
+function summary() {
+  const planes = [...new Set(rows.map(r => r.station + " " + r.plane))];
+  let h = "<tr><th>plano</th><th>grupo: coincide</th><th>grupo: distinto</th><th>grupo: sin medir</th>" +
+          "<th>coord.: coincide</th><th>coord.: distinta</th><th>coord.: sin medir o deducida</th></tr>";
+  for (const p of planes) {
+    const rr = rows.filter(r => r.station + " " + r.plane === p);
+    const n = f => rr.filter(f).length;
+    h += `<tr><td>${esc(p)}</td><td>${n(r => r.groupMeasured && !r.groupDiff)}</td><td>${n(r => r.groupDiff)}</td><td>${n(r => !r.groupMeasured)}</td>` +
+         `<td>${n(r => r.stripMeasured && !r.stripDiff)}</td><td>${n(r => r.stripDiff)}</td><td>${n(r => !r.stripMeasured)}</td></tr>`;
+  }
+  document.getElementById("summary").innerHTML = h;
+}
+
+// ---- dibujo de una estación (SVG); escala 4 px/mm, barras de 75 × 3 mm, paso 2 mm (traslapo 1 mm)
+function el(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+function posOf(r) { return view === "meas" ? r.strip : r.sheet; }
+function colorOf(r) {
+  const g = colorBy === "meas" ? r.g : r.gsheet;
+  return g == null ? grey() : COL[(g - 1) % 8];
+}
+function drawStation(st) {
+  const S = 4, L = 75 * S, W = 3 * S, A = 33 * S, pad = 26, size = L + 2 * pad;
+  const svg = el("svg", { width: size, height: size + 20, viewBox: `0 0 ${size} ${size + 20}`, role: "img" });
+  svg.appendChild(el("title", {}, st + ": tiras en orden " + (view === "meas" ? "medido" : "de la hoja")));
+  const c0 = pad + (L - A) / 2;  // borde del cuadrado activo
+  const faces = {};
+  for (const r of rows.filter(r => r.station === st)) {
+    const k = posOf(r);
+    if (k == null || k < 0) continue;
+    const off = c0 + 2 * S * k, odd = k % 2 === 1;
+    const g = el("g", { opacity: odd ? 0.85 : 1 });
+    const dashed = !r.stripMeasured && view === "meas";
+    const common = { fill: colorOf(r), stroke: "currentColor", "stroke-width": 0.6, "stroke-dasharray": dashed ? "3 2" : "none" };
+    let bar, mppc, txt;
+    const lab = `ch${r.ch} · ${r.label || "–"}`;
+    if (r.plane === "X") {  // vertical
+      bar = el("rect", Object.assign({ x: off, y: pad, width: W, height: L }, common));
+      mppc = el("rect", { x: off, y: odd ? pad + L : pad - 6, width: W, height: 6, fill: "currentColor" });
+      const ty = odd ? pad + L - 4 : pad + 4;
+      txt = el("text", { x: off + W / 2 + 3, y: ty, "font-size": 9, transform: `rotate(-90 ${off + W / 2 + 3} ${ty})`, "text-anchor": odd ? "start" : "end" }, lab);
+    } else {  // horizontal
+      bar = el("rect", Object.assign({ x: pad, y: off, width: L, height: W }, common));
+      mppc = el("rect", { x: odd ? pad + L : pad - 6, y: off, width: 6, height: W, fill: "currentColor" });
+      txt = el("text", { x: odd ? pad + L - 4 : pad + 4, y: off + W / 2 + 3, "font-size": 9, "text-anchor": odd ? "end" : "start" }, lab);
+    }
+    bar.appendChild(el("title", {}, `ch${r.ch} ${r.station} ${r.plane}, coordenada ${k} (${view === "meas" ? (r.stripMeasured ? "medida" : r.stripState + ", valor de la hoja") : "hoja"}), ` +
+      `etiqueta ${r.label || "–"} (supuesta), grupo medido ${r.g == null ? "sin medir" : r.g}, grupo planilla ${r.gsheet == null ? "–" : r.gsheet}`));
+    g.appendChild(bar); g.appendChild(mppc); g.appendChild(txt);
+    svg.appendChild(g);
+    if (r.face) faces[r.plane + (odd ? 1 : 0)] = r.face;
+  }
+  const f = (key, x, y, anchor) => svg.appendChild(el("text", { x, y, "font-size": 11, "text-anchor": anchor, "font-weight": 600 }, faces[key] || ""));
+  f("X0", size / 2, 12, "middle"); f("X1", size / 2, size - 2, "middle");
+  f("Y0", 2, c0 - 10, "start"); f("Y1", size - 2, c0 - 10, "end");  // esquinas libres, fuera de las barras
+  svg.appendChild(el("text", { x: 2, y: size + 14, "font-size": 11 }, st + (view === "meas" ? " — según medición" : " — según la hoja del laboratorio")));
+  return svg;
+}
+function drawAll() {
+  const d = document.getElementById("draw");
+  d.textContent = "";
+  for (const st of ["hod2018", "hod2019"]) d.appendChild(drawStation(st));
+  const leg = COL.map((c, i) => `<span class="sq" style="background:${c}"></span>grupo ${i + 1}`).join("") +
+              `<span class="sq" style="background:var(--grey)"></span>sin medir`;
+  document.getElementById("drawnote").innerHTML = `<span class="legend">${leg}</span><br>` + (view === "meas"
+    ? "Según medición: hod2018 en el orden medido por vecinas (ch3 deducido). hod2019 con borde punteado: su coordenada <b>no está medida</b> y se dibuja en la posición de la hoja."
+    : "Según la hoja: canal k del plano en la coordenada k, como dice la hoja 'Octubre 2026'.");
+  hitsAll();
+}
+
+// ---- histogramas de impactos en vivo (solo en daqrun)
+function chAt(st, plane, k) {
+  const r = rows.find(r => r.station === st && r.plane === plane && posOf(r) === k);
+  return r ? r.ch : "–";
+}
+async function hitsOne(st) {
+  const name = "hitmap_" + st + (view === "meas" ? "" : "_hoja");
+  const box = document.createElement("div");
+  try {
+    const resp = await fetch(`../hits/${name}/root.json`, { cache: "no-store" });
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const h = await resp.json();
+    const nx = h.fXaxis.fNbins, ny = h.fYaxis.fNbins, a = h.fArray;
+    const v = (ix, iy) => a[(ix + 1) + (nx + 2) * (iy + 1)] || 0;
+    let max = 0, tot = 0;
+    for (let i = 0; i < nx; ++i) for (let j = 0; j < ny; ++j) { max = Math.max(max, v(i, j)); tot += v(i, j); }
+    const C = 18, padL = 44, padB = 40, w = padL + nx * C + 6, hh = ny * C + padB + 6;
+    const svg = el("svg", { width: w, height: hh, viewBox: `0 0 ${w} ${hh}`, role: "img" });
+    for (let i = 0; i < nx; ++i) for (let j = 0; j < ny; ++j) {
+      const c = v(i, j), t = max > 0 ? c / max : 0;
+      const r = el("rect", { x: padL + i * C, y: 6 + (ny - 1 - j) * C, width: C - 1, height: C - 1,
+                             fill: c > 0 ? `rgba(78,121,167,${0.12 + 0.88 * t})` : "none", style: "stroke: var(--line)" });
+      r.appendChild(el("title", {}, `X ${i} (ch${chAt(st, "X", i)}) × Y ${j} (ch${chAt(st, "Y", j)}): ${c}`));
+      svg.appendChild(r);
+    }
+    for (let i = 0; i < nx; ++i) {
+      svg.appendChild(el("text", { x: padL + i * C + C / 2, y: 6 + ny * C + 12, "font-size": 10, "text-anchor": "middle" }, i));
+      svg.appendChild(el("text", { x: padL + i * C + C / 2, y: 6 + ny * C + 24, "font-size": 8, "text-anchor": "middle", class: "mut" }, chAt(st, "X", i)));
+    }
+    for (let j = 0; j < ny; ++j) {
+      const y = 6 + (ny - 1 - j) * C + C / 2 + 4;
+      svg.appendChild(el("text", { x: 18, y, "font-size": 10, "text-anchor": "end" }, j));
+      svg.appendChild(el("text", { x: padL - 4, y, "font-size": 8, "text-anchor": "end" }, chAt(st, "Y", j)));
+    }
+    svg.appendChild(el("text", { x: padL, y: hh - 2, "font-size": 10 }, "tira X (debajo: canal)   ·   eje vertical: tira Y (a la derecha: canal)"));
+    const thr = ((h.fTitle || "").match(/>\s*([\d.]+)\s*mV/) || [])[1];
+    box.innerHTML = `<div class="small"><b>${st}</b>, ${view === "meas" ? "orden medido" : "orden de la hoja"}; umbral de impactos ${thr ? thr + " mV" : "(ver título)"}; ${tot} pares</div>`;
+    box.appendChild(svg);
+  } catch (e) {
+    box.innerHTML = `<div class="small mut"><b>${st}</b>: el histograma en vivo no está disponible aquí (${esc(e.message)}). Solo lo sirve la página del run
+      de daqrun (puerto 8080), con un binario de daqrun de DAQ2-11b o posterior y con eventos en el run.</div>`;
+  }
+  return box;
+}
+async function hitsAll() {
+  const d = document.getElementById("hits");
+  const boxes = await Promise.all(["hod2018", "hod2019"].map(hitsOne));
+  d.textContent = "";
+  boxes.forEach(b => d.appendChild(b));
+}
+
+// ---- candidatos (inferencia)
+function candidates(r) {
+  const byLab = M.hv_groups_by_label || {};
+  if (r.g == null) return { all: [], narrow: [], note: "grupo sin medir" };
+  const e = byLab[String(r.g)] || {};
+  if (r.station === "hod2018") {
+    const all = (e["hod2018_" + r.plane] || []).map(k => `${r.plane} Canal ${k}`);
+    let narrow = [];
+    if (r.stripMeasured || r.stripState === "deducido") {
+      const ok = new Set([r.strip, 15 - r.strip]);
+      narrow = (e["hod2018_" + r.plane] || []).filter(k => ok.has(k)).map(k => `${r.plane} Canal ${k}`);
+    }
+    return { all, narrow, note: r.stripMeasured ? `coordenada medida ${r.strip}: etiqueta ${r.strip} o ${15 - r.strip}` : "" };
+  }
+  const all = e.hod2019 || [];
+  const planeFaces = new Set(rows.filter(x => x.station === r.station && x.plane === r.plane && x.face).map(x => x.face));
+  const narrow = all.filter(l => planeFaces.has(l.split(" ")[0]));
+  return { all, narrow, note: `caras del plano ${r.plane} según la hoja: ${[...planeFaces].join(", ")} (supuesto)` };
+}
+function candTable() {
+  const rr = rows.filter(r => r.groupMeasured && (candMode === "all" || r.groupDiff));
+  let h = "<tr><th>canal</th><th>plano</th><th>etiqueta según la hoja</th><th>grupo planilla</th><th>grupo medido</th>" +
+          "<th>candidatos (mismo grupo en la planilla)</th><th>acotados (hipótesis)</th><th>criterio para acotar</th></tr>";
+  for (const r of rr) {
+    const c = candidates(r);
+    h += `<tr><td>${r.ch}</td><td>${esc(r.station + " " + r.plane)}</td><td>${esc(r.label)}</td><td>${esc(r.gsheet)}</td><td>${esc(r.g)}</td>` +
+         `<td>${esc(c.all.join(", ") || "ninguno")}</td><td>${esc(c.narrow.join(", ") || "ninguno")}</td><td class="small mut">${esc(c.note)}</td></tr>`;
+  }
+  document.getElementById("cand").innerHTML = h + (rr.length ? "" : "<tr><td colspan=8>sin canales</td></tr>");
+}
+
+// ---- tabla completa
+function groupText(r) {
+  if (!r.groupMeasured) return `sin medir: ${r.gt.reason || ""}`;
+  const t = r.gt;
+  return `medido: prueba de grupos 21-10 (SY5527 CH${String(t.sy5527_ch).padStart(2, "0")} apagado: ${t.counts_off} cuentas contra ${t.expected_from_reference} esperadas, razón ${t.ratio}, p ${t.p_drop === 0 ? "< 1e-300" : "= " + t.p_drop}, umbral ${t.threshold})`;
+}
+function stripText(r) {
+  if (r.stripState === "medido") return `medida: vecinas (mayo y 19-10); ${r.stripTest.orientation || ""}`;
+  if (r.stripState === "deducido") return `deducida: ${r.stripTest.method || ""}`;
+  return `no medida: ${r.stripTest.reason || ""}`;
+}
+function table() {
+  let h = "<tr><th>canal</th><th>estación</th><th>plano</th><th>etiqueta planilla (supuesta)</th><th>coord. hoja</th><th>coord. medida</th>" +
+          "<th>grupo planilla</th><th>grupo medido</th><th>motivo de la diferencia</th><th>coordenada: estado</th><th>grupo: estado</th></tr>";
+  for (const r of rows) {
+    const sCell = r.stripMeasured ? `<td class="${r.stripDiff ? "diff" : ""}">${r.strip}</td>`
+                                  : `<td class="nm">${r.stripState === "deducido" ? "deducida" : "no medida"} (hoja: ${esc(r.sheet)})</td>`;
+    const gCell = r.groupMeasured ? `<td class="${r.groupDiff ? "diff" : ""}">${r.g}</td>` : `<td class="nm">sin medir</td>`;
+    h += `<tr><td>${r.ch}</td><td>${esc(r.station)}</td><td>${esc(r.plane)}</td><td title="${esc(r.labelLink)}">${esc(r.label)}</td><td>${esc(r.sheet)}</td>` +
+         sCell + `<td>${esc(r.gsheet)}</td>` + gCell + `<td class="small">${esc(r.why || "coinciden")}</td>` +
+         `<td class="small mut">${esc(stripText(r))}</td><td class="small mut">${esc(groupText(r))}</td></tr>`;
+  }
+  document.getElementById("tab").innerHTML = h;
   const b = document.getElementById("csv");
   b.disabled = false;
   b.onclick = () => {
-    const head = ["canal", "estacion", "plano", "etiqueta_planilla", "coord_hoja", "coord_medida", "grupo_planilla", "grupo_medido",
-                  "grupo_confirmado", "coord_confirmada", "expuesto_luz"];
-    const lines = [head.join(",")].concat(table.map(r => [r.ch, r.station, r.plane, r.label, r.strip_sheet, r.strip, r.group_sheet, r.group,
-      r.group_conf, r.strip_conf, r.light ? 1 : 0].map(v => v == null ? "" : `"${String(v).replace(/"/g, '""')}"`).join(",")));
+    const head = ["canal", "estacion", "plano", "etiqueta_planilla_supuesta", "coord_hoja", "coord_medida", "coord_estado", "grupo_planilla",
+                  "grupo_medido", "grupo_estado", "motivo_diferencia"];
+    const q = v => v == null ? "" : `"${String(v).replace(/"/g, '""')}"`;
+    const lines = [head.join(",")].concat(rows.map(r => [r.ch, r.station, r.plane, r.label, r.sheet, r.stripMeasured ? r.strip : "",
+      stripText(r), r.gsheet, r.groupMeasured ? r.g : "", groupText(r), r.why].map(q).join(",")));
     const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `mapeo_${m.mapping_version}.csv`;
+    a.download = `mapeo_${M.mapping_version}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 }
+
+function toggle(ids, active) { ids.forEach(id => document.getElementById(id).classList.toggle("on", id === active)); }
+document.getElementById("v_meas").onclick = () => { view = "meas"; toggle(["v_meas", "v_sheet"], "v_meas"); drawAll(); };
+document.getElementById("v_sheet").onclick = () => { view = "sheet"; toggle(["v_meas", "v_sheet"], "v_sheet"); drawAll(); };
+document.getElementById("c_meas").onclick = () => { colorBy = "meas"; toggle(["c_meas", "c_sheet"], "c_meas"); drawAll(); };
+document.getElementById("c_sheet").onclick = () => { colorBy = "sheet"; toggle(["c_meas", "c_sheet"], "c_sheet"); drawAll(); };
+document.getElementById("k_diff").onclick = () => { candMode = "diff"; toggle(["k_diff", "k_all"], "k_diff"); candTable(); };
+document.getElementById("k_all").onclick = () => { candMode = "all"; toggle(["k_diff", "k_all"], "k_all"); candTable(); };
+
 fetch("../status/mapping_json/root.json.gz", { cache: "no-store" })
   .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
-  .then(o => render(JSON.parse(o.fTitle)))
+  .then(o => {
+    M = JSON.parse(o.fTitle);
+    rows = build(M);
+    header(M); summary(); drawAll(); candTable(); table();
+  })
   .catch(e => { document.getElementById("err").textContent = "no se pudo leer el mapeo: " + e.message; });
+setInterval(() => { if (M) hitsAll(); }, 30000);
 </script>
 </body>
 </html>

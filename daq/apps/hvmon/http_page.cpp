@@ -1,7 +1,8 @@
 // http_page.cpp
 #include "http_page.h"
 
-#include "dash_html.h"  // kDashHtml, generado desde dash.html
+#include "dash_html.h"     // kDashHtml, generado desde dash.html
+#include "mapping_html.h"  // kMappingHtml, generado desde apps/daqrun/mapping.html
 #include "daq/io/dash_server.h"
 
 #include <cstdio>
@@ -23,12 +24,12 @@ void HttpPage::Ring::push(double tt, double yy) {
   if (n < t.size()) ++n;
 }
 
-Result<std::unique_ptr<HttpPage>> HttpPage::create(const HvmonConfig& cfg, const std::string& bindAddress) {
+Result<std::unique_ptr<HttpPage>> HttpPage::create(const HvmonConfig& cfg, const std::string& bindAddress, const std::string& mappingText) {
   using R = Result<std::unique_ptr<HttpPage>>;
   std::unique_ptr<HttpPage> page(new HttpPage());
   page->cfg_ = &cfg;
   const std::string engine = "http:" + std::to_string(cfg.httpPort) + "?bind=" + bindAddress + "&thrds=2";
-  page->server_ = std::make_unique<io::DashServer>(engine.c_str(), kDashHtml);  // + /dash/
+  page->server_ = std::make_unique<io::DashServer>(engine.c_str(), kDashHtml, kMappingHtml);  // + /dash/ y /dash/mapping
   if (!page->server_->IsAnyEngine()) return R::failure(-1, "THttpServer no pudo iniciar " + engine);
   page->server_->SetReadOnly(kTRUE);
   page->server_->SetTimer(0, kTRUE);  // solo atiende en processRequests() (hilo principal)
@@ -74,6 +75,8 @@ Result<std::unique_ptr<HttpPage>> HttpPage::create(const HvmonConfig& cfg, const
   page->json_ = std::make_unique<TNamed>("state_json", "{}");
   page->server_->Register("/status", page->table_.get());
   page->server_->Register("/status", page->json_.get());
+  page->mapping_ = std::make_unique<TNamed>("mapping_json", mappingText.empty() ? "{}" : mappingText.c_str());  // /dash/mapping lo lee
+  page->server_->Register("/status", page->mapping_.get());
   return page;
 }
 
@@ -82,6 +85,7 @@ HttpPage::~HttpPage() {
     for (auto& g : graphs_) server_->Unregister(g.get());
     if (table_) server_->Unregister(table_.get());
     if (json_) server_->Unregister(json_.get());
+    if (mapping_) server_->Unregister(mapping_.get());
   }
   server_.reset();
 }

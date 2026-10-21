@@ -38,7 +38,29 @@
    "strip_sheet": 0,
    "label": "Canal 0",
    "hv_group_sheet": 6,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 1,
+    "sy5527_ch": 0,
+    "threshold": "3pe_v8",
+    "events_off": 4969,
+    "counts_off": 0,
+    "expected_from_reference": 4775.22,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 1,
@@ -63,7 +85,29 @@
    "strip_sheet": 1,
    "label": "Canal 1",
    "hv_group_sheet": 4,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 6,
+    "sy5527_ch": 5,
+    "threshold": "3pe_v8",
+    "events_off": 4978,
+    "counts_off": 0,
+    "expected_from_reference": 5602.86,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 2,
@@ -88,7 +132,29 @@
    "strip_sheet": 2,
    "label": "Canal 2",
    "hv_group_sheet": 6,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 7,
+    "sy5527_ch": 6,
+    "threshold": "3pe_v8",
+    "events_off": 4502,
+    "counts_off": 0,
+    "expected_from_reference": 17599.25,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 3,
@@ -99,7 +165,7 @@
    "hv_group": null,
    "hv_ch": null,
    "confirmed": {
-    "strip": "measurement",
+    "strip": "derived",
     "hv_group": "unknown",
     "face": "unknown"
    },
@@ -113,7 +179,21 @@
    "strip_sheet": 3,
    "label": "Canal 3",
    "hv_group_sheet": 3,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+    "max_expected_counts": 0.0,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "deducido",
+    "method": "canal muerto: su posición se dedujo del único hueco de la cadena de vecinas",
+    "orientation": "orientación absoluta no determinada",
+    "source": "docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 4,
@@ -138,7 +218,29 @@
    "strip_sheet": 4,
    "label": "Canal 4",
    "hv_group_sheet": 5,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 5,
+    "sy5527_ch": 4,
+    "threshold": "3pe_v8",
+    "events_off": 5023,
+    "counts_off": 0,
+    "expected_from_reference": 4562.49,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 5,
@@ -163,7 +265,29 @@
    "strip_sheet": 5,
    "label": "Canal 5",
    "hv_group_sheet": 5,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 5,
+    "sy5527_ch": 4,
+    "threshold": "3pe_v8",
+    "events_off": 5023,
+    "counts_off": 0,
+    "expected_from_reference": 6747.91,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 6,
@@ -188,7 +312,29 @@
    "strip_sheet": 6,
    "label": "Canal 6",
    "hv_group_sheet": 5,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 2,
+    "sy5527_ch": 1,
+    "threshold": "3pe_v8",
+    "events_off": 4907,
+    "counts_off": 0,
+    "expected_from_reference": 7443.88,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 7,
@@ -213,7 +359,29 @@
    "strip_sheet": 7,
    "label": "Canal 7",
    "hv_group_sheet": 2,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 5,
+    "sy5527_ch": 4,
+    "threshold": "3pe_v8",
+    "events_off": 5023,
+    "counts_off": 0,
+    "expected_from_reference": 11957.24,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 8,
@@ -238,7 +406,29 @@
    "strip_sheet": 8,
    "label": "Canal 8",
    "hv_group_sheet": 5,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 5,
+    "sy5527_ch": 4,
+    "threshold": "3pe_v8",
+    "events_off": 5023,
+    "counts_off": 0,
+    "expected_from_reference": 6356.61,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 9,
@@ -263,7 +453,29 @@
    "strip_sheet": 9,
    "label": "Canal 9",
    "hv_group_sheet": 5,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 7,
+    "sy5527_ch": 6,
+    "threshold": "3pe_v8",
+    "events_off": 4502,
+    "counts_off": 0,
+    "expected_from_reference": 32679.36,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 10,
@@ -288,7 +500,29 @@
    "strip_sheet": 10,
    "label": "Canal 10",
    "hv_group_sheet": 7,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 3,
+    "sy5527_ch": 2,
+    "threshold": "3pe_v8",
+    "events_off": 4540,
+    "counts_off": 0,
+    "expected_from_reference": 6217.83,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 11,
@@ -313,7 +547,29 @@
    "strip_sheet": 11,
    "label": "Canal 11",
    "hv_group_sheet": 7,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 3,
+    "sy5527_ch": 2,
+    "threshold": "3pe_v8",
+    "events_off": 4540,
+    "counts_off": 0,
+    "expected_from_reference": 8804.85,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 12,
@@ -338,7 +594,29 @@
    "strip_sheet": 12,
    "label": "Canal 12",
    "hv_group_sheet": 3,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 4,
+    "sy5527_ch": 3,
+    "threshold": "3pe_v8",
+    "events_off": 4918,
+    "counts_off": 0,
+    "expected_from_reference": 3872.62,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 13,
@@ -363,7 +641,29 @@
    "strip_sheet": 13,
    "label": "Canal 13",
    "hv_group_sheet": 1,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 3,
+    "sy5527_ch": 2,
+    "threshold": "3pe_v8",
+    "events_off": 4540,
+    "counts_off": 0,
+    "expected_from_reference": 5954.64,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 14,
@@ -388,7 +688,29 @@
    "strip_sheet": 14,
    "label": "Canal 14",
    "hv_group_sheet": 3,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 4,
+    "sy5527_ch": 3,
+    "threshold": "3pe_v8",
+    "events_off": 4918,
+    "counts_off": 0,
+    "expected_from_reference": 3425.3,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 15,
@@ -413,7 +735,29 @@
    "strip_sheet": 15,
    "label": "Canal 15",
    "hv_group_sheet": 8,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 8,
+    "sy5527_ch": 7,
+    "threshold": "3pe_v8",
+    "events_off": 4997,
+    "counts_off": 0,
+    "expected_from_reference": 13514.12,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 16,
@@ -438,7 +782,29 @@
    "strip_sheet": 0,
    "label": "Canal 0",
    "hv_group_sheet": 8,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 6,
+    "sy5527_ch": 5,
+    "threshold": "3pe_v8",
+    "events_off": 4978,
+    "counts_off": 0,
+    "expected_from_reference": 8617.38,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 17,
@@ -463,7 +829,29 @@
    "strip_sheet": 1,
    "label": "Canal 1",
    "hv_group_sheet": 6,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 4,
+    "sy5527_ch": 3,
+    "threshold": "3pe_v8",
+    "events_off": 4918,
+    "counts_off": 0,
+    "expected_from_reference": 2110.54,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 18,
@@ -488,7 +876,29 @@
    "strip_sheet": 2,
    "label": "Canal 2",
    "hv_group_sheet": 4,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 6,
+    "sy5527_ch": 5,
+    "threshold": "3pe_v8",
+    "events_off": 4978,
+    "counts_off": 0,
+    "expected_from_reference": 7260.45,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 19,
@@ -513,7 +923,29 @@
    "strip_sheet": 3,
    "label": "Canal 3",
    "hv_group_sheet": 8,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 4,
+    "sy5527_ch": 3,
+    "threshold": "3pe_v8",
+    "events_off": 4918,
+    "counts_off": 0,
+    "expected_from_reference": 7008.77,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 20,
@@ -538,7 +970,29 @@
    "strip_sheet": 4,
    "label": "Canal 4",
    "hv_group_sheet": 4,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 8,
+    "sy5527_ch": 7,
+    "threshold": "3pe_v8",
+    "events_off": 4997,
+    "counts_off": 0,
+    "expected_from_reference": 11305.58,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 21,
@@ -563,7 +1017,29 @@
    "strip_sheet": 5,
    "label": "Canal 5",
    "hv_group_sheet": 3,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 5,
+    "sy5527_ch": 4,
+    "threshold": "3pe_v8",
+    "events_off": 5023,
+    "counts_off": 0,
+    "expected_from_reference": 3713.35,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 22,
@@ -588,7 +1064,29 @@
    "strip_sheet": 6,
    "label": "Canal 6",
    "hv_group_sheet": 5,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 3,
+    "sy5527_ch": 2,
+    "threshold": "3pe_v8",
+    "events_off": 4540,
+    "counts_off": 0,
+    "expected_from_reference": 7503.86,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 23,
@@ -613,7 +1111,29 @@
    "strip_sheet": 7,
    "label": "Canal 7",
    "hv_group_sheet": 2,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 4,
+    "sy5527_ch": 3,
+    "threshold": "3pe_v8",
+    "events_off": 4918,
+    "counts_off": 0,
+    "expected_from_reference": 6781.4,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 24,
@@ -638,7 +1158,29 @@
    "strip_sheet": 8,
    "label": "Canal 8",
    "hv_group_sheet": 4,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 2,
+    "sy5527_ch": 1,
+    "threshold": "3pe_v8",
+    "events_off": 4907,
+    "counts_off": 0,
+    "expected_from_reference": 9923.35,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 25,
@@ -663,7 +1205,29 @@
    "strip_sheet": 9,
    "label": "Canal 9",
    "hv_group_sheet": 8,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 3,
+    "sy5527_ch": 2,
+    "threshold": "3pe_v8",
+    "events_off": 4540,
+    "counts_off": 0,
+    "expected_from_reference": 8230.62,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 26,
@@ -688,7 +1252,29 @@
    "strip_sheet": 10,
    "label": "Canal 10",
    "hv_group_sheet": 3,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 8,
+    "sy5527_ch": 7,
+    "threshold": "3pe_v8",
+    "events_off": 4997,
+    "counts_off": 0,
+    "expected_from_reference": 13427.41,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 27,
@@ -713,7 +1299,29 @@
    "strip_sheet": 11,
    "label": "Canal 11",
    "hv_group_sheet": 1,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 4,
+    "sy5527_ch": 3,
+    "threshold": "3pe_v8",
+    "events_off": 4918,
+    "counts_off": 0,
+    "expected_from_reference": 10278.37,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 28,
@@ -738,7 +1346,29 @@
    "strip_sheet": 12,
    "label": "Canal 12",
    "hv_group_sheet": 4,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 1,
+    "sy5527_ch": 0,
+    "threshold": "3pe_v8",
+    "events_off": 4969,
+    "counts_off": 0,
+    "expected_from_reference": 3523.98,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 29,
@@ -763,7 +1393,29 @@
    "strip_sheet": 13,
    "label": "Canal 13",
    "hv_group_sheet": 4,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 8,
+    "sy5527_ch": 7,
+    "threshold": "3pe_v8",
+    "events_off": 4997,
+    "counts_off": 0,
+    "expected_from_reference": 13037.18,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 30,
@@ -788,7 +1440,29 @@
    "strip_sheet": 14,
    "label": "Canal 14",
    "hv_group_sheet": 8,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 4,
+    "sy5527_ch": 3,
+    "threshold": "3pe_v8",
+    "events_off": 4918,
+    "counts_off": 0,
+    "expected_from_reference": 3652.67,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 31,
@@ -813,7 +1487,29 @@
    "strip_sheet": 15,
    "label": "Canal 15",
    "hv_group_sheet": 1,
-   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple",
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 1,
+    "sy5527_ch": 0,
+    "threshold": "3pe_v8",
+    "events_off": 4969,
+    "counts_off": 0,
+    "expected_from_reference": 8074.97,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "medido",
+    "method": "coincidencias entre tiras vecinas (se traslapan 1 mm): datos de mayo (v8) y noche 2026-10-19 (DAQ2-10, parte E)",
+    "orientation": "orientación absoluta no determinada",
+    "source": "outputs/daq2-10/neighbours.txt; docs/handoff_analysis_2026-10-18.md sección 5"
+   },
+   "label_link": "supuesto: etiqueta 'Canal k' = canal k del digitizador según la hoja (no medido; handoff sección 5)"
   },
   {
    "dig_ch": 32,
@@ -838,7 +1534,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
    "strip_sheet": 0,
    "label": "Delantera 8",
-   "hv_group_sheet": 6
+   "hv_group_sheet": 6,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 7,
+    "sy5527_ch": 6,
+    "threshold": "1.5mV",
+    "events_off": 4502,
+    "counts_off": 0,
+    "expected_from_reference": 4177.32,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 33,
@@ -863,7 +1579,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
    "strip_sheet": 1,
    "label": "Trasera 8",
-   "hv_group_sheet": 3
+   "hv_group_sheet": 3,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 3,
+    "sy5527_ch": 2,
+    "threshold": "1.5mV",
+    "events_off": 4540,
+    "counts_off": 13,
+    "expected_from_reference": 565.26,
+    "ratio": 0.023,
+    "p_drop": 3.21e-220,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 34,
@@ -888,7 +1624,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 8",
    "strip_sheet": 2,
    "label": "Delantera 7",
-   "hv_group_sheet": 1
+   "hv_group_sheet": 1,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 8,
+    "sy5527_ch": 7,
+    "threshold": "1.5mV",
+    "events_off": 4997,
+    "counts_off": 0,
+    "expected_from_reference": 56.91,
+    "ratio": 0.0,
+    "p_drop": 1.93e-25,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 35,
@@ -913,7 +1669,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
    "strip_sheet": 3,
    "label": "Trasera 7",
-   "hv_group_sheet": 2
+   "hv_group_sheet": 2,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 2,
+    "sy5527_ch": 1,
+    "threshold": "1.5mV",
+    "events_off": 4907,
+    "counts_off": 0,
+    "expected_from_reference": 5010.88,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 36,
@@ -938,7 +1714,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 6",
    "strip_sheet": 4,
    "label": "Delantera 6",
-   "hv_group_sheet": 6
+   "hv_group_sheet": 6,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 6,
+    "sy5527_ch": 5,
+    "threshold": "1.5mV",
+    "events_off": 4978,
+    "counts_off": 0,
+    "expected_from_reference": 10494.59,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 37,
@@ -963,7 +1759,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 1",
    "strip_sheet": 5,
    "label": "Trasera 6",
-   "hv_group_sheet": 1
+   "hv_group_sheet": 1,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 1,
+    "sy5527_ch": 0,
+    "threshold": "1.5mV",
+    "events_off": 4969,
+    "counts_off": 0,
+    "expected_from_reference": 91.35,
+    "ratio": 0.0,
+    "p_drop": 2.12e-40,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 38,
@@ -988,7 +1804,19 @@
    "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
    "strip_sheet": 6,
    "label": "Delantera 5",
-   "hv_group_sheet": 3
+   "hv_group_sheet": 3,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+    "max_expected_counts": 0.0,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 39,
@@ -1013,7 +1841,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
    "strip_sheet": 7,
    "label": "Trasera 5",
-   "hv_group_sheet": 2
+   "hv_group_sheet": 2,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 7,
+    "sy5527_ch": 6,
+    "threshold": "1.5mV",
+    "events_off": 4502,
+    "counts_off": 0,
+    "expected_from_reference": 15227.95,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 40,
@@ -1038,7 +1886,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
    "strip_sheet": 8,
    "label": "Delantera 4",
-   "hv_group_sheet": 5
+   "hv_group_sheet": 5,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 7,
+    "sy5527_ch": 6,
+    "threshold": "1.5mV",
+    "events_off": 4502,
+    "counts_off": 0,
+    "expected_from_reference": 15888.9,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 41,
@@ -1063,7 +1931,19 @@
    "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
    "strip_sheet": 9,
    "label": "Trasera 4",
-   "hv_group_sheet": 2
+   "hv_group_sheet": 2,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+    "max_expected_counts": 0.0,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 42,
@@ -1088,7 +1968,19 @@
    "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
    "strip_sheet": 10,
    "label": "Delantera 3",
-   "hv_group_sheet": 2
+   "hv_group_sheet": 2,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+    "max_expected_counts": 0.0,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 43,
@@ -1113,7 +2005,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 8",
    "strip_sheet": 11,
    "label": "Trasera 3",
-   "hv_group_sheet": 1
+   "hv_group_sheet": 1,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 8,
+    "sy5527_ch": 7,
+    "threshold": "1.5mV",
+    "events_off": 4997,
+    "counts_off": 0,
+    "expected_from_reference": 4595.94,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 44,
@@ -1138,7 +2050,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 4",
    "strip_sheet": 12,
    "label": "Delantera 2",
-   "hv_group_sheet": 7
+   "hv_group_sheet": 7,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 4,
+    "sy5527_ch": 3,
+    "threshold": "1.5mV",
+    "events_off": 4918,
+    "counts_off": 0,
+    "expected_from_reference": 44.48,
+    "ratio": 0.0,
+    "p_drop": 4.79e-20,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 45,
@@ -1163,7 +2095,19 @@
    "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
    "strip_sheet": 13,
    "label": "Trasera 2",
-   "hv_group_sheet": 6
+   "hv_group_sheet": 6,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+    "max_expected_counts": 0.0,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 46,
@@ -1192,7 +2136,19 @@
    },
    "strip_sheet": 14,
    "label": "Delantera 1",
-   "hv_group_sheet": 7
+   "hv_group_sheet": 7,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "muy pocas cuentas esperadas por paso (μ máximo 5.8): ninguna caída alcanza p < 1e-6",
+    "max_expected_counts": 5.8,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 47,
@@ -1217,7 +2173,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
    "strip_sheet": 15,
    "label": "Trasera 1",
-   "hv_group_sheet": 2
+   "hv_group_sheet": 2,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 7,
+    "sy5527_ch": 6,
+    "threshold": "1.5mV",
+    "events_off": 4502,
+    "counts_off": 5,
+    "expected_from_reference": 18584.88,
+    "ratio": 0.0003,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 48,
@@ -1242,7 +2218,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
    "strip_sheet": 0,
    "label": "Opuesta 8",
-   "hv_group_sheet": 6
+   "hv_group_sheet": 6,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 3,
+    "sy5527_ch": 2,
+    "threshold": "1.5mV",
+    "events_off": 4540,
+    "counts_off": 0,
+    "expected_from_reference": 2557.11,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 49,
@@ -1267,7 +2263,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
    "strip_sheet": 1,
    "label": "Frontal 8",
-   "hv_group_sheet": 3
+   "hv_group_sheet": 3,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 7,
+    "sy5527_ch": 6,
+    "threshold": "1.5mV",
+    "events_off": 4502,
+    "counts_off": 0,
+    "expected_from_reference": 8798.18,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 50,
@@ -1292,7 +2308,19 @@
    "hv_group_note": "no baja de razón 0.67 en ningún paso: cuentas sobre 1.5 mV dominadas por ruido que no depende de la HV",
    "strip_sheet": 2,
    "label": "Opuesta 7",
-   "hv_group_sheet": 4
+   "hv_group_sheet": 4,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "no baja de razón 0.67 en ningún paso: cuentas sobre 1.5 mV dominadas por ruido que no depende de la HV",
+    "max_expected_counts": 792.56,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 51,
@@ -1317,7 +2345,19 @@
    "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
    "strip_sheet": 3,
    "label": "Frontal 7",
-   "hv_group_sheet": 2
+   "hv_group_sheet": 2,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+    "max_expected_counts": 0.0,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 52,
@@ -1342,7 +2382,19 @@
    "hv_group_note": "no baja de razón 0.67 en ningún paso: cuentas sobre 1.5 mV dominadas por ruido que no depende de la HV",
    "strip_sheet": 4,
    "label": "Opuesta 6",
-   "hv_group_sheet": 5
+   "hv_group_sheet": 5,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "no baja de razón 0.67 en ningún paso: cuentas sobre 1.5 mV dominadas por ruido que no depende de la HV",
+    "max_expected_counts": 738.72,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 53,
@@ -1367,7 +2419,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
    "strip_sheet": 5,
    "label": "Frontal 6",
-   "hv_group_sheet": 1
+   "hv_group_sheet": 1,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 2,
+    "sy5527_ch": 1,
+    "threshold": "1.5mV",
+    "events_off": 4907,
+    "counts_off": 0,
+    "expected_from_reference": 10880.14,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 54,
@@ -1392,7 +2464,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
    "strip_sheet": 6,
    "label": "Opuesta 5",
-   "hv_group_sheet": 7
+   "hv_group_sheet": 7,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 2,
+    "sy5527_ch": 1,
+    "threshold": "1.5mV",
+    "events_off": 4907,
+    "counts_off": 0,
+    "expected_from_reference": 243.3,
+    "ratio": 0.0,
+    "p_drop": 2.17e-106,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 55,
@@ -1417,7 +2509,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 5",
    "strip_sheet": 7,
    "label": "Frontal 5",
-   "hv_group_sheet": 7
+   "hv_group_sheet": 7,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 5,
+    "sy5527_ch": 4,
+    "threshold": "1.5mV",
+    "events_off": 5023,
+    "counts_off": 0,
+    "expected_from_reference": 577.63,
+    "ratio": 0.0,
+    "p_drop": 1.37e-251,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 56,
@@ -1442,7 +2554,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
    "strip_sheet": 8,
    "label": "Opuesta 4",
-   "hv_group_sheet": 8
+   "hv_group_sheet": 8,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 2,
+    "sy5527_ch": 1,
+    "threshold": "1.5mV",
+    "events_off": 4907,
+    "counts_off": 0,
+    "expected_from_reference": 68.34,
+    "ratio": 0.0,
+    "p_drop": 2.09e-30,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 57,
@@ -1467,7 +2599,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
    "strip_sheet": 9,
    "label": "Frontal 4",
-   "hv_group_sheet": 1
+   "hv_group_sheet": 1,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 3,
+    "sy5527_ch": 2,
+    "threshold": "1.5mV",
+    "events_off": 4540,
+    "counts_off": 0,
+    "expected_from_reference": 1351.83,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 58,
@@ -1496,7 +2648,19 @@
    },
    "strip_sheet": 10,
    "label": "Opuesta 3",
-   "hv_group_sheet": 6
+   "hv_group_sheet": 6,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "muy pocas cuentas esperadas por paso (μ máximo 11.6): ninguna caída alcanza p < 1e-6",
+    "max_expected_counts": 11.6,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 59,
@@ -1525,7 +2689,19 @@
    },
    "strip_sheet": 11,
    "label": "Frontal 3",
-   "hv_group_sheet": 8
+   "hv_group_sheet": 8,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "muy pocas cuentas esperadas por paso (μ máximo 12.0): ninguna caída alcanza p < 1e-6",
+    "max_expected_counts": 11.96,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 60,
@@ -1554,7 +2730,19 @@
    },
    "strip_sheet": 12,
    "label": "Opuesta 2",
-   "hv_group_sheet": 8
+   "hv_group_sheet": 8,
+   "hv_group_test": {
+    "result": "sin medir",
+    "reason": "muy pocas cuentas esperadas por paso (μ máximo 14.8): ninguna caída alcanza p < 1e-6",
+    "max_expected_counts": 14.83,
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 61,
@@ -1579,7 +2767,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 1",
    "strip_sheet": 13,
    "label": "Frontal 2",
-   "hv_group_sheet": 4
+   "hv_group_sheet": 4,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 1,
+    "sy5527_ch": 0,
+    "threshold": "1.5mV",
+    "events_off": 4969,
+    "counts_off": 0,
+    "expected_from_reference": 1705.24,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 62,
@@ -1604,7 +2812,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
    "strip_sheet": 14,
    "label": "Opuesta 1",
-   "hv_group_sheet": 7
+   "hv_group_sheet": 7,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 2,
+    "sy5527_ch": 1,
+    "threshold": "1.5mV",
+    "events_off": 4907,
+    "counts_off": 0,
+    "expected_from_reference": 57.41,
+    "ratio": 0.0,
+    "p_drop": 1.17e-25,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   },
   {
    "dig_ch": 63,
@@ -1629,7 +2857,27 @@
    "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 6",
    "strip_sheet": 15,
    "label": "Frontal 1",
-   "hv_group_sheet": 7
+   "hv_group_sheet": 7,
+   "hv_group_test": {
+    "result": "medido",
+    "method": "prueba de grupos HV (DAQ2-10): se apagó un canal SY5527 a la vez y se contaron los pulsos oscuros del canal",
+    "run": "commissioning2_2026_10_21 run 1 (2026-10-21 10:01-10:32Z, SW trigger 100 Hz)",
+    "group": 6,
+    "sy5527_ch": 5,
+    "threshold": "1.5mV",
+    "events_off": 4978,
+    "counts_off": 0,
+    "expected_from_reference": 3579.24,
+    "ratio": 0.0,
+    "p_drop": 0.0,
+    "criterion": "razón < 0.1 y p < 1e-6, solo en un paso",
+    "source": "outputs/daq2-10/toggle.csv"
+   },
+   "strip_test": {
+    "result": "no medida",
+    "reason": "hod2019 casi no tiene coincidencias X-Y ni entre vecinas: la coordenada es la de la hoja"
+   },
+   "label_link": "supuesto: etiqueta derivada de la regla cara/conector de mayo aplicada a la hoja de octubre (handoff sección 5); r2 mostró que la regla no se cumple en los grupos"
   }
  ],
  "hv_groups_by_label": {
@@ -1785,5 +3033,15 @@
    63
   ]
  },
- "light_units_provenance": "measurement (DAQ2-11): canales de hod2019 cuya tasa fuera de tiempo sobre 3 mV subió con razón > 2 y P(N >= n) < 1e-6 frente a la noche del 2026-10-19 (23:00-08:00Z) en los dos episodios de luz de la tarde: 2026-10-19 18:18-19:08Z (commissioning_2026_10 runs 7-8) y 2026-10-20 17:17-17:47Z (phase5_test_2026_10_20). Solo en el segundo: 17, 32, 40, 44, 45, 48."
+ "light_units_provenance": "measurement (DAQ2-11): canales de hod2019 cuya tasa fuera de tiempo sobre 3 mV subió con razón > 2 y P(N >= n) < 1e-6 frente a la noche del 2026-10-19 (23:00-08:00Z) en los dos episodios de luz de la tarde: 2026-10-19 18:18-19:08Z (commissioning_2026_10 runs 7-8) y 2026-10-20 17:17-17:47Z (phase5_test_2026_10_20). Solo en el segundo: 17, 32, 40, 44, 45, 48.",
+ "sources": {
+  "strip_sheet": "hoja 'Octubre 2026' de Disposicion Correcta Hodoscopios.xlsx (laboratorio): canal k = coordenada k en cada plano",
+  "label": "etiqueta del MPPC en Voltajes Hodoscopio.xlsx; la relación etiqueta -> canal del digitizador es un supuesto (handoff sección 5)",
+  "hv_group_sheet": "grupo HV que Voltajes Hodoscopio.xlsx asigna a esa etiqueta (hv_groups_by_label); hereda el supuesto de la etiqueta",
+  "hv_group": "medido: prueba de grupos HV del 2026-10-21 (DAQ2-10), campos hv_group_test",
+  "strip": "hod2018: medido por coincidencias entre vecinas (mayo y noche 2026-10-19); hod2019: no medido, copia de la hoja"
+ },
+ "revisions": [
+  "2026-10-21 DAQ2-11b: campos de documentación añadidos (sources, hv_group_test, strip_test, label_link); ch3 confirmed.strip pasa de measurement a derived (canal muerto, posición deducida). Ninguna asignación (strip, hv_group, label, light_units) cambia."
+ ]
 }

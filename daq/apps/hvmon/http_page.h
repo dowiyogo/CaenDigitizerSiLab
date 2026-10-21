@@ -7,6 +7,8 @@
 //                                      detector; sigue la del rack), 24 h
 //   /status/table                      TNamed; el título es la tabla de estado (texto)
 //   /status/state_json                 TNamed; el título es el JSON completo del estado
+//   /status/mapping_json               TNamed; el título es el JSON del mapeo (notifier.mapping_file)
+//   /dash/mapping                      página del mapeo (mapping.html de daqrun, embebido)
 //   /dash/                             página numérica (dash.html embebido), refresco 2 s desde
 //                                      /status/state_json/root.json.gz (stats_10min de cada canal)
 // SetReadOnly(kTRUE) y ningún comando registrado: no hay acciones por HTTP. SetTimer(0): las
@@ -33,7 +35,8 @@ namespace daq::hvmon {
 
 class HttpPage {
  public:
-  static Result<std::unique_ptr<HttpPage>> create(const HvmonConfig& cfg, const std::string& bindAddress);
+  static Result<std::unique_ptr<HttpPage>> create(const HvmonConfig& cfg, const std::string& bindAddress,
+                                                  const std::string& mappingText = std::string());
   ~HttpPage();
 
   // Agrega un punto por canal si pasó graph_period_s y actualiza la tabla y el JSON.
@@ -60,6 +63,7 @@ class HttpPage {
   std::vector<std::unique_ptr<TGraph>> graphs_;
   std::unique_ptr<TNamed> table_;
   std::unique_ptr<TNamed> json_;
+  std::unique_ptr<TNamed> mapping_;
   std::map<int, Channel> channels_;
   TGraph* boardTemp_ = nullptr;
   Ring boardRing_;

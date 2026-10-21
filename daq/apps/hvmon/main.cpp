@@ -235,7 +235,13 @@ int main(int argc, char** argv) {
       logError(bind.error().message);
       return 1;
     }
-    auto p = HttpPage::create(cfg, bind.value());
+    std::string mappingText;  // /dash/mapping; sin mapeo la página lo dice
+    if (!cfg.notifier.mappingFile.empty()) {
+      auto mp = Mapping::fromFile(cfg.notifier.mappingFile);
+      if (mp) mappingText = mp.value().text;
+      else logWarn("página del mapeo sin mapeo: ", mp.error().message);
+    }
+    auto p = HttpPage::create(cfg, bind.value(), mappingText);
     if (!p) {
       logError(p.error().message);
       return 1;
