@@ -443,6 +443,8 @@ void Poller::handleV0Set(PollRequest& r, SteadyTime now) {
   a.v0set = true;
   a.offWrite = offWrite;
   a.target = r.value;
+  a.v0setBefore = v0->si;
+  if (const auto* vm = pre.value().get("VMon", r.ch)) a.vmonBefore = vm->si;
   active_ = a;
 }
 
@@ -683,7 +685,7 @@ void Poller::verifyCommand(const hv::ChannelReading& rd, SteadyTime now) {
       return;
     }
     done = !cfg_.statusBits.has(st->raw, "ramp_up") && !cfg_.statusBits.has(st->raw, "ramp_down") &&
-           bias_.reached(ch, active_->target, v0->si, vmon->si);
+           bias_.reached(ch, active_->target, v0->si, vmon->si, active_->v0setBefore, active_->vmonBefore);
   } else if (active_->on)
     done = pw->raw == 1u && cfg_.statusBits.has(st->raw, "on") && !cfg_.statusBits.has(st->raw, "ramp_up") &&
            std::fabs(vmon->si - v0->si) <= cfg_.vmonOnToleranceV;

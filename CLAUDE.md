@@ -169,9 +169,17 @@ from the console; every write still needs `--authorize`, and a task may write on
 authorizes it (rule 2). Pw off is verified by the Status `on` bit, not by VMon (the detector PCB
 discharges with tau ~110-150 s). Current mapping `hodo_mapping_2026_10_r2.json` (groups measured),
 October calibration `pe_calibration_2026_10_c1.json` (design 15.8).
-Writes: the only writes in the code base are `HVBackend::setChannelPw()` and `clearBoardAlarm()`
-(`ClrAlarm`); `hvmon` refuses both unless its config has `allow_commands: true`, which needs
-explicit authorization in the task prompt. Auto-retry (`auto_retry.enabled_channels`, design 8)
+Writes: the only writes in the code base are `HVBackend::setChannelPw()`, `clearBoardAlarm()`
+(`ClrAlarm`) and, since DAQ2-14, `setChannelV0Set()`; `hvmon` refuses all of them unless its config has
+`allow_commands: true`, which needs explicit authorization in the task prompt. V0Set is a bounded write
+available only inside a `hvmon` scan session (`daq/hvmon/include/daq/hvmon/bias_scan.h`;
+`hvctl bias begin|set|restore|status`): the session starts only if the V0Set read back matches the
+expected nominal; each write is <= nominal, >= nominal − 2.0 V, a step <= 0.5 V, on a channel that is on
+and stable; the ramp is verified (V0Set read back, VMon − V0Set within 0.10 V of the offset at the previous
+verified step, VMon moved with the step by at least half of it; any Status bit other than on/ramp aborts);
+`bias restore` returns every channel to nominal in <= 0.5 V steps and Pw = 1; an active session is
+persisted (`~/.local/state/daqv2/hvmon_bias_state.json`) and restored automatically when `hvmon` starts.
+Like any HV write, using it needs explicit authorization in the task prompt (rule 2). Auto-retry (`auto_retry.enabled_channels`, design 8)
 requires `allow_commands: true`; `test_mode` with CH00-07 also needs
 `test_mode_allow_detector_channels`. Retry state persists in
 `$XDG_STATE_HOME/daqv2/hvmon_retry_state.json` (default `~/.local/state/daqv2/`). Notifier

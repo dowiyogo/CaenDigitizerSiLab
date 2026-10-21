@@ -6,10 +6,11 @@
 //    que se verifica la rampa: el criterio "VMon a 0.05 V del V0Set nuevo" se aplica al desvío.
 //  - checkStep(): límites duros de cada escritura: solo canales de la sesión; V0Set ≤ nominal;
 //    V0Set ≥ nominal − max_below_V (2.0 V); |V0Set nuevo − V0Set actual| ≤ max_step_V (0.5 V).
-//  - reached(): V0Set releído = pedido (± match_tol_V) y |VMon − V0Set − desvío| ≤ vmon_tol_V. El desvío
-//    de referencia es el del último escalón verificado (updateOffset): el desvío de la placa cambia
-//    ~±0.045 V en un día y ≤ 0.02 V/µA con la corriente (2026-10-20), así que cada escalón se verifica
-//    como "VMon se movió como el V0Set, ± 0.05 V".
+//  - reached(): V0Set releído = pedido (± match_tol_V), |VMon − V0Set − desvío| ≤ vmon_tol_V (0.10 V) y
+//    VMon se movió en el sentido del escalón al menos la mitad del escalón (VMon − VMon antes de
+//    escribir, con el signo de V0Set pedido − V0Set antes). El desvío de referencia es el del último
+//    escalón verificado (updateOffset): el desvío de la placa cambia ~±0.045 V en un día y ≤ 0.02 V/µA
+//    con la corriente (2026-10-20). Criterio aceptado por René (2026-10-21).
 //  - restorePlan(): escalones de ≤ max_step_V hacia el nominal, canal por canal.
 //  - El estado se persiste (JSON) para que un hvmon que arranca con una sesión activa restaure el
 //    nominal solo (Poller::enableBiasPersistence).
@@ -32,7 +33,8 @@ struct BiasLimits {
   std::vector<int> channels{0, 1, 2, 3, 4, 5, 6, 7};
   double maxBelowV = 2.0;
   double maxStepV = 0.5;
-  double vmonTolV = 0.05;
+  double vmonTolV = 0.10;
+  double minMoveFrac = 0.5;  // VMon debe moverse al menos esta fracción del escalón, en su sentido
   double matchTolV = 0.005;
 };
 
@@ -43,7 +45,7 @@ class BiasSession {
   Status begin(const std::map<int, double>& expected, const std::map<int, double>& v0set, const std::map<int, double>& vmon,
                const std::string& reason, UtcNs now);
   Status checkStep(int ch, double target, double currentV0Set) const;
-  bool reached(int ch, double target, double v0setRead, double vmon) const;
+  bool reached(int ch, double target, double v0setRead, double vmon, double v0setBefore, double vmonBefore) const;
   std::vector<std::pair<int, double>> restorePlan(const std::map<int, double>& v0set) const;
   void end() { active_ = false; }
   void updateOffset(int ch, double off) {

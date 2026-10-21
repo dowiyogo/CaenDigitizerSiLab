@@ -52,9 +52,12 @@ Status BiasSession::checkStep(int ch, double target, double currentV0Set) const 
   return okStatus();
 }
 
-bool BiasSession::reached(int ch, double target, double v0setRead, double vmon) const {
+bool BiasSession::reached(int ch, double target, double v0setRead, double vmon, double v0setBefore, double vmonBefore) const {
   if (!active_ || !inSession(ch)) return false;
-  return std::fabs(v0setRead - target) <= lim_.matchTolV && std::fabs(vmon - v0setRead - offset_.at(ch)) <= lim_.vmonTolV;
+  if (std::fabs(v0setRead - target) > lim_.matchTolV) return false;
+  if (std::fabs(vmon - v0setRead - offset_.at(ch)) > lim_.vmonTolV) return false;
+  const double step = target - v0setBefore, moved = vmon - vmonBefore;
+  return step * moved > 0 && std::fabs(moved) >= lim_.minMoveFrac * std::fabs(step);
 }
 
 std::vector<std::pair<int, double>> BiasSession::restorePlan(const std::map<int, double>& v0set) const {
@@ -79,7 +82,8 @@ nlohmann::json BiasSession::toJson(UtcNs now) const {
   return {{"schema", "daqv2.hvmon_bias_session/1"}, {"active", active_}, {"nominal_V0Set_V", nom}, {"vmon_offset_V", off},
           {"start_utc_ns", startUtc_}, {"start_utc", startUtc_ ? formatUtcIso(startUtc_) : ""}, {"reason", reason_},
           {"saved_utc", formatUtcIso(now)},
-          {"limits", {{"max_below_V", lim_.maxBelowV}, {"max_step_V", lim_.maxStepV}, {"vmon_tol_V", lim_.vmonTolV}, {"match_tol_V", lim_.matchTolV}}}};
+          {"limits", {{"max_below_V", lim_.maxBelowV}, {"max_step_V", lim_.maxStepV}, {"vmon_tol_V", lim_.vmonTolV}, {"match_tol_V", lim_.matchTolV},
+                      {"min_move_frac", lim_.minMoveFrac}}}};
 }
 
 Status BiasSession::restore(const nlohmann::json& j) {

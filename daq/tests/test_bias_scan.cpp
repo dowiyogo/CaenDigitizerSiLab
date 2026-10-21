@@ -104,8 +104,11 @@ TEST(BiasSession, LimitsAndRestorePlan) {
   EXPECT_FALSE(s.checkStep(0, 63.70, 63.75));   // más de 2.0 V bajo el nominal
   EXPECT_TRUE(s.checkStep(0, 63.75, 64.25));    // justo 2.0 V bajo el nominal
   EXPECT_FALSE(s.checkStep(8, 0, 0));           // canal fuera de la sesión
-  EXPECT_TRUE(s.reached(0, 65.25, 65.25, 64.95));   // desvío −0.3 V como al nominal
-  EXPECT_FALSE(s.reached(0, 65.25, 65.25, 65.25));  // VMon = V0Set: 0.3 V fuera del desvío
+  // escalón 65.75 -> 65.25 V con VMon 65.45 antes (desvío −0.30 V)
+  EXPECT_TRUE(s.reached(0, 65.25, 65.25, 64.95, 65.75, 65.45));   // desvío −0.30 V como al nominal, movió −0.50 V
+  EXPECT_TRUE(s.reached(0, 65.25, 65.25, 65.04, 65.75, 65.45));   // desvío −0.21 V: dentro de 0.10 V
+  EXPECT_FALSE(s.reached(0, 65.25, 65.25, 65.25, 65.75, 65.45));  // VMon = V0Set: 0.30 V fuera del desvío
+  EXPECT_FALSE(s.reached(0, 65.25, 65.24, 64.95, 65.75, 65.45));  // V0Set releído distinto del pedido
   auto cur = kNominal;
   cur[0] = 64.25;
   const auto plan = s.restorePlan(cur);
@@ -218,6 +221,21 @@ TEST(BiasSession, OffsetReferenceFollowsLastVerifiedStep) {
   ASSERT_TRUE(s.begin(kNominal, kNominal, vm, "t", 1));
   // el desvío de la placa se corrió 0.04 V en el escalón anterior: se verifica contra ese
   s.updateOffset(0, -0.34);
-  EXPECT_TRUE(s.reached(0, 65.25, 65.25, 64.90));
-  EXPECT_FALSE(s.reached(0, 65.25, 65.25, 65.00));  // 0.1 V fuera del desvío vigente
+  EXPECT_TRUE(s.reached(0, 65.25, 65.25, 64.90, 65.75, 65.41));
+  EXPECT_FALSE(s.reached(0, 65.25, 65.25, 65.03, 65.75, 65.41));  // 0.12 V fuera del desvío vigente
+}
+
+TEST(BiasSession, VMonMustMoveWithTheStep) {
+  BiasSession s;
+  std::map<int, double> vm;
+  for (const auto& [ch, v] : kNominal) vm[ch] = v - 0.30;
+  ASSERT_TRUE(s.begin(kNominal, kNominal, vm, "t", 1));
+  s.updateOffset(0, -0.30);
+  // V0Set 65.25 -> 64.75 V (−0.50 V); VMon antes 64.95
+  EXPECT_TRUE(s.reached(0, 64.75, 64.75, 64.45, 65.25, 64.95));   // movió −0.50 V
+  EXPECT_TRUE(s.reached(0, 64.75, 64.75, 64.53, 65.25, 64.95));   // movió −0.42 V (≥ la mitad), desvío −0.22 V
+  EXPECT_FALSE(s.reached(0, 64.75, 64.75, 64.73, 65.25, 64.83));  // movió −0.10 V: menos de la mitad
+  // subida (restauración) 64.75 -> 65.25 V
+  EXPECT_TRUE(s.reached(0, 65.25, 65.25, 64.95, 64.75, 64.45));
+  EXPECT_FALSE(s.reached(0, 65.25, 65.25, 64.95, 64.75, 65.05));  // VMon bajó en un escalón de subida
 }

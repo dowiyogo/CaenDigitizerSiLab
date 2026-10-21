@@ -101,6 +101,7 @@ class Poller {
     bool v0set = false;   // DAQ2-14: escritura de V0Set (target)
     bool offWrite = false;  // V0Set nominal con el canal apagado (restauración tras un trip): sin rampa
     double target = 0;
+    double v0setBefore = 0, vmonBefore = 0;  // relectura justo antes de escribir V0Set
   };
   struct ActiveOffsets {
     std::vector<int> channels;
