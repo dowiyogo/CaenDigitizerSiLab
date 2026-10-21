@@ -1718,6 +1718,46 @@ Validación offline con `daqoffline` (mismo código que daqrun, salida en
     de la tarea). El t_utc escrito por este run queda ~9 ms adelantado tras 17:26:26Z (README de
     la campaña).
 
+### 15.8 Fase 6 (DAQ2-10): escrituras de HV, prueba de grupos y calibración de octubre
+
+96. **Ruta de escritura en el mainframe real** (solo `Pw` en CH00-08 por `hvctl pw … --authorize`
+    a través de hvmon, `allow_commands: true`). CH08 (libre, V0Set 0): on verificado en 1.106 s,
+    off en 0.957 s; tras el off el bit `on` de Status siguió 8 s (0x0001 con Pw = 0). CH07: el off
+    dio `verify_failed` porque se verificaba con VMon ≤ 2 V y el detector descarga lento. Desde
+    `615752a` el apagado se verifica con Pw = 0 y el bit `on` de Status en 0 (sin VMon).
+97. **Bits de Status observados** (A7030DP): 0x0000 apagado, 0x0001 on, 0x0003 on + ramp_up,
+    0x0005 on + ramp_down (~9 s tras el off), 0x000B on + ramp_up + overcurrent (inicio de la
+    rampa, DAQ2-6). Rampa de subida: la consigna parte de 0 V a 1 V/s y alcanza a la tensión residual
+    del detector (~30 V tras 60-90 s apagado); ~75 s de pedido a ON solo.
+98. **Descarga del detector tras el off**: caída rápida (rampa activa de 50 V/s, no resuelta a 1 Hz)
+    hasta 30-60 V y luego una exponencial con τ_lento = 107.5-152.5 s. De la corriente de la rampa
+    a 1 V/s: C_eq = ΔI/(dV/dt) = 1.005-1.275 µF por grupo, R_eq = τ/C_eq = 107.0-126.8 MΩ y
+    corriente pasiva V/R_eq = 0.519-0.616 µA, 7-15 % de la IMon estática (3.867-7.574 µA). Supone
+    un solo RC equivalente por grupo; si en 40-60 V ya hay corriente oscura del MPPC, C_eq queda
+    sobrestimada y R_eq subestimada (tabla en outputs/daq2-10/rc_groups.txt). Los MPPC dejan de
+    contar en el primer período de 5 s tras el off aunque VMon siga sobre 30 V.
+99. **Prueba de grupos** (commissioning2_2026_10_21 run 1, 2026-10-21 10:01-10:32Z): 52 canales
+    caen (razón < 0.1, p < 1e-6) con un solo grupo; 43 difieren de r1 (casi todo hod2019: la tabla
+    derivada de la planilla de mayo con los planos intercambiados no se cumple; tampoco las caras
+    derivadas, que siguen sin confirmar). Mapeo `hodo_mapping_2026_10_r2.json` (r1 se conserva).
+    12 canales sin medida: ch03 (muerto), 38, 41, 42, 45, 51 (sin pulsos sobre 1.5 mV), 46, 58, 59, 60
+    (μ < 10 por paso) y 50, 52 (ruido que no depende de la HV). El grupo 6 tiene dos canales Y de
+    hod2018 (ch16, ch18), como en mayo.
+100. **Calibración de p.e. de octubre** `pe_calibration_2026_10_c1.json` (run 2, 10 min a 100 Hz,
+     todo encendido): G en 29 de 32 canales de hod2018 (mediana 3.857 mV, 3.468-5.050); ch03, ch22 y
+     ch31 provisionales. `gain_fit.h` busca los picos en el espectro menos una media móvil del ancho
+     de la semilla (con registro completo el espectro cae tanto que los picos son hombros: sin
+     eso, 30 de 32 canales no daban picos). daqrun la carga con `calibration.file`: bit 7 de evento
+     en 0, bit 10 en los provisionales y hod2019.
+101. **Vecinos y f_w** (noche del 2026-10-19, 10 p.e. con la calibración c1): hod2018 Y sigue el
+     orden de coordenada del mapeo (cada tira coincide más con una vecina, 62.8 % de los pares con
+     |Δ| = 1); hod2018 X no (16.5 %) y sí sigue el orden espacial de mayo (15, 0, 13, 2, 11, 4, 9, 6,
+     7, 8, 5, 10, 3, 12, 1, 14). f_w medianas 0.257 (X) y 0.244 (Y); ningún canal con poca luz como
+     ch29 de mayo (0.086); los de menos impactos son ch17, ch27, ch12, ch23 y ch19.
+102. **Consola**: `allow_commands` queda en true. Cada escritura necesita `--authorize "<motivo>"`
+     (queda en hv_changes con el pedido, la escritura y la verificación); auto-retry sigue
+     deshabilitado; correos de trip habilitados (tope 3).
+
 ## 16. Preguntas resueltas por el handoff y la revisión
 
 | pregunta (DAQ2-0) | respuesta |

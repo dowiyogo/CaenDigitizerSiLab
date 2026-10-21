@@ -126,6 +126,28 @@ $S cat /data/daq/slowcontrol/2026/hv_20261018.csv.gz | head       # lee plano o 
 $S digest /data/daq/slowcontrol/2026/hv_20261018.csv.gz           # bytes, líneas, crc32
 ```
 
+## Encender y apagar canales desde la consola
+
+Desde DAQ2-10 `hvmon` tiene `allow_commands: true`. Cada escritura pasa por hvmon, necesita un
+motivo y queda registrada (pedido, escritura y verificación en `hv_changes_*.jsonl`):
+
+```bash
+H=~/.local/opt/daqv2/bin/hvctl
+$H status                                           # estado de CH00-11
+$H pw --ch 7 off --authorize "motivo de René"       # verificado cuando el bit on de Status es 0
+$H pw --ch 7 on  --authorize "motivo de René"       # verificado con ON solo y VMon en V0Set (~75 s)
+$H note "texto"                                     # nota en el registro de control lento
+```
+
+Solo se escribe `Pw` (ni V0Set ni I0Set ni Trip ni ClrAlarm). Tras un off la tensión del detector
+descarga con τ ≈ 110-150 s (capacidad del PCB); los MPPC dejan de contar en segundos. Para
+deshabilitar las escrituras: `allow_commands: false` en `~/.config/daqv2/hvmon.json` y
+`systemctl --user restart hvmon`.
+
+Mapeo vigente: `share/mapping/hodo_mapping_2026_10_r2.json` (grupos medidos en DAQ2-10).
+Calibración de p.e. de octubre: `share/calibration/pe_calibration_2026_10_c1.json`; en la
+configuración de daqrun: `"calibration": {"file": ".../pe_calibration_2026_10_c1.json"}`.
+
 ## daqrun (runs de adquisición)
 
 Un run necesita una campaña abierta. Con el digitizador simulado (`fake` o `replay`) todo va a

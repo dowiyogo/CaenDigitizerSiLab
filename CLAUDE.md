@@ -154,7 +154,7 @@ runs, `hvctl` talks to it through `$XDG_RUNTIME_DIR/daqv2/hvmon.sock` and never 
     daq/build/apps/hvmon/hvmon --fake default --config <cfg without output keys>  # no hardware, /data/daq/sim
     daq/build/apps/hvctl/hvctl status | read | changes --n 20 | note "<text>"
     daq/build/apps/hvctl/hvctl measure-offsets --seconds 60          # only channels with Pw = 0
-    daq/build/apps/hvctl/hvctl pw --ch N on|off --authorize "<reason>"  # needs allow_commands=true
+    daq/build/apps/hvctl/hvctl pw --ch N on|off --authorize "<reason>"  # needs allow_commands=true (true since DAQ2-10)
     daq/build/apps/hvctl/hvctl notify-test [--ch N]   # sends ONE real e-mail: only if the task authorizes it
     daq/build/apps/sctool/sctool compress [--keep] FILE... | cat FILE | digest FILE   # plain or .gz
     # without hvmon (direct, read-only):
@@ -164,6 +164,11 @@ runs, `hvctl` talks to it through `$XDG_RUNTIME_DIR/daqv2/hvmon.sock` and never 
 Output: `/data/daq/slowcontrol/YYYY/` (daily CSV/JSONL with `.schema.json`), state
 `/dev/shm/daqv2/hvmon_state.json`, read-only page `http://127.0.0.1:8081/` (remote: SSH tunnel
 over Tailscale). Unit file `daq/systemd/hvmon.service` (not installed; René enables it).
+Since DAQ2-10 `allow_commands` is true in `~/.config/daqv2/hvmon.json` so René can switch channels
+from the console; every write still needs `--authorize`, and a task may write only if its prompt
+authorizes it (rule 2). Pw off is verified by the Status `on` bit, not by VMon (the detector PCB
+discharges with tau ~110-150 s). Current mapping `hodo_mapping_2026_10_r2.json` (groups measured),
+October calibration `pe_calibration_2026_10_c1.json` (design 15.8).
 Writes: the only writes in the code base are `HVBackend::setChannelPw()` and `clearBoardAlarm()`
 (`ClrAlarm`); `hvmon` refuses both unless its config has `allow_commands: true`, which needs
 explicit authorization in the task prompt. Auto-retry (`auto_retry.enabled_channels`, design 8)
