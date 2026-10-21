@@ -381,7 +381,10 @@ void Poller::verifyCommand(const hv::ChannelReading& rd, SteadyTime now) {
     done = pw->raw == 1u && cfg_.statusBits.has(st->raw, "on") && !cfg_.statusBits.has(st->raw, "ramp_up") &&
            std::fabs(vmon->si - v0->si) <= cfg_.vmonOnToleranceV;
   else
-    done = pw->raw == 0u && !cfg_.statusBits.has(st->raw, "ramp_down") && vmon->si <= cfg_.vmonOffMaxV;
+    // DAQ2-10: apagado verificado por el bit on de Status en 0 (y Pw = 0), no por VMon: la
+    // capacidad del PCB del detector descarga con τ ≈ 115 s (CH07), y CH08 (V0Set 0) se daba por
+    // apagado con Status = 0x1 por su VMon de 1.5 V de offset.
+    done = pw->raw == 0u && !cfg_.statusBits.has(st->raw, "on");
   if (done) {
     std::ostringstream os;
     os << "VMon=" << vmon->si << " V, Status=0x" << std::hex << st->raw;

@@ -20,6 +20,14 @@ nlohmann::json dashJson(const DashInputs& in) {
   }
   j["rate_10min_Hz"] = span > 0 ? nlohmann::json(static_cast<double>(nEv) / span) : nlohmann::json();
   j["window_s"] = span;
+  // Tasa por canal del último período sobre los umbrales del bit 6 (3 mV hod2018, 1.5 mV hod2019):
+  // seguimiento en vivo de la prueba de grupos HV (DAQ2-10).
+  nlohmann::json chr = nlohmann::json::array();
+  for (std::size_t c = 0; c < 64; ++c)
+    chr.push_back(v.last.ootTimeS[c] > 0 ? static_cast<double>(v.last.blackoutCounts[c]) / v.last.ootTimeS[c] : 0.0);
+  j["channel_rates_Hz"] = chr;
+  j["channel_counts"] = v.last.blackoutCounts;
+  j["last_period_end_utc_ns"] = v.last.tEndUtcNs;
   const double since = v.events > 0 ? static_cast<double>(in.nowUtcNs - v.lastEventUtcNs) / 1e9 : -1.0;
   j["since_last_trigger_s"] = v.events > 0 ? nlohmann::json(since) : nlohmann::json();
   j["disk_free_GB"] = in.diskFreeBytes >= 0 ? nlohmann::json(in.diskFreeBytes / 1e9) : nlohmann::json();
