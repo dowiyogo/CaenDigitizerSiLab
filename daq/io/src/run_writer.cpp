@@ -82,6 +82,11 @@ RunWriter::RunWriter(const daqrun::DaqrunConfig& cfg, const daqrun::RunReservati
                                     static_cast<std::size_t>(std::max(2, cfg.tttClockMinPoints)), cfg.tttClockFirstFitS}),
       N_(cfg.digitizer.recordLength) {
   ev_.adc.resize(static_cast<std::size_t>(64 * N_));
+  if (!cfg.calibrationFile.empty()) {
+    auto cal = daqrun::PeCalibration::fromFile(cfg.calibrationFile);
+    if (cal) calib_ = cal.value();
+    else logError("calibración: ", cal.error().message, " (el run queda sin calibración)");
+  }
   runStartUtc_ = st_.origin.utcBeforeStart;
   index_ = {{"schema", "daqv2.run_index/1"},
             {"campaign", run_.location().name},
@@ -97,7 +102,7 @@ RunWriter::RunWriter(const daqrun::DaqrunConfig& cfg, const daqrun::RunReservati
             {"config_sha256", st_.configSha256},
             {"mapping_version", mapping_.version},
             {"mapping_sha256", mapping_.sha256},
-            {"calibration_version", cfg_.calibrationFile.empty() ? "none" : cfg_.calibrationFile},
+            {"calibration_version", calVersion()},
             {"record_length", N_},
             {"segments", nlohmann::json::array()}};
 }
@@ -249,7 +254,8 @@ nlohmann::json RunWriter::runInfo(bool final) const {
           {"window_layout", cfg_.window.toJson()},
           {"ref_old_record_start_ns", cfg_.window.refOldRecordStartNs},
           {"adc_conversion", adc},
-          {"calibration_state", cfg_.calibrationFile.empty() ? "none" : "loaded"},
+          {"calibration_state", calib_ ? "loaded" : "none"},
+          {"calibration_file", calib_ ? calib_->path : std::string()},
           {"flag_delay_s", cfg_.flagDelayS},
           {"mapping_version", mapping_.version},
           {"mapping_sha256", mapping_.sha256}};
@@ -273,8 +279,8 @@ Status RunWriter::closeSegment(bool clean) {
   TNamed("mapping_json", st_.mappingText.c_str()).Write();
   TNamed("mapping_version", mapping_.version.c_str()).Write();
   TNamed("mapping_sha256", mapping_.sha256.c_str()).Write();
-  TNamed("calibration_json", cfg_.calibrationFile.empty() ? "none" : cfg_.calibrationFile.c_str()).Write();
-  TNamed("calibration_version", cfg_.calibrationFile.empty() ? "none" : cfg_.calibrationFile.c_str()).Write();
+  TNamed("calibration_json", calib_ ? calib_->raw.dump().c_str() : "none").Write();
+  TNamed("calibration_version", calVersion().c_str()).Write();
   TNamed("run_info_json", runInfo(final).dump().c_str()).Write();
   TNamed("hvmon_state_at_start", st_.hvAtStart.dump().c_str()).Write();
   for (TTree* t : {events_, hv_, hvChanges_, notes_, monitor_}) t->Write("", TObject::kOverwrite);
@@ -329,7 +335,7 @@ Status RunWriter::addBlock(const dig::EventBlockPtr& b) {
     p.dtPrev = lastTttNs_ >= 0 ? p.tttNs - lastTttNs_ : 0;
     lastTttNs_ = p.tttNs;
     p.evtFlags = evtFlagger_.flags(p.tUtc, b->tReadUtcNs, e.counterHw, b->boardFull && i == 0, p.dtPrev);
-    if (cfg_.calibrationFile.empty()) p.evtFlags |= daqrun::evtflag::NoCalibration;
+    if (!calib_) p.evtFlags |= daqrun::evtflag::NoCalibration;
     pending_.push_back(std::move(p));
   }
   stats_.pendingDelay = pending_.size();
@@ -439,7 +445,8 @@ Status RunWriter::writeEvent(const Pending& p) {
   std::copy(e.adc.begin(), e.adc.end(), ev_.adc.begin());
   std::uint16_t anyCh = 0;
   for (int c = 0; c < 64; ++c) {
-    ev_.chFlags[c] = static_cast<std::uint16_t>(cf.ch[static_cast<std::size_t>(c)] | dataBits_.ch[static_cast<std::size_t>(c)]);
+    ev_.chFlags[c] = static_cast<std::uint16_t>(cf.ch[static_cast<std::size_t>(c)] | dataBits_.ch[static_cast<std::size_t>(c)] |
+                                                ((!calib_ || calib_->provisional[static_cast<std::size_t>(c)]) ? daqrun::chflag::PeProvisional : 0));
     anyCh = static_cast<std::uint16_t>(anyCh | ev_.chFlags[c]);
   }
   ev_.evtFlags = p.evtFlags | (cf.anyHv ? daqrun::evtflag::HvAnyFlag : 0u) |
@@ -525,7 +532,7 @@ Status RunWriter::finish(bool cleanShutdown) {
                              {"complete", true},
                              {"closed_cleanly", cleanShutdown},
                              {"mapping_version", mapping_.version},
-                             {"calibration_version", cfg_.calibrationFile.empty() ? "none" : cfg_.calibrationFile}};
+                             {"calibration_version", calVersion()}};
   if (auto s = daqrun::updateManifestRun(run_.location(), entry); !s && st) st = s;
   stats_.setCurrentSegment("");
   return st;

@@ -22,6 +22,7 @@
 #include <atomic>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -33,6 +34,7 @@
 #include "daq/core/result.h"
 #include "daq/daqrun/campaign.h"
 #include "daq/daqrun/config.h"
+#include "daq/daqrun/calibration.h"
 #include "daq/daqrun/data_flags.h"
 #include "daq/daqrun/hv_client.h"
 #include "daq/daqrun/monitor.h"
@@ -126,6 +128,8 @@ class RunWriter {
   daqrun::EventFlagger evtFlagger_;
   daqrun::TttClock ttt_;
   daqrun::DataFlagBits dataBits_{{}, cfg_.dataFlags.enabled};
+  std::optional<daqrun::PeCalibration> calib_;  // calibration.file cargado (DAQ2-10)
+  std::string calVersion() const { return calib_ ? calib_->version : "none"; }
   std::size_t segAnchorFirst_ = 0;
   std::deque<Pending> pending_;
   std::uint64_t nextSeq_ = 0;

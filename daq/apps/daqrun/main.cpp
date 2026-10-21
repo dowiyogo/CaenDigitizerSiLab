@@ -34,6 +34,7 @@
 #include "daq/core/sha256.h"
 #include <sys/statvfs.h>
 
+#include "daq/daqrun/calibration.h"
 #include "daq/daqrun/campaign.h"
 #include "daq/daqrun/dash.h"
 #include "daq/daqrun/data_flags.h"
@@ -178,6 +179,14 @@ int main(int argc, char** argv) {
     return 2;
   }
   auto mapping = hvmon::Mapping::fromFile(cfg.mappingFile);
+  if (!cfg.calibrationFile.empty()) {  // DAQ2-10: un archivo inválido detiene el run antes de abrir el digitizador
+    auto cal = PeCalibration::fromFile(cfg.calibrationFile);
+    if (!cal) {
+      std::fprintf(stderr, "daqrun: %s\n", cal.error().message.c_str());
+      return 2;
+    }
+    logInfo("calibración de p.e. cargada: ", cal.value().version, " (", cfg.calibrationFile, ")");
+  }
   if (!mapping) {
     std::fprintf(stderr, "daqrun: %s\n", mapping.error().message.c_str());
     return 2;

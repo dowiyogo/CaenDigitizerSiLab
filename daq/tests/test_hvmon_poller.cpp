@@ -346,3 +346,19 @@ TEST(HvmonPoller, FullReadIncludesBoardParametersAndBoardTemperature) {
   EXPECT_EQ(fulls, 2);
   EXPECT_TRUE(hasBoard);
 }
+
+// DAQ2-10: el apagado se verifica con el bit on de Status en 0 (y Pw = 0), no con VMon. En el
+// mainframe real CH08 (V0Set 0) tiene 1.5 V de offset de VMon y los canales del detector descargan
+// la capacidad del PCB con τ ≈ 115 s: con la regla anterior (VMon ≤ 2 V) CH07 dio verify_failed.
+TEST(HvmonPoller, PwOffVerifiedByStatusOnBitNotByVMon) {
+  auto sc = scenario(nlohmann::json::array(), 1);
+  sc["slots"][0]["vmon_offset_V"] = 5.0;  // VMon nunca baja de 5 V aunque la tensión real sea 0
+  Rig r(sc, /*allowCommands=*/true);
+  r.runUntil(5s);
+  auto f = r.pw(3, false);
+  r.runUntil(20s);
+  ASSERT_EQ(f.wait_for(0s), std::future_status::ready);
+  const auto j = f.get();
+  EXPECT_TRUE(j["ok"].get<bool>()) << j.dump();
+  EXPECT_EQ(j["result"], "verified");
+}

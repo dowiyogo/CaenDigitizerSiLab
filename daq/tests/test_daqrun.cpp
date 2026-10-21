@@ -14,6 +14,7 @@
 
 #include "daq/core/file_system.h"
 #include "daq/core/gzip.h"
+#include "daq/daqrun/calibration.h"
 #include "daq/daqrun/campaign.h"
 #include "daq/daqrun/config.h"
 #include "daq/daqrun/dash.h"
@@ -674,4 +675,57 @@ TEST(TttClock, TriggerCutBeforeTheFirstFitKeepsTheReference) {
     worst = std::max(worst, std::fabs(v[v.size() / 2]));
   }
   EXPECT_LT(worst, 1e-3) << worst;
+}
+
+// Calibración de p.e. (DAQ2-10): 64 canales, versión obligatoria, provisional si no es "ok" o no
+// tiene G; un esquema distinto o un canal de menos se rechaza.
+TEST(PeCalibration, LoadsVersionGainsAndProvisionalChannels) {
+  using namespace daq::daqrun;
+  nlohmann::json j{{"schema", "daqv2.pe_calibration/1"}, {"version", "2026_10-c1"}, {"channels", nlohmann::json::array()}};
+  for (int c = 0; c < 64; ++c) {
+    nlohmann::json e{{"ch", c}, {"pedestal_mV", 25.0}};
+    if (c < 32) e["G_mV"] = 4.0 + 0.01 * c;
+    e["provisional"] = c >= 32 || c == 3;
+    j["channels"].push_back(e);
+  }
+  auto r = PeCalibration::fromJson(j);
+  ASSERT_TRUE(r.ok()) << r.error().message;
+  EXPECT_EQ(r.value().version, "2026_10-c1");
+  EXPECT_NEAR(r.value().gainMv[5], 4.05, 1e-12);
+  EXPECT_FALSE(r.value().provisional[5]);
+  EXPECT_TRUE(r.value().provisional[3]);
+  EXPECT_TRUE(r.value().provisional[40]);
+  auto bad = j;
+  bad["schema"] = "otro";
+  EXPECT_FALSE(PeCalibration::fromJson(bad).ok());
+  auto few = j;
+  few["channels"].erase(few["channels"].begin());
+  EXPECT_FALSE(PeCalibration::fromJson(few).ok());
+}
+
+// Mapeo r2 (DAQ2-10): 52 canales con grupo HV medido en la prueba de grupos, 12 sin grupo (null),
+// cada uno con la asignación anterior; los grupos medidos tienen a lo más 8 MPPC.
+TEST(MappingR2, MeasuredGroupsAndPreviousAssignmentKept) {
+  auto m = daq::hvmon::Mapping::fromFile(DAQ_SOURCE_DIR "/config/mapping/hodo_mapping_2026_10_r2.json");
+  ASSERT_TRUE(m.ok()) << m.error().message;
+  EXPECT_EQ(m.value().version, "2026_10-r2");
+  int measured = 0, unknown = 0;
+  std::map<int, int> perGroup;
+  for (const auto& e : m.value().channels) {
+    if (e.groupConfirmed()) {
+      ++measured;
+      ASSERT_TRUE(e.hvGroup.has_value());
+      ++perGroup[*e.hvGroup];
+    } else {
+      EXPECT_FALSE(e.hvGroup.has_value()) << e.digCh;
+      ++unknown;
+    }
+  }
+  EXPECT_EQ(measured, 52);
+  EXPECT_EQ(unknown, 12);
+  for (const auto& [g, n] : perGroup) EXPECT_LE(n, 8) << g;
+  std::ifstream in(DAQ_SOURCE_DIR "/config/mapping/hodo_mapping_2026_10_r2.json");
+  const auto j = nlohmann::json::parse(in);
+  for (const auto& c : j["channels"]) EXPECT_TRUE(c.contains("hv_group_previous")) << c["dig_ch"];
+  EXPECT_EQ(m.value().forGroup(1).size(), 5u);  // 0, 28, 31, 37, 61
 }
