@@ -16,7 +16,8 @@
 
 namespace daq::daqrun {
 
-Result<std::unique_ptr<DaqrunPage>> DaqrunPage::create(const DaqrunConfig& cfg, const std::string& bindAddress, const std::string& mappingText) {
+Result<std::unique_ptr<DaqrunPage>> DaqrunPage::create(const DaqrunConfig& cfg, const std::string& bindAddress, const std::string& mappingText,
+                                                       const std::string& calibrationLabel) {
   using R = Result<std::unique_ptr<DaqrunPage>>;
   std::unique_ptr<DaqrunPage> p(new DaqrunPage());
   const std::string engine = "http:" + std::to_string(cfg.httpPort) + "?bind=" + bindAddress + "&thrds=2";
@@ -25,6 +26,7 @@ Result<std::unique_ptr<DaqrunPage>> DaqrunPage::create(const DaqrunConfig& cfg, 
   p->server_->SetReadOnly(kTRUE);
   p->server_->SetTimer(0, kTRUE);  // solo atiende en processRequests() (hilo principal)
   p->url_ = "http://" + bindAddress + ":" + std::to_string(cfg.httpPort) + "/";
+  p->calibrationLabel_ = calibrationLabel;
   p->dt_ = std::make_unique<TH1D>("dt", "#Deltat entre triggers;log_{10}(#Deltat/s);eventos", MonitorView::kDtBins,
                                   MonitorView::kDtLogMin, MonitorView::kDtLogMax);
   p->oot_ = std::make_unique<TH1D>("oot_rate",
@@ -91,7 +93,10 @@ void DaqrunPage::update(const MonitorView& v, const HvSample& hv, const nlohmann
   std::ostringstream os;
   os << "daqrun " << status.value("run_name", "") << (status.value("simulated", false) ? "  [SIMULADO]" : "") << "\n";
   if (!hv.alive) os << "AVISO: hvmon no disponible (" << hv.error << "): bit 4 (HV_UNKNOWN) en todos los canales\n";
-  os << "calibración: none (umbrales PROVISIONALES en mV)\n";
+  if (calibrationLabel_.empty())
+    os << "calibración: none (umbrales PROVISIONALES en mV)\n";
+  else
+    os << "calibración: " << calibrationLabel_ << "\n";
   os << "eventos: " << v.events << "   tasa último período: " << v.last.triggerRateHz << " Hz\n";
   const auto rd = status.value("readout", nlohmann::json::object());
   os << "colas: escritura " << status.value("writer_queue", 0) << "/" << status.value("writer_capacity", 0)

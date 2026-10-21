@@ -179,6 +179,7 @@ int main(int argc, char** argv) {
     return 2;
   }
   auto mapping = hvmon::Mapping::fromFile(cfg.mappingFile);
+  std::string calibrationLabel;  // tabla /status/table: calibración en uso (vacío = sin calibración)
   if (!cfg.calibrationFile.empty()) {  // DAQ2-10: un archivo inválido detiene el run antes de abrir el digitizador
     auto cal = PeCalibration::fromFile(cfg.calibrationFile);
     if (!cal) {
@@ -186,6 +187,7 @@ int main(int argc, char** argv) {
       return 2;
     }
     logInfo("calibración de p.e. cargada: ", cal.value().version, " (", cfg.calibrationFile, ")");
+    calibrationLabel = cal.value().version + " (" + cfg.calibrationFile + ")";
   }
   if (!mapping) {
     std::fprintf(stderr, "daqrun: %s\n", mapping.error().message.c_str());
@@ -318,7 +320,7 @@ int main(int argc, char** argv) {
       logError(bind.error().message);
       return 1;
     }
-    auto p = DaqrunPage::create(cfg, bind.value(), mapping.value().text);
+    auto p = DaqrunPage::create(cfg, bind.value(), mapping.value().text, calibrationLabel);
     if (!p) {
       logError(p.error().message);
       return 1;

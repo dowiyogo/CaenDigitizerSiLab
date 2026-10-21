@@ -29,7 +29,8 @@ namespace daq::daqrun {
 class DaqrunPage {
  public:
   static Result<std::unique_ptr<DaqrunPage>> create(const DaqrunConfig& cfg, const std::string& bindAddress,
-                                                     const std::string& mappingText = "{}");
+                                                     const std::string& mappingText = "{}",
+                                                     const std::string& calibrationLabel = std::string());
   ~DaqrunPage();
   void update(const MonitorView& v, const HvSample& hv, const nlohmann::json& status);
   // Paneles en tiempo y bits de datos (fase 5); solo cuando cambió la vista del monitor.
@@ -46,6 +47,7 @@ class DaqrunPage {
   std::unique_ptr<TNamed> table_, json_, mapping_;
   io::PanelRoot panels_;
   std::string url_;
+  std::string calibrationLabel_;  // versión y archivo de la calibración cargada; vacío = sin calibración
 };
 
 }  // namespace daq::daqrun
