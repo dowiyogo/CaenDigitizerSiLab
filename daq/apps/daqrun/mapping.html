@@ -50,71 +50,35 @@
 
 <div class="hv">
 <h2>Grupos de alta tensión (operación)</h2>
-<p class="small">Esta parte sirve para operar la alta tensión: qué canal del SY5527 alimenta a cada MPPC. El <b>grupo medido</b>
-  sale de la prueba del 2026-10-21: se apagó un canal del SY5527 a la vez y se vio qué canales del digitizador perdían sus pulsos
-  oscuros. El <b>grupo según la planilla</b> es el que <i>Voltajes Hodoscopio.xlsx</i> da a la etiqueta del MPPC. La etiqueta de
-  cada canal es un <b>supuesto</b>: en hod2018 "Canal k" = canal k del digitizador, según la hoja; en hod2019 sale de una regla
-  que relaciona cara y plano.</p>
-<p class="legend small"><span class="sq" style="background:var(--diff)"></span>naranja = las dos fuentes no coinciden; no
-  significa que un cable esté mal. <span class="sq" style="background:var(--grey)"></span>gris = sin medición.</p>
-
-<h3>Conteo de MPPC por grupo: planilla contra medición</h3>
-<p class="small mut">Si el grupo de cada MPPC en la planilla es correcto, el número de canales medidos en cada grupo no puede
-  superar al de la planilla, y lo que falta tiene que poder completarse con los canales sin medir. Esto vale para cualquier
-  reasignación de etiquetas dentro de la estación. Así se separa un error de la planilla de un error en el supuesto
-  etiqueta → canal.</p>
-<div id="counts"></div>
-
-<h3>Resumen por plano</h3>
-<div class="wrap"><table id="summary"></table></div>
-
-<h3>Dibujo de cada estación</h3>
-<div class="sw">Posición: <button id="v_meas" class="on">según medición</button><button id="v_sheet">según la hoja del laboratorio</button>
-  &nbsp; Color: <button id="c_meas" class="on">grupo medido</button><button id="c_sheet">grupo según la planilla</button></div>
-<p class="small mut" id="drawnote"></p>
-<div class="row" id="draw"></div>
-<p class="small mut">Tiras X verticales y tiras Y horizontales, en dos capas de 8 por coordenada que se traslapan 1 mm; el
-  cuadrado negro marca el extremo con el MPPC. <b>Supuesto:</b> la capa y el extremo se asignan por la paridad de la posición
-  (regla de mayo). Las tiras con borde punteado tienen la posición sin validar.</p>
-
-<h3>Tabla de grupos (64 canales)</h3>
+<p class="small">Qué canal del SY5527 alimenta a cada canal del digitizador, medido el 2026-10-21. Se apagó un canal del SY5527
+  a la vez y se vio qué canales del digitizador perdían sus pulsos oscuros. "Sin medir" quiere decir que la prueba no pudo
+  decidir, y se indica el motivo.</p>
+<p class="small mut" id="hvsum"></p>
 <button class="csv" id="csv" disabled>Descargar CSV</button>
 <div class="wrap"><table id="tab"></table></div>
-
-<h3>Candidatos de MPPC para cada canal (inferencia)</h3>
-<p class="small">Son las etiquetas de la planilla con el mismo grupo que el medido, es decir, los MPPC físicos que podrían estar
-  en ese canal. <b>Es una inferencia</b>, para pedirle al laboratorio que revise esos conectores. Las listas se acotan con dos
-  hipótesis. En hod2018: el número de la etiqueta sigue la posición (k o 15 − k). En hod2019: la asignación cara ↔ plano con la
-  que cuadran los conteos de arriba.</p>
-<div class="sw">Mostrar: <button id="k_diff" class="on">solo canales con grupo distinto</button><button id="k_all">todos</button></div>
-<div class="wrap"><table id="cand"></table></div>
 </div>
 
 <script>
 "use strict";
-const COL = ["#4e79a7", "#f28e2b", "#59a14f", "#e15759", "#76b7b2", "#edc948", "#b07aa1", "#ff9da7"];
 const NS = "http://www.w3.org/2000/svg";
 const PLANES = [["hod2018", "X"], ["hod2018", "Y"], ["hod2019", "X"], ["hod2019", "Y"]];
 function esc(s) { return String(s == null ? "–" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
-function grey() { return getComputedStyle(document.documentElement).getPropertyValue("--grey").trim() || "#bbb"; }
 function el(tag, attrs, text) {
   const e = document.createElementNS(NS, tag);
   for (const k in attrs) e.setAttribute(k, attrs[k]);
   if (text != null) e.textContent = text;
   return e;
 }
-let M = null, rows = [], view = "meas", colorBy = "meas", candMode = "diff", faceOfPlane = null, live = null;
+let M = null, rows = [], live = null;
 
 function build(m) {
   return (m.channels || []).slice().sort((a, b) => a.dig_ch - b.dig_ch).map(c => {
     const gt = c.hv_group_test || {}, stt = c.strip_test || {};
     const sheet = c.strip_sheet !== undefined ? c.strip_sheet : c.strip;
     const stripState = stt.result || "no medida";
-    const r = { ch: c.dig_ch, station: c.station, plane: c.plane, label: c.label, face: c.face, sheet, strip: c.strip, stripState,
-                stripMeasured: stripState === "medido", stripTest: stt, gsheet: c.hv_group_sheet, g: c.hv_group, hvch: c.hv_ch, gt,
-                groupMeasured: c.hv_group != null };
+    const r = { ch: c.dig_ch, station: c.station, plane: c.plane, sheet, strip: c.strip, stripState, stripMeasured: stripState === "medido",
+                stripTest: stt, g: c.hv_group, hvch: c.hv_ch, gt, groupMeasured: c.hv_group != null };
     r.stripDiff = r.stripMeasured && sheet !== c.strip;
-    r.groupDiff = r.groupMeasured && r.gsheet != null && r.gsheet !== r.g;
     return r;
   });
 }
@@ -241,152 +205,29 @@ async function hitsAll() {
   d.appendChild(out);
 }
 
-// ---- grupos: conteo planilla contra medición
-function sheetCounts(st, pl, faces) {
-  const L = M.hv_groups_by_label || {}, n = {};
-  for (let g = 1; g <= 8; ++g) {
-    const e = L[String(g)] || {};
-    if (st === "hod2018") n[g] = pl ? (e["hod2018_" + pl] || []).length : (e.hod2018_X || []).length + (e.hod2018_Y || []).length;
-    else n[g] = (e.hod2019 || []).filter(l => !faces || faces.includes(l.split(" ")[0])).length;
-  }
-  return n;
-}
-function measCounts(st, pl) {
-  const n = {}, rr = rows.filter(r => r.station === st && (!pl || r.plane === pl));
-  for (let g = 1; g <= 8; ++g) n[g] = rr.filter(r => r.g === g).length;
-  return { n, un: rr.filter(r => !r.groupMeasured).length };
-}
-function consistent(s, q, un) {
-  let deficit = 0;
-  const over = [];
-  for (let g = 1; g <= 8; ++g) { if (q[g] > s[g]) over.push(g); deficit += Math.max(0, s[g] - q[g]); }
-  return { ok: !over.length && deficit === un, over };
-}
-function counts() {
-  const sheetFaces = {};
-  for (const pl of ["X", "Y"]) sheetFaces[pl] = [...new Set(rows.filter(r => r.station === "hod2019" && r.plane === pl && r.face).map(r => r.face))];
-  const swapped = { X: sheetFaces.Y, Y: sheetFaces.X };
-  let h = "<table><tr><th></th>" + [1, 2, 3, 4, 5, 6, 7, 8].map(g => `<th>grupo ${g}<br>planilla / medidos</th>`).join("") +
-          "<th>sin medir</th><th>¿cuadra?</th></tr>";
-  const res = {};
-  const add = (key, title, s, mc) => {
-    const c = consistent(s, mc.n, mc.un);
-    res[key] = c.ok;
-    h += `<tr><td>${esc(title)}</td>` + [1, 2, 3, 4, 5, 6, 7, 8].map(g => `<td class="${mc.n[g] > s[g] ? "diff" : ""}">${s[g]} / ${mc.n[g]}</td>`).join("") +
-         `<td>${mc.un}</td><td>${c.ok ? "sí" : "no" + (c.over.length ? ` (grupo ${c.over.join(", ")}: más medidos que en la planilla)` : "")}</td></tr>`;
-  };
-  add("18", "hod2018 (estación)", sheetCounts("hod2018"), measCounts("hod2018"));
-  add("18X", "hod2018 X", sheetCounts("hod2018", "X"), measCounts("hod2018", "X"));
-  add("18Y", "hod2018 Y", sheetCounts("hod2018", "Y"), measCounts("hod2018", "Y"));
-  add("19", "hod2019 (estación)", sheetCounts("hod2019"), measCounts("hod2019"));
-  for (const pl of ["X", "Y"]) add("19" + pl + "a", `hod2019 ${pl}, caras ${sheetFaces[pl].join("/")} (regla usada para las etiquetas)`, sheetCounts("hod2019", pl, sheetFaces[pl]), measCounts("hod2019", pl));
-  for (const pl of ["X", "Y"]) add("19" + pl + "b", `hod2019 ${pl}, caras ${swapped[pl].join("/")} (caras intercambiadas)`, sheetCounts("hod2019", pl, swapped[pl]), measCounts("hod2019", pl));
-  h += "</table>";
-  faceOfPlane = res["19Xb"] && res["19Yb"] ? swapped : (res["19Xa"] && res["19Ya"] ? sheetFaces : null);
-  const lines = [];
-  if (res["19"] && res["19Xb"] && res["19Yb"] && !(res["19Xa"] && res["19Ya"]))
-    lines.push(`<b>hod2019:</b> los conteos cuadran con la planilla en la estación y en cada plano si las caras ${swapped.X.join("/")} están en el
-      plano X y ${swapped.Y.join("/")} en el Y; con la regla usada para las etiquetas no cuadran. Lo que falla es el supuesto cara ↔ plano,
-      no la agrupación de la planilla.`);
-  else lines.push(`<b>hod2019:</b> los conteos ${res["19"] ? "cuadran" : "no cuadran"} con la planilla en la estación.`);
-  if (res["18"]) lines.push("<b>hod2018:</b> los conteos cuadran con la planilla; lo único que falla es el supuesto «Canal k» = canal k.");
-  else {
-    const sx = sheetCounts("hod2018", "X"), sy = sheetCounts("hod2018", "Y"), mx = measCounts("hod2018", "X").n, my = measCounts("hod2018", "Y").n;
-    const G = [1, 2, 3, 4, 5, 6, 7, 8], ox = G.filter(g => mx[g] > sx[g]), oy = G.filter(g => my[g] > sy[g]);
-    const s18 = sheetCounts("hod2018"), m18 = measCounts("hod2018").n;
-    const nSt = G.reduce((a, g) => a + Math.max(0, m18[g] - s18[g]), 0), nPl = G.reduce((a, g) => a + Math.max(0, mx[g] - sx[g]) + Math.max(0, my[g] - sy[g]), 0);
-    const nd = rows.filter(r => r.station === "hod2018" && r.groupDiff).length;
-    lines.push(`<b>hod2018:</b> el supuesto «Canal k» = canal k no se cumple: el grupo difiere en ${nd} canales. Además, ninguna
-      reasignación de etiquetas hace cuadrar los conteos. Hay más canales medidos que MPPC en la planilla en el grupo ${ox.join(", ") || "–"}
-      del plano X y en el grupo ${oy.join(", ") || "–"} del plano Y. Esos canales cayeron por completo (0 cuentas con el grupo apagado),
-      así que la medición es firme. Entonces la planilla da a algunos MPPC de hod2018 un canal del SY5527 distinto del que los
-      alimenta: al menos ${nSt} según el conteo de la estación, y ${nPl} si el plano (X o Y) de cada etiqueta de la planilla es correcto.
-      En mayo ya se había visto el grupo 6 con dos MPPC Y.`);
-  }
-  document.getElementById("counts").innerHTML = `<div class="wrap">${h}</div>` + lines.map(l => `<p class="small">${l}</p>`).join("");
-}
-
-function summary() {
-  let h = "<tr><th>plano</th><th>grupo: coincide</th><th>grupo: distinto</th><th>grupo: sin medir</th></tr>";
-  for (const [st, pl] of PLANES) {
-    const rr = rows.filter(r => r.station === st && r.plane === pl), n = f => rr.filter(f).length;
-    h += `<tr><td>${st} ${pl}</td><td>${n(r => r.groupMeasured && !r.groupDiff)}</td><td>${n(r => r.groupDiff)}</td><td>${n(r => !r.groupMeasured)}</td></tr>`;
-  }
-  document.getElementById("summary").innerHTML = h;
-}
-
-// ---- dibujo (escala 4 px/mm, barras 75 × 3 mm, paso 2 mm)
-function posOf(r) { return view === "meas" ? r.strip : r.sheet; }
-function colorOf(r) { const g = colorBy === "meas" ? r.g : r.gsheet; return g == null ? grey() : COL[(g - 1) % 8]; }
-function drawStation(st) {
-  const S = 4, L = 75 * S, W = 3 * S, A = 33 * S, pad = 26, size = L + 2 * pad;
-  const svg = el("svg", { width: size, height: size + 20, viewBox: `0 0 ${size} ${size + 20}`, role: "img" });
-  const c0 = pad + (L - A) / 2, faces = {};
-  for (const r of rows.filter(r => r.station === st)) {
-    const k = posOf(r);
-    if (k == null || k < 0) continue;
-    const off = c0 + 2 * S * k, odd = k % 2 === 1;
-    const g = el("g", { opacity: odd ? 0.85 : 1 });
-    const common = { fill: colorOf(r), stroke: "currentColor", "stroke-width": 0.6, "stroke-dasharray": !r.stripMeasured && view === "meas" ? "3 2" : "none" };
-    const lab = `ch${r.ch} · ${r.label || "–"}`;
-    let bar, mppc, txt;
-    if (r.plane === "X") {
-      bar = el("rect", Object.assign({ x: off, y: pad, width: W, height: L }, common));
-      mppc = el("rect", { x: off, y: odd ? pad + L : pad - 6, width: W, height: 6, fill: "currentColor" });
-      const ty = odd ? pad + L - 4 : pad + 4;
-      txt = el("text", { x: off + W / 2 + 3, y: ty, "font-size": 9, transform: `rotate(-90 ${off + W / 2 + 3} ${ty})`, "text-anchor": odd ? "start" : "end" }, lab);
-    } else {
-      bar = el("rect", Object.assign({ x: pad, y: off, width: L, height: W }, common));
-      mppc = el("rect", { x: odd ? pad + L : pad - 6, y: off, width: 6, height: W, fill: "currentColor" });
-      txt = el("text", { x: odd ? pad + L - 4 : pad + 4, y: off + W / 2 + 3, "font-size": 9, "text-anchor": odd ? "end" : "start" }, lab);
-    }
-    bar.appendChild(el("title", {}, `ch${r.ch} ${r.station} ${r.plane}, posición ${k}; etiqueta ${r.label || "–"} (supuesta); grupo medido ${r.g == null ? "sin medir" : r.g}; grupo según la planilla ${r.gsheet == null ? "–" : r.gsheet}`));
-    g.appendChild(bar); g.appendChild(mppc); g.appendChild(txt);
-    svg.appendChild(g);
-    if (r.face) faces[r.plane + (odd ? 1 : 0)] = r.face;
-  }
-  const f = (key, x, y, anchor) => svg.appendChild(el("text", { x, y, "font-size": 11, "text-anchor": anchor, "font-weight": 600 }, faces[key] ? faces[key] + " (etiqueta)" : ""));
-  f("X0", size / 2, 12, "middle"); f("X1", size / 2, size - 2, "middle");
-  f("Y0", 2, c0 - 10, "start"); f("Y1", size - 2, c0 - 10, "end");
-  svg.appendChild(el("text", { x: 2, y: size + 14, "font-size": 11 }, st + (view === "meas" ? " — según medición" : " — según la hoja del laboratorio")));
-  return svg;
-}
-function drawAll() {
-  const d = document.getElementById("draw");
-  d.textContent = "";
-  for (const st of ["hod2018", "hod2019"]) d.appendChild(drawStation(st));
-  document.getElementById("drawnote").innerHTML = `<span class="legend">` + COL.map((c, i) => `<span class="sq" style="background:${c}"></span>grupo ${i + 1}`).join("") +
-    `<span class="sq" style="background:var(--grey)"></span>sin medir</span>`;
-}
-
-// ---- tabla de grupos y candidatos
+// ---- grupos HV medidos
 function groupState(r) {
   if (!r.groupMeasured) return `sin medir: ${r.gt.reason || ""}`;
   const t = r.gt;
-  return `medido: prueba de grupos 21-10, SY5527 CH${String(t.sy5527_ch).padStart(2, "0")} apagado: ${t.counts_off} cuentas contra ${t.expected_from_reference} esperadas ` +
-         `(razón ${t.ratio}, p ${t.p_drop === 0 ? "< 1e-300" : "= " + t.p_drop}, umbral ${t.threshold})`;
-}
-function groupWhy(r) {
-  if (!r.groupMeasured) return "sin medir";
-  if (!r.groupDiff) return "coinciden";
-  return r.station === "hod2018" ? "la etiqueta supuesta («Canal k» = canal k) no es la de este canal (ver conteos)"
-                                 : "la etiqueta supuesta sale de una regla cara ↔ plano que no se cumple (ver conteos)";
+  return `con el SY5527 CH${String(t.sy5527_ch).padStart(2, "0")} apagado: ${t.counts_off} cuentas contra ${t.expected_from_reference} esperadas ` +
+         `(razón ${t.ratio}, p ${t.p_drop === 0 ? "< 1e-300" : "= " + t.p_drop}, umbral ${({ "3pe_v8": "3 p.e. (ganancia de mayo)", "1.5mV": "1.5 mV", "3mV": "3 mV" })[t.threshold] || t.threshold}); prueba del 2026-10-21`;
 }
 function groupTable() {
-  let h = "<tr><th>canal</th><th>estación</th><th>plano</th><th>etiqueta supuesta</th><th>grupo según la planilla</th><th>grupo medido</th>" +
-          "<th>por qué difieren</th><th>detalle de la medición</th></tr>";
+  let h = "<tr><th>canal</th><th>estación</th><th>plano</th><th>grupo HV medido</th><th>canal SY5527</th><th>detalle de la prueba</th></tr>";
   for (const r of rows)
-    h += `<tr><td>${r.ch}</td><td>${r.station}</td><td>${r.plane}</td><td>${esc(r.label)}</td><td>${esc(r.gsheet)}</td>` +
-         (r.groupMeasured ? `<td class="${r.groupDiff ? "diff" : ""}">${r.g}</td>` : `<td class="nm">sin medir</td>`) +
-         `<td class="small">${esc(groupWhy(r))}</td><td class="small mut">${esc(groupState(r))}</td></tr>`;
+    h += `<tr><td>${r.ch}</td><td>${r.station}</td><td>${r.plane}</td>` +
+         (r.groupMeasured ? `<td>${r.g}</td><td>CH${String(r.hvch).padStart(2, "0")}</td>` : `<td class="nm">sin medir</td><td class="nm">–</td>`) +
+         `<td class="small mut">${esc(groupState(r))}</td></tr>`;
   document.getElementById("tab").innerHTML = h;
+  const n = rows.filter(r => r.groupMeasured).length;
+  document.getElementById("hvsum").textContent = `${n} de ${rows.length} canales con grupo medido; ${rows.length - n} sin medir.`;
   const b = document.getElementById("csv");
   b.disabled = false;
   b.onclick = () => {
-    const head = ["canal", "estacion", "plano", "posicion_hoja", "posicion_medida", "etiqueta_supuesta", "grupo_planilla", "grupo_medido", "motivo", "detalle_grupo"];
+    const head = ["canal", "estacion", "plano", "posicion_hoja", "posicion_medida", "grupo_hv_medido", "canal_sy5527", "detalle"];
     const q = v => v == null ? "" : `"${String(v).replace(/"/g, '""')}"`;
-    const lines = [head.join(",")].concat(rows.map(r => [r.ch, r.station, r.plane, r.sheet, posMeasText(r), r.label, r.gsheet,
-      r.groupMeasured ? r.g : "sin medir", groupWhy(r), groupState(r)].map(q).join(",")));
+    const lines = [head.join(",")].concat(rows.map(r => [r.ch, r.station, r.plane, r.sheet, posMeasText(r),
+      r.groupMeasured ? r.g : "sin medir", r.groupMeasured ? "CH" + String(r.hvch).padStart(2, "0") : "", groupState(r)].map(q).join(",")));
     const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
     const a = document.createElement("a");
     a.href = url;
@@ -395,44 +236,13 @@ function groupTable() {
     URL.revokeObjectURL(url);
   };
 }
-function candidates(r) {
-  const e = (M.hv_groups_by_label || {})[String(r.g)] || {};
-  if (r.station === "hod2018") {
-    const ks = e["hod2018_" + r.plane] || [], ok = new Set([r.strip, 15 - r.strip]);
-    return { all: ks.map(k => `${r.plane} Canal ${k}`), narrow: ks.filter(k => ok.has(k)).map(k => `${r.plane} Canal ${k}`),
-             note: `posición ${r.strip}: etiqueta ${r.strip} o ${15 - r.strip}` };
-  }
-  const all = e.hod2019 || [];
-  if (!faceOfPlane) return { all, narrow: [], note: "ninguna asignación cara ↔ plano cuadra con los conteos" };
-  return { all, narrow: all.filter(l => faceOfPlane[r.plane].includes(l.split(" ")[0])),
-           note: `caras ${faceOfPlane[r.plane].join("/")} en el plano ${r.plane} (con esto cuadran los conteos)` };
-}
-function candTable() {
-  const rr = rows.filter(r => r.groupMeasured && (candMode === "all" || r.groupDiff));
-  let h = "<tr><th>canal</th><th>plano</th><th>etiqueta supuesta</th><th>grupo medido</th><th>candidatos (mismo grupo en la planilla)</th>" +
-          "<th>acotados (hipótesis)</th><th>hipótesis</th></tr>";
-  for (const r of rr) {
-    const c = candidates(r);
-    h += `<tr><td>${r.ch}</td><td>${r.station} ${r.plane}</td><td>${esc(r.label)}</td><td>${r.g}</td><td>${esc(c.all.join(", ") || "ninguno")}</td>` +
-         `<td>${esc(c.narrow.join(", ") || "ninguno")}</td><td class="small mut">${esc(c.note)}</td></tr>`;
-  }
-  document.getElementById("cand").innerHTML = h;
-}
-
-function toggle(ids, active) { ids.forEach(id => document.getElementById(id).classList.toggle("on", id === active)); }
-document.getElementById("v_meas").onclick = () => { view = "meas"; toggle(["v_meas", "v_sheet"], "v_meas"); drawAll(); };
-document.getElementById("v_sheet").onclick = () => { view = "sheet"; toggle(["v_meas", "v_sheet"], "v_sheet"); drawAll(); };
-document.getElementById("c_meas").onclick = () => { colorBy = "meas"; toggle(["c_meas", "c_sheet"], "c_meas"); drawAll(); };
-document.getElementById("c_sheet").onclick = () => { colorBy = "sheet"; toggle(["c_meas", "c_sheet"], "c_sheet"); drawAll(); };
-document.getElementById("k_diff").onclick = () => { candMode = "diff"; toggle(["k_diff", "k_all"], "k_diff"); candTable(); };
-document.getElementById("k_all").onclick = () => { candMode = "all"; toggle(["k_diff", "k_all"], "k_all"); candTable(); };
 
 fetch("../status/mapping_json/root.json.gz", { cache: "no-store" })
   .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
   .then(o => {
     M = JSON.parse(o.fTitle);
     rows = build(M);
-    mainTable(); counts(); summary(); drawAll(); groupTable(); candTable();
+    mainTable(); groupTable();
     loadLive(); hitsAll();
   })
   .catch(e => { document.getElementById("err").textContent = "no se pudo leer el mapeo: " + e.message; });

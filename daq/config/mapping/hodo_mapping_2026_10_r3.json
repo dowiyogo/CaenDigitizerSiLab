@@ -3014,7 +3014,7 @@
   "r2: 43 de los 52 canales medidos tienen un grupo distinto del de r1 (casi todo hod2019, donde r1 derivaba de la planilla de mayo con los planos intercambiados): la regla etiqueta -> tira de hod2019 usada en r1 no se cumple, así que las caras (face, derived) tampoco están confirmadas.",
   "r2: el grupo 6 sigue con dos canales Y de hod2018 (ch16 y ch18) más ch1 X; la planilla le asigna 2 X y 1 Y.",
   "r2: los totales por grupo y estación coinciden con hv_groups_by_label salvo en los grupos 4 (2 X medidos frente a 1 en la planilla) y 5/6 por los canales sin medida.",
-  "DAQ2-11c, conteo por grupo (planilla contra prueba de grupos): hod2019 cuadra con la planilla en la estación y en cada plano si las caras Opuesta/Frontal están en el plano X y Delantera/Trasera en el Y (al revés de la regla usada para label y face); lo que falla es el supuesto cara <-> plano, no la agrupación de la planilla. hod2018 no cuadra con ninguna reasignación de etiquetas: un canal medido de más en el grupo 4 (plano X) y en el grupo 6 (plano Y), con caídas completas; al menos 1 MPPC de hod2018 (2 si los planos de las etiquetas son correctos) tiene en la planilla un canal SY5527 distinto del que lo alimenta."
+  "RETIRADO (René, 2026-10-21: las etiquetas de la planilla de HV no corresponden a las salidas de señal): DAQ2-11c, conteo por grupo (planilla contra prueba de grupos): hod2019 cuadra con la planilla en la estación y en cada plano si las caras Opuesta/Frontal están en el plano X y Delantera/Trasera en el Y (al revés de la regla usada para label y face); lo que falla es el supuesto cara <-> plano, no la agrupación de la planilla. hod2018 no cuadra con ninguna reasignación de etiquetas: un canal medido de más en el grupo 4 (plano X) y en el grupo 6 (plano Y), con caídas completas; al menos 1 MPPC de hod2018 (2 si los planos de las etiquetas son correctos) tiene en la planilla un canal SY5527 distinto del que lo alimenta."
  ],
  "previous_version": "2026_10-r2",
  "light_units": {
@@ -3044,7 +3044,8 @@
  },
  "revisions": [
   "2026-10-21 DAQ2-11b: campos de documentación añadidos (sources, hv_group_test, strip_test, label_link); ch3 confirmed.strip pasa de measurement a derived (canal muerto, posición deducida). Ninguna asignación (strip, hv_group, label, light_units) cambia.",
-  "2026-10-21 DAQ2-11c: evidencia de vecinas de la noche (neighbour_evidence) y resultado del conteo por grupo en known_discrepancies. Ninguna asignación cambia."
+  "2026-10-21 DAQ2-11c: evidencia de vecinas de la noche (neighbour_evidence) y resultado del conteo por grupo en known_discrepancies. Ninguna asignación cambia.",
+  "2026-10-21 DAQ2-11d: retirada la conclusión del conteo por etiquetas (known_discrepancies). Ninguna asignación cambia."
  ],
  "neighbour_evidence": {
   "night": {
