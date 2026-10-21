@@ -106,7 +106,8 @@ void commissioning_pe_calibration(const char* pattern, const char* version, cons
   printf("eventos %lld, exposición %.4f s por canal\n", ne, ne * exposure);
   for (int c = 0; c < 64; ++c) {
     const auto i = static_cast<std::size_t>(c);
-    const double ped = (pedSum[i] / std::max<Long64_t>(1, ne)) * lsb;  // mV sobre 0 ADC
+    // mV con la conversión de la cabecera: (adc/(2^12−1) − 1 + dc_offset/65535) · 2 Vpp, dc_offset 0x7FFF
+    const double ped = (pedSum[i] / std::max<Long64_t>(1, ne) / 4095.0 - 1.0 + 32767.0 / 65535.0) * 2000.0;
     nlohmann::json e{{"ch", c}, {"station", c < 32 ? "hod2018" : "hod2019"}, {"pedestal_mV", ped}};
     const double dr = dark3[i] / (ne * exposure);
     e["dark_rate_above_3mV_Hz"] = dr;

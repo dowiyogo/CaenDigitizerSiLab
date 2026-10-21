@@ -1,0 +1,881 @@
+{
+ "board_temperature_degC": 26.0,
+ "channels": [
+  {
+   "G_mV": 3.8196969143847412,
+   "ch": 0,
+   "dark_rate_above_3mV_Hz": 1688709.6084886678,
+   "peak_positions_mV": [
+    11.509991977681189,
+    15.383282122744887,
+    19.08256003946537,
+    23.009222386723497
+   ],
+   "peaks": 4,
+   "pedestal_mV": 24.267089069106575,
+   "provisional": false,
+   "seed_mV": 4.130439991095727,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.7561246858794277,
+   "ch": 1,
+   "dark_rate_above_3mV_Hz": 1733589.812429376,
+   "peak_positions_mV": [
+    11.640224907817915,
+    15.375561730258237,
+    19.16583816619265,
+    22.897215048771205
+   ],
+   "peaks": 4,
+   "pedestal_mV": 27.046709088855536,
+   "provisional": false,
+   "seed_mV": 3.965506557836098,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 4.596427392699032,
+   "ch": 2,
+   "dark_rate_above_3mV_Hz": 2751706.135781067,
+   "peak_positions_mV": [
+    14.896214896214895,
+    19.441876501130338,
+    24.089069681612962
+   ],
+   "peaks": 3,
+   "pedestal_mV": 29.230201949177026,
+   "provisional": false,
+   "seed_mV": 5.131567215650468,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "ch": 3,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "peak_positions_mV": [],
+   "peaks": 0,
+   "pedestal_mV": 23.510291072032842,
+   "provisional": true,
+   "seed_mV": 4.0,
+   "station": "hod2018",
+   "status": "insufficient"
+  },
+  {
+   "G_mV": 3.8311411657072063,
+   "ch": 4,
+   "dark_rate_above_3mV_Hz": 1253966.7378138502,
+   "peak_positions_mV": [
+    7.777313550938175,
+    11.4638989567702,
+    15.34672359562131,
+    19.228498860023937,
+    23.05071942784732
+   ],
+   "peaks": 5,
+   "pedestal_mV": 28.87539476800738,
+   "provisional": false,
+   "seed_mV": 3.9758637379142217,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.855106240753668,
+   "ch": 5,
+   "dark_rate_above_3mV_Hz": 1742207.9978468888,
+   "peak_positions_mV": [
+    11.539701317932263,
+    15.446722477972477,
+    19.213313950156053,
+    23.134524963049955
+   ],
+   "peaks": 4,
+   "pedestal_mV": 24.286669925826843,
+   "provisional": false,
+   "seed_mV": 3.928756020410423,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 4.059929721126901,
+   "ch": 6,
+   "dark_rate_above_3mV_Hz": 1784371.6643332122,
+   "peak_positions_mV": [
+    8.500528156415704,
+    12.431349901743081,
+    16.45870880949863,
+    20.526238846849534,
+    24.752732289496997
+   ],
+   "peaks": 5,
+   "pedestal_mV": 24.961698883568584,
+   "provisional": false,
+   "seed_mV": 4.335359111600249,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 4.176769150802573,
+   "ch": 7,
+   "dark_rate_above_3mV_Hz": 2255605.897304666,
+   "peak_positions_mV": [
+    12.459370317051985,
+    16.61577021551136,
+    20.924595118143507,
+    24.94565918551652
+   ],
+   "peaks": 4,
+   "pedestal_mV": 25.08686822216788,
+   "provisional": false,
+   "seed_mV": 4.2960452395571025,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.8570397674408126,
+   "ch": 8,
+   "dark_rate_above_3mV_Hz": 1678499.8563675305,
+   "peak_positions_mV": [
+    11.553208502567868,
+    15.40570929654555,
+    19.304343702824074,
+    23.110462925277737
+   ],
+   "peaks": 4,
+   "pedestal_mV": 26.887690936382658,
+   "provisional": false,
+   "seed_mV": 3.9177867370395965,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 5.049840395409167,
+   "ch": 9,
+   "dark_rate_above_3mV_Hz": 2575054.094287749,
+   "peak_positions_mV": [
+    14.74156789181022,
+    19.53979804611747,
+    24.841248682628546
+   ],
+   "peaks": 3,
+   "pedestal_mV": 30.25219149889069,
+   "provisional": false,
+   "seed_mV": 4.901410176313026,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 4.013588952320488,
+   "ch": 10,
+   "dark_rate_above_3mV_Hz": 1644991.9402271288,
+   "peak_positions_mV": [
+    8.092095150141189,
+    12.005219082142158,
+    16.012666649879908,
+    20.09986338035959,
+    24.112717762634936
+   ],
+   "peaks": 5,
+   "pedestal_mV": 23.66617754932987,
+   "provisional": false,
+   "seed_mV": 4.104164863657543,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 4.126189823639811,
+   "ch": 11,
+   "dark_rate_above_3mV_Hz": 1818966.986295966,
+   "peak_positions_mV": [
+    11.89264508405392,
+    16.08090732565638,
+    20.054750336176227,
+    24.321996826013347
+   ],
+   "peaks": 4,
+   "pedestal_mV": 30.8981048018897,
+   "provisional": false,
+   "seed_mV": 4.389824414681828,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.571965731817398,
+   "ch": 12,
+   "dark_rate_above_3mV_Hz": 1267547.4479842784,
+   "peak_positions_mV": [
+    7.081807081807082,
+    10.695590577247383,
+    14.261108029248717,
+    17.717090825356248,
+    21.407939747040093,
+    24.966961143431732
+   ],
+   "peaks": 6,
+   "pedestal_mV": 28.402410034767065,
+   "provisional": false,
+   "seed_mV": 3.5994881034271913,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.6489164732306723,
+   "ch": 13,
+   "dark_rate_above_3mV_Hz": 1751996.6273495518,
+   "peak_positions_mV": [
+    11.014444589510168,
+    14.60594593902017,
+    18.237033307416965,
+    21.984617528169185,
+    25.569691161089008
+   ],
+   "peaks": 5,
+   "pedestal_mV": 25.29626003480456,
+   "provisional": false,
+   "seed_mV": 4.093666804874758,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.6713790557824595,
+   "ch": 14,
+   "dark_rate_above_3mV_Hz": 1167577.287981725,
+   "peak_positions_mV": [
+    7.3752532126980315,
+    10.932155857856223,
+    14.69643131319778,
+    18.317911040203185,
+    22.007935834201007,
+    25.705142671967316
+   ],
+   "peaks": 6,
+   "pedestal_mV": 26.787783229092142,
+   "provisional": false,
+   "seed_mV": 3.88196117607882,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 4.296465491134872,
+   "ch": 15,
+   "dark_rate_above_3mV_Hz": 2375936.248504639,
+   "peak_positions_mV": [
+    13.227580018569128,
+    17.58686274565438,
+    21.82051100083887
+   ],
+   "peaks": 3,
+   "pedestal_mV": 34.37695762847959,
+   "provisional": false,
+   "seed_mV": 4.611209740044093,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 4.338018003638789,
+   "ch": 16,
+   "dark_rate_above_3mV_Hz": 2071921.3057929736,
+   "peak_positions_mV": [
+    13.197133570628901,
+    17.566871835066124,
+    22.069523593995374,
+    26.15630966311511
+   ],
+   "peaks": 4,
+   "pedestal_mV": 29.20873047879624,
+   "provisional": false,
+   "seed_mV": 4.628837827665185,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.4683222914032013,
+   "ch": 17,
+   "dark_rate_above_3mV_Hz": 1361505.2423399733,
+   "peak_positions_mV": [
+    10.414935909169849,
+    14.039441271387794,
+    17.52845965858635,
+    20.981082790530348,
+    24.2857266066146
+   ],
+   "peaks": 5,
+   "pedestal_mV": 28.400995765936578,
+   "provisional": false,
+   "seed_mV": 3.7096490983401416,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.935881325237392,
+   "ch": 18,
+   "dark_rate_above_3mV_Hz": 1926208.9255978114,
+   "peak_positions_mV": [
+    11.931729107781797,
+    15.909346059025319,
+    19.76150008616565,
+    23.76728218285967
+   ],
+   "peaks": 4,
+   "pedestal_mV": 25.29286316550916,
+   "provisional": false,
+   "seed_mV": 4.134468543557989,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.63230719907162,
+   "ch": 19,
+   "dark_rate_above_3mV_Hz": 1776342.6551612646,
+   "peak_positions_mV": [
+    10.91510463161705,
+    14.413175403887479,
+    18.06908226661313,
+    21.4508233199822,
+    25.55781666892778
+   ],
+   "peaks": 5,
+   "pedestal_mV": 26.197990544959637,
+   "provisional": false,
+   "seed_mV": 3.4304966050997763,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 4.208493065060222,
+   "ch": 20,
+   "dark_rate_above_3mV_Hz": 2245046.198218881,
+   "peak_positions_mV": [
+    12.794145837788387,
+    17.048782519100598,
+    21.187967587967584,
+    25.442727698366795
+   ],
+   "peaks": 4,
+   "pedestal_mV": 28.08188320860716,
+   "provisional": false,
+   "seed_mV": 4.519446345140369,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.552576775510263,
+   "ch": 21,
+   "dark_rate_above_3mV_Hz": 1529418.4952245723,
+   "peak_positions_mV": [
+    10.623039370019004,
+    14.169220469273858,
+    17.58568511815265,
+    21.33123073964129,
+    24.80491811238659
+   ],
+   "peaks": 5,
+   "pedestal_mV": 26.759623601755322,
+   "provisional": false,
+   "seed_mV": 3.6669203303871236,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "ch": 22,
+   "dark_rate_above_3mV_Hz": 1862738.0362978752,
+   "peak_positions_mV": [
+    18.803418803418804
+   ],
+   "peaks": 1,
+   "pedestal_mV": 30.880291837308338,
+   "provisional": true,
+   "seed_mV": 5.903772234920079,
+   "station": "hod2018",
+   "status": "insufficient"
+  },
+  {
+   "G_mV": 3.6008692850097144,
+   "ch": 23,
+   "dark_rate_above_3mV_Hz": 1725038.8484626992,
+   "peak_positions_mV": [
+    10.961218398222973,
+    14.504371360386466,
+    18.11446316687943,
+    21.85962185962186,
+    25.287939573653855
+   ],
+   "peaks": 5,
+   "pedestal_mV": 25.334394098244893,
+   "provisional": false,
+   "seed_mV": 4.089644783266252,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.6728035429270425,
+   "ch": 24,
+   "dark_rate_above_3mV_Hz": 1728216.050565462,
+   "peak_positions_mV": [
+    11.20018456316949,
+    14.846931539599245,
+    18.643363240088526,
+    22.130909724104143,
+    25.922213185552256
+   ],
+   "peaks": 5,
+   "pedestal_mV": 27.662731784517945,
+   "provisional": false,
+   "seed_mV": 4.139426132318808,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.930171157730439,
+   "ch": 25,
+   "dark_rate_above_3mV_Hz": 1857283.2132726586,
+   "peak_positions_mV": [
+    11.719357053995184,
+    15.76083782799875,
+    19.705418105999712,
+    23.505067487096337
+   ],
+   "peaks": 4,
+   "pedestal_mV": 28.61052205008363,
+   "provisional": false,
+   "seed_mV": 4.113978126756687,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.958362525793143,
+   "ch": 26,
+   "dark_rate_above_3mV_Hz": 2077480.915197435,
+   "peak_positions_mV": [
+    12.160904210779524,
+    16.29556461017135,
+    20.22097950172196,
+    24.04697433290647
+   ],
+   "peaks": 4,
+   "pedestal_mV": 29.405956839042346,
+   "provisional": false,
+   "seed_mV": 4.305131126330093,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.8599414721256786,
+   "ch": 27,
+   "dark_rate_above_3mV_Hz": 2066515.9103051368,
+   "peak_positions_mV": [
+    15.236869860525768,
+    19.11355081627894,
+    22.95675280477712
+   ],
+   "peaks": 3,
+   "pedestal_mV": 27.068318676180205,
+   "provisional": false,
+   "seed_mV": 4.0,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.5228925586149376,
+   "ch": 28,
+   "dark_rate_above_3mV_Hz": 1545903.567491428,
+   "peak_positions_mV": [
+    10.354300523118795,
+    13.693437574034592,
+    17.385932040309914,
+    20.76696395649377,
+    24.432000124963878
+   ],
+   "peaks": 5,
+   "pedestal_mV": 30.516616410032338,
+   "provisional": false,
+   "seed_mV": 4.0,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 4.200137175595666,
+   "ch": 29,
+   "dark_rate_above_3mV_Hz": 2221718.377677189,
+   "peak_positions_mV": [
+    12.321714448009992,
+    16.504865812345038,
+    20.940556983917418,
+    24.8436079761381
+   ],
+   "peaks": 4,
+   "pedestal_mV": 29.05038576418395,
+   "provisional": false,
+   "seed_mV": 4.157024149605751,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "G_mV": 3.5875807341460724,
+   "ch": 30,
+   "dark_rate_above_3mV_Hz": 1597723.3976802367,
+   "peak_positions_mV": [
+    10.473544951432597,
+    13.824351187695243,
+    17.459915668325177,
+    21.087192145507476,
+    24.780028143256843
+   ],
+   "peaks": 5,
+   "pedestal_mV": 29.394187937752392,
+   "provisional": false,
+   "seed_mV": 4.0,
+   "station": "hod2018",
+   "status": "ok"
+  },
+  {
+   "ch": 31,
+   "dark_rate_above_3mV_Hz": 2227189.017514367,
+   "peak_positions_mV": [
+    16.36141636141636,
+    20.26862026862027
+   ],
+   "peaks": 2,
+   "pedestal_mV": 26.571675547150562,
+   "provisional": true,
+   "seed_mV": 6.094473731651789,
+   "station": "hod2018",
+   "status": "insufficient"
+  },
+  {
+   "ch": 32,
+   "dark_rate_above_3mV_Hz": 804.6803085404489,
+   "pedestal_mV": 24.952109046600945,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 33,
+   "dark_rate_above_3mV_Hz": 17.793913456668403,
+   "pedestal_mV": 22.418333215960207,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 34,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 26.57711287314268,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 35,
+   "dark_rate_above_3mV_Hz": 399.3745020274464,
+   "pedestal_mV": 22.465620584778634,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 36,
+   "dark_rate_above_3mV_Hz": 5589.265926889064,
+   "pedestal_mV": 18.968094872490184,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 37,
+   "dark_rate_above_3mV_Hz": 3.9542029903707565,
+   "pedestal_mV": 26.727735150246403,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 38,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 22.56627517690779,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 39,
+   "dark_rate_above_3mV_Hz": 21196.50512988244,
+   "pedestal_mV": 21.791128984628205,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 40,
+   "dark_rate_above_3mV_Hz": 14110.573371138044,
+   "pedestal_mV": 15.97402271642312,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 41,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 20.152383652362047,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 42,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 17.484205552467547,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 43,
+   "dark_rate_above_3mV_Hz": 778.977989103039,
+   "pedestal_mV": 19.285804191696563,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 44,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 18.250335523190884,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 45,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 21.70454923011267,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 46,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 12.7933708108674,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 47,
+   "dark_rate_above_3mV_Hz": 31396.371743543805,
+   "pedestal_mV": 19.467431673414914,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 48,
+   "dark_rate_above_3mV_Hz": 292.61102128743596,
+   "pedestal_mV": 21.679787044259324,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 49,
+   "dark_rate_above_3mV_Hz": 3936.409076914088,
+   "pedestal_mV": 25.506020705911013,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 50,
+   "dark_rate_above_3mV_Hz": 3.9542029903707565,
+   "pedestal_mV": 21.81635352641753,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 51,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 22.152213854571336,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 52,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 22.386851244093453,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 53,
+   "dark_rate_above_3mV_Hz": 1899.9945368731485,
+   "pedestal_mV": 21.499973265758143,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 54,
+   "dark_rate_above_3mV_Hz": 1.9771014951853783,
+   "pedestal_mV": 25.44523548875666,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 55,
+   "dark_rate_above_3mV_Hz": 13.839710466297648,
+   "pedestal_mV": 20.840610950124685,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 56,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 28.213589225851265,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 57,
+   "dark_rate_above_3mV_Hz": 53.38174037000521,
+   "pedestal_mV": 26.175793653806288,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 58,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 24.696474077445796,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 59,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 26.913505225834466,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 60,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 23.828584334871785,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 61,
+   "dark_rate_above_3mV_Hz": 164.0994241003864,
+   "pedestal_mV": 26.46412646799412,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 62,
+   "dark_rate_above_3mV_Hz": 0.0,
+   "pedestal_mV": 26.257992379055572,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  },
+  {
+   "ch": 63,
+   "dark_rate_above_3mV_Hz": 559.519723137462,
+   "pedestal_mV": 23.91356036117176,
+   "provisional": true,
+   "station": "hod2019",
+   "status": "dark_rate_only"
+  }
+ ],
+ "events": 55557,
+ "first_read_utc_ns": 1792578755973847181,
+ "hv_at_start": [
+  {
+   "IMon_A": 4.591999999999999e-06,
+   "Pw": 1,
+   "Status": 1,
+   "V0Set_V": 65.75,
+   "VMon_V": 65.45,
+   "ch": 0
+  },
+  {
+   "IMon_A": 3.44e-06,
+   "Pw": 1,
+   "Status": 1,
+   "V0Set_V": 65.75,
+   "VMon_V": 65.53,
+   "ch": 1
+  },
+  {
+   "IMon_A": 6.796000000000001e-06,
+   "Pw": 1,
+   "Status": 1,
+   "V0Set_V": 65.9,
+   "VMon_V": 65.75,
+   "ch": 2
+  },
+  {
+   "IMon_A": 7.542e-06,
+   "Pw": 1,
+   "Status": 1,
+   "V0Set_V": 65.85,
+   "VMon_V": 65.53,
+   "ch": 3
+  },
+  {
+   "IMon_A": 7.328e-06,
+   "Pw": 1,
+   "Status": 1,
+   "V0Set_V": 65.75,
+   "VMon_V": 65.59,
+   "ch": 4
+  },
+  {
+   "IMon_A": 4.96e-06,
+   "Pw": 1,
+   "Status": 1,
+   "V0Set_V": 65.7,
+   "VMon_V": 65.58,
+   "ch": 5
+  },
+  {
+   "IMon_A": 6.922e-06,
+   "Pw": 1,
+   "Status": 1,
+   "V0Set_V": 66.15,
+   "VMon_V": 65.83,
+   "ch": 6
+  },
+  {
+   "IMon_A": 7.1e-06,
+   "Pw": 1,
+   "Status": 1,
+   "V0Set_V": 65.9,
+   "VMon_V": 65.67,
+   "ch": 7
+  }
+ ],
+ "last_read_utc_ns": 1792579311534652031,
+ "method": "separación de picos de pulsos oscuros (daq/gain_fit.h), reglas de la fase 5; hod2019 sin picos: tasa > 3 mV",
+ "schema": "daqv2.pe_calibration/1",
+ "source_files": "/data/daq/raw/commissioning2_2026_10_21/commissioning2_2026_10_21_20261021T103235Z_run002_seg*.root",
+ "source_run": "commissioning2_2026_10_21 run 2",
+ "status_count": {
+  "insufficient": 3,
+  "ok": 29
+ },
+ "version": "2026_10-c1"
+}

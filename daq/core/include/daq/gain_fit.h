@@ -2,11 +2,11 @@
 // Ganancia G (mV por p.e.) de un canal de hod2018 desde el espectro de amplitud de sus pulsos fuera
 // de tiempo (diseño 7.3; handoff 8.11), por separación de picos. C++17 header-only, sin ROOT: lo usa
 // el monitor de daqrun (una vez por hora) y lo puede usar el análisis (-I daq/core/include).
-//  1. espectro suavizado (media de 3 bins);
+//  1. espectro suavizado (media de 3 bins) menos su tendencia (media móvil de ancho = semilla);
 //  2. máximos locales (≥ sus vecinos a ±1 mV) entre lo_mV y hi_mV, separados al menos
 //     min_separation_frac × semilla (0.3: con una semilla 2G se encuentran igual los picos a G, y la
 //     comparación con la semilla lo marca ambiguo); se queda el más alto;
-//  3. posición de cada pico = centroide en ±1 mV;
+//  3. posición de cada pico = centroide del residuo positivo en ±1 mV;
 //  4. G = pendiente de la recta posición contra índice consecutivo (mínimos cuadrados);
 //  5. prueba de espaciado: cada diferencia entre picos consecutivos dentro de spacing_tolerance de G
 //     (si no: "rejected");
@@ -56,17 +56,32 @@ Result fitGain(const std::vector<T>& spectrum, double binMv, double seedMv, cons
   const int half = std::max(1, static_cast<int>(std::lround(1.0 / binMv)));  // ±1 mV
   const int lo = std::max(half, static_cast<int>(std::ceil(o.loMv / binMv)));
   const int hi = std::min(n - 1 - half, static_cast<int>(std::floor(o.hiMv / binMv)));
+  // Tendencia: media móvil de ancho = semilla (promedia la oscilación de período G); los picos se
+  // buscan en el residuo r = s − tendencia (DAQ2-10: con registro completo y SW trigger el espectro
+  // cae tan rápido que los picos son hombros, no máximos locales).
+  std::vector<double> resid(static_cast<std::size_t>(n), 0.0);
+  const int hw = std::max(1, static_cast<int>(std::lround(0.5 * seedMv / binMv)));
+  for (int b = 0; b < n; ++b) {
+    double sum = 0;
+    int k = 0;
+    for (int d = -hw; d <= hw; ++d)
+      if (b + d >= 0 && b + d < n) {
+        sum += s[static_cast<std::size_t>(b + d)];
+        ++k;
+      }
+    resid[static_cast<std::size_t>(b)] = s[static_cast<std::size_t>(b)] - sum / k;
+  }
   std::vector<int> maxima;
   for (int b = lo; b <= hi; ++b) {
-    const double v = s[static_cast<std::size_t>(b)];
-    if (v < o.minPeakCounts) continue;
+    const double v = resid[static_cast<std::size_t>(b)];
+    if (s[static_cast<std::size_t>(b)] < o.minPeakCounts || v <= 0) continue;
     bool isMax = true;
     for (int d = -half; d <= half && isMax; ++d)
-      if (d != 0 && s[static_cast<std::size_t>(b + d)] > v) isMax = false;
+      if (d != 0 && resid[static_cast<std::size_t>(b + d)] > v) isMax = false;
     if (!isMax) continue;
     const double minSep = o.minSeparationFrac * seedMv / binMv;
     if (!maxima.empty() && b - maxima.back() < minSep) {
-      if (v > s[static_cast<std::size_t>(maxima.back())]) maxima.back() = b;
+      if (v > resid[static_cast<std::size_t>(maxima.back())]) maxima.back() = b;
       continue;
     }
     maxima.push_back(b);
@@ -74,7 +89,7 @@ Result fitGain(const std::vector<T>& spectrum, double binMv, double seedMv, cons
   for (int b : maxima) {
     double w = 0, x = 0;
     for (int d = -half; d <= half; ++d) {
-      const double c = static_cast<double>(spectrum[static_cast<std::size_t>(b + d)]);
+      const double c = std::max(0.0, resid[static_cast<std::size_t>(b + d)]);  // centroide del residuo
       w += c;
       x += c * (b + d + 0.5) * binMv;
     }

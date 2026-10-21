@@ -114,3 +114,16 @@ TEST(Panels, MuonFillsHitMapCoincidenceAndMinimumSample) {
   EXPECT_EQ(mult.cum[2], 1u);
   EXPECT_EQ(v.lastEvent[static_cast<std::size_t>(3 * N + 53)], ev.adc[static_cast<std::size_t>(3 * N + 53)]);
 }
+
+// Picos sobre un espectro que cae rápido (registro completo, SW trigger; DAQ2-10): con la tendencia
+// restada se encuentran aunque sean hombros y no máximos locales.
+TEST(GainFit, FindsShouldersOnASteeplyFallingSpectrum) {
+  auto sp = spectrum(-0.5, 4.0, 0.7, 5);
+  for (std::size_t b = 0; b < sp.size(); ++b) {
+    const double x = (static_cast<double>(b) + 0.5) * kLsb;
+    sp[b] += static_cast<std::uint32_t>(60000.0 * std::exp(-x / 2.5));
+  }
+  const auto r = gain::fitGain(sp, kLsb, 4.0);
+  EXPECT_TRUE(r.accepted()) << r.status;
+  EXPECT_NEAR(r.gainMv, 4.0, 0.3);
+}
