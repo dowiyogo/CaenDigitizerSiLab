@@ -89,6 +89,7 @@ std::string describeEvent(const std::string& kind) {
   if (kind == "hvmon_stale") return "hvmon NO RESPONDE durante un run de daqrun (bit 4 en todos los canales)";
   if (kind == "no_triggers") return "SIN TRIGGERS externos durante un run de daqrun";
   if (kind == "triggers_resumed") return "Los triggers externos VOLVIERON";
+  if (kind == "trigger_rate_high") return "Tasa de trigger ALTA (auto-trigger) en un run de daqrun";
   if (kind == "light_leak") return "AVISO DE FUGA DE LUZ: la tasa de una cara física subió sobre su base (bit 7)";
   if (kind == "data_blackout") return "APAGÓN INFERIDO DE LOS DATOS: los canales de un grupo HV callaron juntos (bit 6)";
   if (kind == "imon_warning") return "AVISO DE IMon: la corriente de un grupo subió sobre su base o sobre 60 % de I0Set";

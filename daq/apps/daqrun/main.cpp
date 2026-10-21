@@ -35,6 +35,7 @@
 #include <sys/statvfs.h>
 
 #include "daq/daqrun/calibration.h"
+#include "daq/daqrun/self_trigger.h"
 #include "daq/daqrun/campaign.h"
 #include "daq/daqrun/dash.h"
 #include "daq/daqrun/data_flags.h"
@@ -188,6 +189,26 @@ int main(int argc, char** argv) {
     }
     logInfo("calibración de p.e. cargada: ", cal.value().version, " (", cfg.calibrationFile, ")");
     calibrationLabel = cal.value().version + " (" + cfg.calibrationFile + ")";
+    if (cfg.digitizer.self.enabled && cfg.digitizer.self.thresholdAdc.empty()) {
+      if (auto st = applySelfTriggerThresholds(cfg.digitizer, cal.value()); !st) {
+        std::fprintf(stderr, "daqrun: %s\n", st.error().message.c_str());
+        return 2;
+      }
+    }
+  }
+  if (cfg.digitizer.self.enabled) {
+    if (cfg.digitizer.self.thresholdAdc.empty()) {
+      std::fprintf(stderr, "daqrun: auto-trigger con umbrales en p.e. y sin calibración (calibration.file)\n");
+      return 2;
+    }
+    const auto& st = cfg.digitizer.self;
+    std::string thr;
+    for (int g = 0; g < dig::kGroups; ++g)
+      if ((st.groupMask >> g) & 1u) thr += " G" + std::to_string(g) + "=" + std::to_string(st.thresholdAdc[static_cast<std::size_t>(g)]);
+    logInfo("trigger: auto-trigger hod2018, mayoría ", st.majorityGroups, " grupo(s) en ", st.windowClk * 8, " ns, umbrales ADC", thr,
+            st.includeExternal ? ", TRG IN en OR" : ", TRG IN deshabilitado");
+  } else {
+    logInfo("trigger: ", cfg.digitizer.softwareTrigger ? "software" : "externo (TRG IN)");
   }
   if (!mapping) {
     std::fprintf(stderr, "daqrun: %s\n", mapping.error().message.c_str());
@@ -378,10 +399,15 @@ int main(int argc, char** argv) {
   if (notifier) notifyThread = JThread([&](StopToken st) { notifier->run(notifyQ, st); });
   JThread hvThread([&](StopToken st) { hvClient.run(st); });
   // Aviso "sin triggers" (solo con trigger externo): en el hilo monitor, que ve cada bloque.
-  const bool watchTriggers = cfg.digitizer.externalTrigger && !cfg.digitizer.softwareTrigger;
+  const bool watchTriggers = (cfg.digitizer.externalTrigger || cfg.digitizer.self.enabled) && !cfg.digitizer.softwareTrigger;
   TriggerWatchdog trigWatch(cfg.noTriggerAlertMin * 60.0,
                             "daqrun campaña " + cfg.campaign + " run " + std::to_string(run.run()) + " (" + run.baseName() + ")",
                             rs.origin.utcBeforeStart, cfg.minTriggerRateHz, cfg.triggerRateWindowMin * 60.0);
+  if (cfg.digitizer.self.enabled) {
+    trigWatch.setLabel(cfg.digitizer.self.includeExternal ? "(auto-trigger de hod2018 o externos)" : "del auto-trigger de hod2018");
+    trigWatch.setMaxRate(2.0 * cfg.digitizer.self.targetRateHz);
+  }
+  std::atomic<bool> trigHighAlerted{false};
   std::atomic<bool> trigAlerted{false};  // para la página /dash/ (el vigilante es del hilo monitor)
   // Bits de datos (6, 7, 11) y aviso de IMon (DAQ2-9): el motor es del hilo monitor; el escritor y la
   // página leen sus Snapshot.
@@ -391,7 +417,7 @@ int main(int argc, char** argv) {
   Snapshot<DataFlagView> dataView;
   auto trigEvent = [&](std::optional<hvmon::NotifyEvent> e) {
     if (!e) return;
-    logWarn(e->kind == "no_triggers" ? "sin triggers externos: " : "triggers de vuelta: ", e->reason);
+    logWarn(e->kind == "no_triggers" ? "sin triggers: " : (e->kind == "trigger_rate_high" ? "tasa de trigger alta: " : "triggers de vuelta: "), e->reason);
     if (notifier) notifyQ.try_push(std::move(*e), DropPolicy::DropNewest);
   };
   JThread monitorThread([&] {
@@ -404,7 +430,9 @@ int main(int argc, char** argv) {
         const auto temp = hvClient.latest().first.boardTempDegC;
         if (b) trigEvent(trigWatch.onTriggers((*b)->tReadUtcNs, (*b)->events.size(), temp));
         trigEvent(trigWatch.tick(clock.now_utc_ns(), temp));
+        trigEvent(trigWatch.tickHigh(clock.now_utc_ns(), temp));
         trigAlerted.store(trigWatch.alerted());
+        trigHighAlerted.store(trigWatch.highAlerted());
       }
       MonitorSummary s;
       if (monitor.takeSummary(clock.now_utc_ns(), s, rstats.monitorDropped.load())) {
@@ -507,6 +535,8 @@ int main(int argc, char** argv) {
         di.diskFreeBytes = static_cast<double>(fsInfo.f_bavail) * static_cast<double>(fsInfo.f_frsize);
       di.watchTriggers = watchTriggers;
       di.noTriggerAlert = trigAlerted.load();
+      di.triggerRateHigh = trigHighAlerted.load();
+      di.triggerMode = cfg.digitizer.self.enabled ? std::string("self_hod2018") : (cfg.digitizer.softwareTrigger ? "software" : "external");
       di.noTriggerAlertS = cfg.noTriggerAlertMin * 60.0;
       di.thresholdMv = {cfg.provisionalThresholdMv[0], cfg.provisionalThresholdMv[1]};
       di.readout = rstats.toJson();

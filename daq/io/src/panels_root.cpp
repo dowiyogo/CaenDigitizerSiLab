@@ -71,6 +71,8 @@ void PanelRoot::update(const daqrun::PanelView& p, const daqrun::DataFlagView& d
                                 ph.title.substr(std::min(ph.title.size(), ph.title.find(';')));
       TH1* h = ph.ny > 1 ? static_cast<TH1*>(h2(folder, name, title, ph.nx, ph.x0, ph.x1, ph.ny, ph.y0, ph.y1))
                          : h1(folder, name, title, ph.nx, ph.x0, ph.x1);
+      for (std::size_t i = 0; i < ph.xLabels.size() && static_cast<int>(i) < ph.nx; ++i) h->GetXaxis()->SetBinLabel(static_cast<int>(i) + 1, ph.xLabels[i].c_str());
+      for (std::size_t i = 0; i < ph.yLabels.size() && static_cast<int>(i) < ph.ny; ++i) h->GetYaxis()->SetBinLabel(static_cast<int>(i) + 1, ph.yLabels[i].c_str());
       for (int iy = 0; iy < ph.ny; ++iy)
         for (int ix = 0; ix < ph.nx; ++ix) {
           const auto i = static_cast<std::size_t>(iy * ph.nx + ix);
@@ -112,7 +114,7 @@ void PanelRoot::update(const daqrun::PanelView& p, const daqrun::DataFlagView& d
   const int nt = std::max(1, static_cast<int>(p.rateMapT.size()));
   {
     const double span = std::max(1.0 / 60, hoursOf(p.rateMapT.empty() ? t0 : p.rateMapT.back(), t0));
-    TH2F* h = h2("overview", "rate_map", "#splitline{Tasa fuera de tiempo por canal (umbral PROVISIONAL) [Hz]}{#scale[0.7]{Normal: bandas horizontales estables; un canal que cae a 0 o un grupo que cambia junto es un problema}};horas desde el primer período;canal",
+    TH2F* h = h2("overview", "rate_map", "#splitline{Tasa fuera de tiempo por canal (umbral PROVISIONAL) [Hz]}{#scale[0.7]{Normal: bandas horizontales estables. Un canal que cae a 0 o un grupo que cambia junto es un problema}};horas desde el primer período;canal",
                  nt, -span / std::max(1, nt - 1) / 2, span + span / std::max(1, nt - 1) / 2, 64, -0.5, 63.5);
     for (int i = 0; i < static_cast<int>(p.rateMap.size()); ++i)
       for (int c = 0; c < 64; ++c) h->SetBinContent(i + 1, c + 1, p.rateMap[static_cast<std::size_t>(i)][static_cast<std::size_t>(c)]);
@@ -121,7 +123,7 @@ void PanelRoot::update(const daqrun::PanelView& p, const daqrun::DataFlagView& d
   const char* planes[4] = {"hod2018_X", "hod2018_Y", "hod2019_X", "hod2019_Y"};
   for (int q = 0; q < 4; ++q) {
     TGraph* g = graph("overview", std::string("live_") + planes[q],
-                      std::string("#splitline{Canales vivos ") + planes[q] + " (> 2 LSB por período)}{#scale[0.7]{Normal: constante (hod2018 X 15 por ch03 muerto; en hod2019 hay canales oscuros)}};horas;canales");
+                      std::string("#splitline{Canales vivos ") + planes[q] + " (> 2 LSB por período)}{#scale[0.7]{Normal: constante (hod2018 X 15 por ch03 muerto, en hod2019 hay canales oscuros)}};horas;canales");
     g->Set(0);
     for (std::size_t i = 0; i < p.livePerPlane.size(); ++i) g->AddPoint(hoursOf(p.rateMapT[i], t0), p.livePerPlane[i][static_cast<std::size_t>(q)]);
   }
@@ -177,7 +179,7 @@ void PanelRoot::update(const daqrun::PanelView& p, const daqrun::DataFlagView& d
     if (bandIt == obj_.end()) {
       auto b = std::make_unique<TGraphAsymmErrors>();
       b->SetName(("baseline_" + base).c_str());
-      b->SetTitle(("#splitline{" + u.name + " base}{#scale[0.7]{Banda: de la base al umbral del aviso; normal: la tasa queda dentro}};horas;" + unit).c_str());
+      b->SetTitle(("#splitline{" + u.name + " base}{#scale[0.7]{Banda: de la base al umbral del aviso. Normal: la tasa queda dentro}};horas;" + unit).c_str());
       band = b.get();
       obj_["baseline_" + base] = {folder, std::move(b)};
     } else {

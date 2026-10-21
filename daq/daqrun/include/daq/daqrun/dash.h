@@ -31,6 +31,8 @@ struct DashInputs {
   double diskLowBytes = 20e9;           // aviso bajo este valor
   bool watchTriggers = false;           // run con trigger externo
   bool noTriggerAlert = false;          // TriggerWatchdog en episodio
+  std::string triggerMode = "external"; // DAQ2-13: external | software | self_hod2018 (texto para la página)
+  bool triggerRateHigh = false;         // auto-trigger sobre 2 × la tasa objetivo
   double noTriggerAlertS = 300;         // aviso directo si no hay trigger en este tiempo
   std::array<double, 2> thresholdMv{20.0, 3.0};
   nlohmann::json readout = nlohmann::json::object();  // ReadoutStats::toJson()

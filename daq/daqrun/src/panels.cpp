@@ -5,6 +5,7 @@
 #include <cmath>
 #include <map>
 
+#include "daq/daqrun/calibration.h"
 #include "daq/daqrun/config.h"
 #include "daq/daqrun/monitor.h"
 #include "daq/gain_fit.h"
@@ -18,7 +19,7 @@ const char* kPlaneName[4] = {"hod2018_X", "hod2018_Y", "hod2019_X", "hod2019_Y"}
 
 void RollingHist::init(std::string name, std::string title, int nx, double x0, double x1, int ny, double y0, double y1,
                        std::size_t slices) {
-  h_ = PanelHist{std::move(name), std::move(title), nx, ny, x0, x1, y0, y1, {}, {}};
+  h_ = PanelHist{std::move(name), std::move(title), nx, ny, x0, x1, y0, y1, {}, {}, {}, {}};
   const auto n = static_cast<std::size_t>(nx * ny);
   h_.cum.assign(n, 0);
   h_.hour.assign(n, 0);
@@ -76,6 +77,7 @@ PanelConfig PanelConfig::fromJson(const nlohmann::json& j) {
   if (j.contains("mult_thresholds_mV"))
     for (std::size_t s = 0; s < 2; ++s)
       for (std::size_t k = 0; k < 2; ++k) c.multThresholdMv[s][k] = j["mult_thresholds_mV"].at(s).at(k).get<double>();
+  c.hitThresholdPeHod2018 = j.value("hit_threshold_pe_hod2018", c.hitThresholdPeHod2018);
   c.persistenceEvents = j.value("persistence_events", c.persistenceEvents);
   c.gainPeriodS = j.value("gain_period_s", c.gainPeriodS);
   c.gainSeedMv = j.value("gain_seed_mV", c.gainSeedMv);
@@ -88,6 +90,7 @@ nlohmann::json PanelConfig::toJson() const {
           {"integral_max_mVns", integralMaxMvNs},
           {"integral_bin_mVns", integralBinMvNs},
           {"hit_threshold_mV", hitThresholdMv},
+          {"hit_threshold_pe_hod2018", hitThresholdPeHod2018},
           {"mult_thresholds_mV", multThresholdMv},
           {"persistence_events", persistenceEvents},
           {"gain_period_s", gainPeriodS},
@@ -117,36 +120,81 @@ Panels::Panels(const DaqrunConfig& cfg, const hvmon::Mapping* mapping, int recor
   integ_.init("intime_integral", "Integral en tiempo (QDC);canal;integral [mV#upoint ns]", 64, -0.5, 63.5, ni, 0,
               ni * p.integralBinMvNs);
   minS_.init("min_sample", "Muestra del mínimo (amplitud > umbral de impacto);canal;muestra", 64, -0.5, 63.5, N_, -0.5, N_ - 0.5);
-  // Títulos con una segunda línea: qué muestra y cómo se ve normal (DAQ2-11).
+  // Umbral de impacto por canal (DAQ2-13): hod2018 en p.e. con la G de la calibración, hod2019 en mV.
+  std::string thr18 = std::to_string(static_cast<int>(p.hitThresholdMv[0])) + " mV, sin calibración";
+  {
+    std::array<double, 64> g{};
+    bool haveCal = false;
+    if (!cfg.calibrationFile.empty())
+      if (auto cal = PeCalibration::fromFile(cfg.calibrationFile)) {
+        g = cal.value().gainMv;
+        haveCal = true;
+        char b[96];
+        std::snprintf(b, sizeof b, "%g p.e., G de la calibración %s", p.hitThresholdPeHod2018, cal.value().version.c_str());
+        thr18 = b;
+      }
+    std::vector<double> ok;
+    for (int c = 0; c < 32; ++c)
+      if (g[static_cast<std::size_t>(c)] > 0) ok.push_back(g[static_cast<std::size_t>(c)]);
+    std::sort(ok.begin(), ok.end());
+    for (int c = 0; c < 64; ++c) {
+      const double gc = g[static_cast<std::size_t>(c)] > 0 ? g[static_cast<std::size_t>(c)] : (ok.empty() ? 0 : ok[ok.size() / 2]);
+      hitThrMv_[static_cast<std::size_t>(c)] = c < 32 ? (haveCal && gc > 0 ? p.hitThresholdPeHod2018 * gc : p.hitThresholdMv[0]) : p.hitThresholdMv[1];
+    }
+  }
+  char thr19[32];
+  std::snprintf(thr19, sizeof thr19, "%g mV", p.hitThresholdMv[1]);
+  // Etiquetas de los ejes: posición y, debajo, el canal del digitizador (orden medido o de la hoja).
+  auto labels = [&](int q, int o) {
+    std::vector<std::string> l(16, "");
+    for (int c = 0; c < 64; ++c)
+      if (plane_[static_cast<std::size_t>(c)] == q) {
+        const int k = o == 0 ? strip_[static_cast<std::size_t>(c)] : stripSheet_[static_cast<std::size_t>(c)];
+        if (k >= 0 && k < 16) l[static_cast<std::size_t>(k)] = "#splitline{" + std::to_string(k) + "}{ch" + std::to_string(c) + "}";
+      }
+    for (int k = 0; k < 16; ++k)
+      if (l[static_cast<std::size_t>(k)].empty()) l[static_cast<std::size_t>(k)] = std::to_string(k);
+    return l;
+  };
   const char* orderTag[2] = {"", "_hoja"};
-  const char* orderName[2] = {"orden MEDIDO (mapeo r3)", "orden de la HOJA de octubre"};
+  const char* orderName[2] = {"orden MEDIDO", "orden de la HOJA de octubre"};
   for (int o = 0; o < 2; ++o)
-    for (int s = 0; s < 2; ++s)
-      hit_[static_cast<std::size_t>(o)][static_cast<std::size_t>(s)].init(
-          std::string("hitmap_") + (s ? "hod2019" : "hod2018") + orderTag[o],
-          std::string("#splitline{Impactos X #times Y ") + (s ? "hod2019" : "hod2018") + ", " + orderName[o] + " (en tiempo > " +
-              std::to_string(static_cast<int>(p.hitThresholdMv[static_cast<std::size_t>(s)])) +
-              " mV)}{#scale[0.7]{Pares X-Y del mismo evento; normal: una banda continua cerca de la diagonal o una mancha compacta, no puntos dispersos}};tira X;tira Y",
-          16, -0.5, 15.5, 16, -0.5, 15.5);
+    for (int s = 0; s < 2; ++s) {
+      auto& h = hit_[static_cast<std::size_t>(o)][static_cast<std::size_t>(s)];
+      h.init(std::string("hitmap_") + (s ? "hod2019" : "hod2018") + orderTag[o],
+             std::string("#splitline{Impactos X #times Y ") + (s ? "hod2019" : "hod2018") + ", " + orderName[o] + " (en tiempo > " +
+                 (s ? std::string(thr19) : thr18) +
+                 ")}{#scale[0.7]{Un conteo por evento y par (tira X, tira Y) sobre el umbral. Parejo en el cuadrado con cualquier orden: muestra tiras muertas o enmascaradas, el orden lo validan las vecinas}};tira X;tira Y",
+             16, -0.5, 15.5, 16, -0.5, 15.5);
+      h.setLabels(labels(2 * s, o), labels(2 * s + 1, o));
+    }
+  for (int q = 0; q < 4; ++q) {
+    stripHits_[static_cast<std::size_t>(q)].init(
+        std::string("strip_hits_") + kPlaneName[q],
+        std::string("#splitline{Impactos por tira ") + kPlaneName[q] + ", orden MEDIDO (en tiempo > " + (q < 2 ? thr18 : std::string(thr19)) +
+            ")}{#scale[0.7]{Eventos con la tira sobre el umbral. Una tira en cero está muerta o enmascarada}};tira;eventos",
+        16, -0.5, 15.5);
+    stripHits_[static_cast<std::size_t>(q)].setLabels(labels(q, 0));
+  }
   for (int q = 0; q < 4; ++q) {
     for (int o = 0; o < 2; ++o)
       coinc_[static_cast<std::size_t>(o)][static_cast<std::size_t>(q)].init(
           std::string("coinc_") + kPlaneName[q] + orderTag[o],
           std::string("#splitline{Coincidencias entre tiras ") + kPlaneName[q] + ", " + orderName[o] +
-              "}{#scale[0.7]{Tiras encendidas juntas; normal (orden correcto): cuentas pegadas a la diagonal, en las vecinas}};tira;tira",
+              "}{#scale[0.7]{Tiras encendidas juntas. Normal (orden correcto): cuentas pegadas a la diagonal, en las vecinas}};tira;tira",
           16, -0.5, 15.5, 16, -0.5, 15.5);
     for (int o = 0; o < 2; ++o)
       coincMix_[static_cast<std::size_t>(o)][static_cast<std::size_t>(q)].init(
           std::string("coinc_mix_") + kPlaneName[q] + orderTag[o],
           std::string("#splitline{Coincidencias al azar entre tiras ") + kPlaneName[q] + ", " + orderName[o] +
-              "}{#scale[0.7]{Tiras del evento actual con las del anterior (eventos mezclados): lo que da el azar; sin estructura en la diagonal}};tira;tira",
+              "}{#scale[0.7]{Tiras del evento actual con las del anterior (eventos mezclados): lo que da el azar, sin estructura en la diagonal}};tira;tira",
           16, -0.5, 15.5, 16, -0.5, 15.5);
     for (int k = 0; k < 2; ++k) {
       const double thr = p.multThresholdMv[static_cast<std::size_t>(q / 2)][static_cast<std::size_t>(k)];
       mult_[static_cast<std::size_t>(q)][static_cast<std::size_t>(k)].init(
           std::string("mult_") + kPlaneName[q] + "_" + std::to_string(static_cast<int>(thr)) + "mV",
           std::string("#splitline{Multiplicidad ") + kPlaneName[q] + " (> " + std::to_string(static_cast<int>(thr)) +
-              " mV)}{#scale[0.7]{Tiras encendidas por evento; normal: casi todo en 0, 1 y 2}};tiras;eventos", 17,
+              " mV)}{#scale[0.7]{Tiras encendidas por evento. Normal: casi todo en 0, 1 y 2}};tiras;eventos", 17,
           -0.5, 16.5);
     }
   }
@@ -178,8 +226,7 @@ void Panels::event(const dig::Event& ev, const std::array<double, 64>& baselineA
     const double amp = (bl - mn) * lsb_;
     amp_.fill(c, amp);
     integ_.fill(c, integ);
-    const int st = station_[static_cast<std::size_t>(c)] < 0 ? (c < 32 ? 0 : 1) : station_[static_cast<std::size_t>(c)];
-    const double hitThr = cfg_.panels.hitThresholdMv[static_cast<std::size_t>(st)];
+    const double hitThr = hitThrMv_[static_cast<std::size_t>(c)];
     int kmin = 0;
     for (int k = 1; k < N_; ++k)
       if (x[k] < x[kmin]) kmin = k;
@@ -189,6 +236,7 @@ void Panels::event(const dig::Event& ev, const std::array<double, 64>& baselineA
     if (q >= 0 && strip >= 0 && strip < 16) {
       if (amp > hitThr) {
         hitMask[0][static_cast<std::size_t>(q)] |= 1u << strip;
+        stripHits_[static_cast<std::size_t>(q)].fillBin(strip);
         if (stripH >= 0 && stripH < 16) hitMask[1][static_cast<std::size_t>(q)] |= 1u << stripH;
       }
       for (std::size_t k = 0; k < 2; ++k)
@@ -238,6 +286,7 @@ void Panels::publishHists() {
   for (const RollingHist* h : {&amp_, &integ_, &minS_}) v_.hists.push_back(h->view());
   for (const auto& o : hit_)
     for (const auto& h : o) v_.hists.push_back(h.view());
+  for (const auto& h : stripHits_) v_.hists.push_back(h.view());
   for (std::size_t o = 0; o < 2; ++o)
     for (std::size_t q = 0; q < 4; ++q) {
       const auto& h = coinc_[o][q].view();
@@ -267,6 +316,7 @@ void Panels::period(const MonitorSummary& s, const std::vector<std::uint32_t>& a
   for (RollingHist* h : {&amp_, &integ_, &minS_}) h->closeSlice();
   for (auto& o : hit_)
     for (auto& h : o) h.closeSlice();
+  for (auto& h : stripHits_) h.closeSlice();
   for (auto& o : coinc_)
     for (auto& h : o) h.closeSlice();
   for (auto& o : coincMix_)

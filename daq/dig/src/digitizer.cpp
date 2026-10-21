@@ -11,6 +11,26 @@ std::int64_t monotonicNowNs() {
   return static_cast<std::int64_t>(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
 }
 
+std::uint32_t SelfTriggerConfig::channelMask(int group) const {
+  std::uint32_t m = 0xFF;
+  for (int c : maskedChannels)
+    if (c / 8 == group) m &= ~(1u << (c % 8));
+  return m;
+}
+
+nlohmann::json SelfTriggerConfig::toJson() const {
+  nlohmann::json masks = nlohmann::json::array(), groups = nlohmann::json::array();
+  for (int g = 0; g < kGroups; ++g) {
+    masks.push_back(channelMask(g));
+    if ((groupMask >> g) & 1u) groups.push_back(g);
+  }
+  return {{"enabled", enabled},           {"groups", groups},                  {"group_mask", groupMask},          {"threshold_pe", thresholdPe},
+          {"threshold_adc", thresholdAdc}, {"masked_channels", maskedChannels}, {"channel_masks", masks},
+          {"majority_groups", majorityGroups}, {"majority_level_register", majorityLevel()},
+          {"window_clk", windowClk},       {"window_ns", windowClk * 8},       {"include_external", includeExternal},
+          {"target_rate_Hz", targetRateHz}, {"conversion", conversion}};
+}
+
 Result<DigitizerConfig> DigitizerConfig::fromJson(const nlohmann::json& j) {
   using R = Result<DigitizerConfig>;
   DigitizerConfig c;
@@ -48,6 +68,57 @@ Result<DigitizerConfig> DigitizerConfig::fromJson(const nlohmann::json& j) {
     c.captureDir = j.value("capture_dir", c.captureDir);
     c.captureBlocks = j.value("capture_blocks", c.captureBlocks);
     if (j.contains("scenario")) c.scenario = j["scenario"];
+    if (j.contains("trigger")) {
+      const auto& t = j["trigger"];
+      c.triggerMode = t.value("mode", std::string("external"));
+      if (c.triggerMode == "external") {
+        c.externalTrigger = true;
+        c.softwareTrigger = false;
+      } else if (c.triggerMode == "software") {
+        c.externalTrigger = false;
+        c.softwareTrigger = true;
+      } else if (c.triggerMode == "self_hod2018") {
+        const auto s = t.value("self", nlohmann::json::object());
+        auto& st = c.self;
+        st.enabled = true;
+        for (int g : s.value("groups", std::vector<int>{0, 1, 2, 3})) {
+          if (g < 0 || g >= kGroups) return R::failure(-1, "trigger.self.groups fuera de 0-7");
+          st.groupMask |= 1u << g;
+        }
+        if (s.contains("threshold_pe")) {
+          if (s["threshold_pe"].is_number())
+            st.thresholdPe.assign(kGroups, s["threshold_pe"].get<double>());
+          else
+            st.thresholdPe = s["threshold_pe"].get<std::vector<double>>();
+        }
+        st.thresholdAdc = s.value("threshold_adc", st.thresholdAdc);
+        st.maskedChannels = s.value("masked_channels", st.maskedChannels);
+        st.majorityGroups = s.value("majority_groups", st.majorityGroups);
+        st.windowClk = s.value("window_clk", st.windowClk);
+        st.includeExternal = s.value("include_external", st.includeExternal);
+        st.targetRateHz = s.value("target_rate_Hz", st.targetRateHz);
+        c.externalTrigger = st.includeExternal;
+        c.softwareTrigger = false;
+        int nGroups = 0;
+        for (int g = 0; g < kGroups; ++g) nGroups += (st.groupMask >> g) & 1u;
+        if (nGroups == 0) return R::failure(-1, "trigger.self: ningún grupo");
+        if (st.majorityGroups < 1 || st.majorityGroups > nGroups || st.majorityGroups > 8)
+          return R::failure(-1, "trigger.self.majority_groups debe estar entre 1 y el número de grupos");
+        if (st.windowClk < 0 || st.windowClk > 15) return R::failure(-1, "trigger.self.window_clk fuera de 0-15 (0x810C[23:20])");
+        if (st.thresholdPe.empty() && st.thresholdAdc.empty()) return R::failure(-1, "trigger.self: falta threshold_pe o threshold_adc");
+        if (!st.thresholdPe.empty() && static_cast<int>(st.thresholdPe.size()) != kGroups)
+          return R::failure(-1, "trigger.self.threshold_pe: un número o 8 valores");
+        if (!st.thresholdAdc.empty() && static_cast<int>(st.thresholdAdc.size()) != kGroups)
+          return R::failure(-1, "trigger.self.threshold_adc: 8 valores");
+        for (int a : st.thresholdAdc)
+          if (a < 0 || a > 4095) return R::failure(-1, "trigger.self.threshold_adc fuera de 0-4095 (0x1n80[11:0])");
+        for (int ch : st.maskedChannels)
+          if (ch < 0 || ch >= kChannels) return R::failure(-1, "trigger.self.masked_channels fuera de 0-63");
+        if (st.targetRateHz <= 0) return R::failure(-1, "trigger.self.target_rate_Hz debe ser > 0");
+      } else {
+        return R::failure(-1, "trigger.mode = " + c.triggerMode + ": debe ser external, software o self_hod2018");
+      }
+    }
   } catch (const std::exception& e) {
     return R::failure(-1, std::string("digitizer inválido: ") + e.what());
   }
@@ -78,6 +149,7 @@ nlohmann::json DigitizerConfig::toJson() const {
           {"sw_trigger_rate_Hz", swTriggerRateHz},
           {"scenario_file", scenarioFile},
           {"external_trigger", externalTrigger},
+          {"trigger", {{"mode", triggerMode.empty() ? (softwareTrigger ? "software" : "external") : triggerMode}, {"self", self.toJson()}}},
           {"io_level", ioLevel},
           {"group_enable_mask", groupEnableMask},
           {"link", {{"type", linkType}, {"link_num", linkNum}, {"conet_node", conetNode}, {"vme_base_address", vmeBaseAddress}}},

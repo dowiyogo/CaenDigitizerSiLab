@@ -255,9 +255,9 @@ std::optional<hvmon::NotifyEvent> TriggerWatchdog::tick(UtcNs now, std::optional
   auto e = make("no_triggers", last_, temp);
   char m[160];
   if (silent)
-    std::snprintf(m, sizeof m, "sin triggers externos desde hace %.1f min", static_cast<double>(now - last_) / 60e9);
+    std::snprintf(m, sizeof m, "sin triggers %s desde hace %.1f min", label_.c_str(), static_cast<double>(now - last_) / 60e9);
   else
-    std::snprintf(m, sizeof m, "tasa de triggers externos %.4f Hz en los últimos %.0f min (mínimo configurado %.3f Hz)",
+    std::snprintf(m, sizeof m, "tasa de triggers %s %.4f Hz en los últimos %.0f min (mínimo configurado %.3f Hz)", label_.c_str(),
                   windowRateHz(now), windowS_ / 60.0, minRate_);
   e.reason = std::string(m) + "; " +
              (any_ ? "último trigger a las " + formatUtcIso(last_) : "ningún trigger desde el inicio del run (" + formatUtcIso(runStart_) + ")") +
@@ -265,6 +265,27 @@ std::optional<hvmon::NotifyEvent> TriggerWatchdog::tick(UtcNs now, std::optional
   e.context["last_trigger_utc_ns"] = any_ ? nlohmann::json(last_) : nlohmann::json();
   e.context["window_rate_Hz"] = windowRateHz(now);
   e.context["condition"] = silent ? "silencio" : "tasa baja";
+  return e;
+}
+
+std::optional<hvmon::NotifyEvent> TriggerWatchdog::tickHigh(UtcNs now, std::optional<double> temp) {
+  if (maxRate_ <= 0 || static_cast<double>(now - runStart_) / kNs < windowS_) return std::nullopt;
+  const double r = windowRateHz(now);
+  if (highAlerted_) {
+    if (r < 0.8 * maxRate_) highAlerted_ = false;
+    return std::nullopt;
+  }
+  if (r <= maxRate_) return std::nullopt;
+  highAlerted_ = true;
+  ++highEpisode_;
+  auto e = make("trigger_rate_high", now, temp);
+  e.episode = highEpisode_;
+  char m[200];
+  std::snprintf(m, sizeof m, "tasa de triggers %s %.2f Hz en los últimos %.0f min, sobre el máximo de %.2f Hz (2 × la tasa objetivo)",
+                label_.c_str(), r, windowS_ / 60.0, maxRate_);
+  e.reason = std::string(m) + ". Revisar luz, ruido o el umbral del auto-trigger.";
+  e.context["window_rate_Hz"] = r;
+  e.context["max_rate_Hz"] = maxRate_;
   return e;
 }
 

@@ -9,7 +9,7 @@ namespace daq::daqrun {
 
 nlohmann::json dashJson(const DashInputs& in) {
   const MonitorView& v = *in.view;
-  nlohmann::json j{{"campaign", in.campaign}, {"run", in.runName}, {"simulated", in.simulated}, {"t_utc_ns", in.nowUtcNs},
+  nlohmann::json j{{"campaign", in.campaign}, {"run", in.runName}, {"simulated", in.simulated}, {"trigger_mode", in.triggerMode}, {"t_utc_ns", in.nowUtcNs},
                    {"elapsed_s", static_cast<double>(in.nowUtcNs - in.runStartUtcNs) / 1e9}, {"events", v.events}};
   j["rate_1min_Hz"] = v.recent.empty() ? nlohmann::json() : nlohmann::json(v.last.triggerRateHz);
   std::uint64_t nEv = 0;
@@ -65,7 +65,9 @@ nlohmann::json dashJson(const DashInputs& in) {
   if (!hv || !hv->alive || hv->stale) alerts.push_back("hvmon no vivo o stale: bit 4 (HV_UNKNOWN) en todos los canales");
   if (in.watchTriggers && (in.noTriggerAlert || (v.events > 0 && since > in.noTriggerAlertS) ||
                            (v.events == 0 && static_cast<double>(in.nowUtcNs - in.runStartUtcNs) / 1e9 > in.noTriggerAlertS)))
-    alerts.push_back("sin triggers externos (o tasa bajo el mínimo)");
+    alerts.push_back(in.triggerMode == "self_hod2018" ? "sin triggers del auto-trigger de hod2018 (o tasa bajo el mínimo)"
+                                                      : "sin triggers externos (o tasa bajo el mínimo)");
+  if (in.triggerRateHigh) alerts.push_back("tasa del auto-trigger sobre 2 × la tasa objetivo");
   const auto& r = in.readout;
   if (r.value("read_errors", 0) > 0) alerts.push_back("errores de lectura del digitizador: " + std::to_string(r.value("read_errors", 0)));
   if (r.value("board_full_blocks", 0) > 0) alerts.push_back("memoria de la placa llena en " + std::to_string(r.value("board_full_blocks", 0)) + " bloques");

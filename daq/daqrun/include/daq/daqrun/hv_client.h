@@ -171,7 +171,14 @@ class TriggerWatchdog {
   std::optional<hvmon::NotifyEvent> onTriggers(UtcNs tReadUtc, std::uint64_t nEvents, std::optional<double> boardTempDegC);
   // Llamar periódicamente (p. ej. cada segundo).
   std::optional<hvmon::NotifyEvent> tick(UtcNs now, std::optional<double> boardTempDegC);
+  // DAQ2-13: nombre del trigger en los mensajes ("externos", "del auto-trigger de hod2018") y tasa
+  // máxima: "trigger_rate_high" una vez por episodio si la tasa en la ventana completa supera
+  // maxRateHz; el episodio termina cuando baja de 0.8 × maxRateHz.
+  void setLabel(std::string label) { label_ = std::move(label); }
+  void setMaxRate(double maxRateHz) { maxRate_ = maxRateHz; }
+  std::optional<hvmon::NotifyEvent> tickHigh(UtcNs now, std::optional<double> boardTempDegC);
   bool alerted() const { return alerted_; }
+  bool highAlerted() const { return highAlerted_; }
   UtcNs lastTriggerUtc() const { return last_; }
 
  private:
@@ -184,6 +191,10 @@ class TriggerWatchdog {
   double minRate_, windowS_;
   std::deque<std::pair<UtcNs, std::uint64_t>> recent_;  // (hora de lectura, eventos) en la ventana
   bool any_ = false, alerted_ = false;
+  std::string label_ = "externos";
+  double maxRate_ = 0;
+  bool highAlerted_ = false;
+  std::uint64_t highEpisode_ = 0;
   UtcNs episodeStart_ = 0;
   UtcNs maxGap_ = 0, maxGapFrom_ = 0, maxGapTo_ = 0;  // hueco más largo del episodio
   std::uint64_t episode_ = 0;

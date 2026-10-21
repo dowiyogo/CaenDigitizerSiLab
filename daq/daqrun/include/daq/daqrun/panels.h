@@ -44,6 +44,7 @@ struct PanelHist {
   double x0 = 0, x1 = 1, y0 = 0, y1 = 1;
   std::vector<std::uint64_t> cum;
   std::vector<std::uint32_t> hour;
+  std::vector<std::string> xLabels, yLabels;  // etiquetas de bin (vacío: numéricas)
 };
 
 class RollingHist {
@@ -53,6 +54,10 @@ class RollingHist {
   void fill(double x, double y = 0.5);
   void fillBin(int ix, int iy = 0);
   void closeSlice();  // fin de período: la rebanada más vieja sale de la última hora
+  void setLabels(std::vector<std::string> x, std::vector<std::string> y = {}) {
+    h_.xLabels = std::move(x);
+    h_.yLabels = std::move(y);
+  }
   const PanelHist& view() const { return h_; }
 
  private:
@@ -94,6 +99,9 @@ struct PanelConfig {
   double inTimeAmpMaxMv = 1000, inTimeAmpBinMv = 2;
   double integralMaxMvNs = 40000, integralBinMvNs = 100;
   std::array<double, 2> hitThresholdMv{50.0, 5.0};
+  // DAQ2-13: umbral de impactos de hod2018 en p.e. (G por canal de la calibración; sin G, la mediana).
+  // Sin calibración se usa hit_threshold_mV[0].
+  double hitThresholdPeHod2018 = 10.0;
   std::array<std::array<double, 2>, 2> multThresholdMv{{{20.0, 50.0}, {3.0, 5.0}}};
   int persistenceEvents = 1000;
   double gainPeriodS = 3600;
@@ -121,6 +129,8 @@ class Panels {
   RollingHist amp_, integ_, minS_;
   // [orden][...]: 0 = coordenada medida (strip del mapeo, r3), 1 = la de la hoja de octubre (strip_sheet)
   std::array<std::array<RollingHist, 2>, 2> hit_;
+  std::array<RollingHist, 4> stripHits_;  // impactos por tira, por plano, en el orden medido
+  std::array<double, 64> hitThrMv_{};     // umbral de impacto por canal (mV)
   std::array<std::array<RollingHist, 4>, 2> coinc_;
   std::array<std::array<RollingHist, 4>, 2> coincMix_;     // evento actual × evento anterior (azar)
   std::array<std::array<std::uint32_t, 4>, 2> prevMask_{};  // tiras encendidas del evento anterior

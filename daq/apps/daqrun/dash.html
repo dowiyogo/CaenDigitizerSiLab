@@ -57,6 +57,7 @@ function render(d) {
   const rows = [
     ["campaña", esc(d.campaign) + (d.simulated ? " <span class='bad'>[SIMULADO]</span>" : "")],
     ["run", esc(d.run)],
+    ["trigger", ({ external: "externo (TRG IN)", software: "software", self_hod2018: "auto-trigger de hod2018" })[d.trigger_mode] || esc(d.trigger_mode)],
     ["tiempo", dur(d.elapsed_s)],
     ["eventos", d.events],
     ["tasa 1 min", num(d.rate_1min_Hz, 3) + " Hz"],

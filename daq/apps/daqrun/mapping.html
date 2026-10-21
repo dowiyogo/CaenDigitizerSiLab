@@ -44,8 +44,10 @@
 <div class="wrap"><table id="main"></table></div>
 
 <h2>Impactos X × Y en vivo</h2>
-<p class="small mut">Si el orden es correcto, en el orden medido hod2018 muestra una sola mancha compacta y continua; en un orden
-  equivocado la mancha se rompe en cuadros sueltos. Debajo de cada número de tira va el canal del digitizador.</p>
+<p class="small mut">Las placas de trigger se traslapan en 65 × 65 mm, más que la cruz de hod2018, así que el mapa es parejo en todo el
+  cuadrado activo, con cualquier orden de tiras (también con uno equivocado). Sirve para ver tiras muertas o enmascaradas
+  (filas o columnas vacías). El orden de las tiras solo lo validan las coincidencias entre vecinas de la tabla de arriba.
+  Debajo de cada número de tira va el canal del digitizador.</p>
 <div id="hits"></div>
 
 <div class="hv">
@@ -190,8 +192,8 @@ async function hitsAll() {
       try {
         const h = await getHist("hitmap_" + st + (order === "meas" ? "" : "_hoja"));
         const { svg, tot } = hitSvg(st, h, order);
-        const thr = (h.title.match(/>\s*([\d.]+)\s*mV/) || [])[1];
-        box.innerHTML = `<div class="small"><b>${st}</b>, ${what}; umbral ${thr ? thr + " mV" : "–"}; ${tot} pares</div>`;
+        const thr = (h.title.match(/>\s*([\d.]+\s*(?:mV|p\.e\.))/) || [])[1];
+        box.innerHTML = `<div class="small"><b>${st}</b>, ${what}; umbral ${thr || "–"}; ${tot} pares</div>`;
         box.appendChild(svg);
       } catch (e) {
         box.innerHTML = `<div class="small mut"><b>${st}</b>, ${what}: solo en la página del run (puerto 8080; aquí ${esc(e.message)}).</div>`;

@@ -140,6 +140,26 @@ Status CaenDigitizerBackend::configure(const DigitizerConfig& cfg) {
   written["group_dc_offset"] = cfg.groupDcOffset;
   DAQ_CAEN(CAEN_DGTZ_SetGroupSelfTrigger(handle_, CAEN_DGTZ_TRGMODE_DISABLED, 0xFF));
   written["group_self_trigger"] = "DISABLED";
+  const auto& st = cfg.self;
+  if (st.enabled) {
+    // Auto-trigger por grupos (DAQ2-13): umbral 0x1n80 en cuentas ADC absolutas, canales que
+    // participan 0x1nA8, polaridad negativa (0x8000 bit 6: dispara bajo el umbral).
+    if (static_cast<int>(st.thresholdAdc.size()) != kGroups) return Status::failure(-1, "auto-trigger sin umbrales en ADC (falta la conversión)");
+    nlohmann::json thr = nlohmann::json::object(), msk = nlohmann::json::object();
+    for (std::uint32_t g = 0; g < 8; ++g) {
+      if (!((st.groupMask >> g) & 1u)) continue;
+      DAQ_CAEN(CAEN_DGTZ_SetGroupTriggerThreshold(handle_, g, static_cast<std::uint32_t>(st.thresholdAdc[g])));
+      DAQ_CAEN(CAEN_DGTZ_SetChannelGroupMask(handle_, g, st.channelMask(static_cast<int>(g))));
+      thr[std::to_string(g)] = st.thresholdAdc[g];
+      msk[std::to_string(g)] = hex(st.channelMask(static_cast<int>(g)));
+    }
+    DAQ_CAEN(CAEN_DGTZ_SetGroupSelfTrigger(handle_, CAEN_DGTZ_TRGMODE_ACQ_ONLY, st.groupMask));
+    DAQ_CAEN(CAEN_DGTZ_SetTriggerPolarity(handle_, 0, CAEN_DGTZ_TriggerOnFallingEdge));
+    written["group_self_trigger"] = "ACQ_ONLY " + hex(st.groupMask);
+    written["group_trigger_threshold_adc"] = thr;
+    written["channel_group_mask"] = msk;
+    written["trigger_polarity"] = "falling (bajo el umbral)";
+  }
   const auto ext = cfg.externalTrigger ? CAEN_DGTZ_TRGMODE_ACQ_ONLY : CAEN_DGTZ_TRGMODE_DISABLED;
   DAQ_CAEN(CAEN_DGTZ_SetExtTriggerInputMode(handle_, ext));
   written["ext_trigger"] = trigModeName(ext);
@@ -149,6 +169,19 @@ Status CaenDigitizerBackend::configure(const DigitizerConfig& cfg) {
   const auto sw = cfg.softwareTrigger ? CAEN_DGTZ_TRGMODE_ACQ_ONLY : CAEN_DGTZ_TRGMODE_DISABLED;
   DAQ_CAEN(CAEN_DGTZ_SetSWTriggerMode(handle_, sw));
   written["sw_trigger"] = trigModeName(sw);
+  if (st.enabled) {
+    // Mayoría de grupos (0x810C[26:24] = nivel m, dispara con m + 1 grupos; [23:20] = ventana en
+    // relojes de 8 ns). Se escribe después de los Set* que tocan 0x810C (grupos, TRG IN, SW).
+    auto gm = readRegister(0x810C);
+    if (!gm) return Status(gm.error());
+    std::uint32_t v = gm.value() & ~((0x7u << 24) | (0xFu << 20));
+    v |= (static_cast<std::uint32_t>(st.majorityLevel()) & 0x7u) << 24;
+    v |= (static_cast<std::uint32_t>(st.windowClk) & 0xFu) << 20;
+    DAQ_CAEN(CAEN_DGTZ_WriteRegister(handle_, 0x810C, v));
+    written["global_trigger_mask_0x810C"] = hex(v);
+    written["majority_level"] = st.majorityLevel();
+    written["majority_window_clk"] = st.windowClk;
+  }
   DAQ_CAEN(CAEN_DGTZ_SetAcquisitionMode(handle_, CAEN_DGTZ_SW_CONTROLLED));
   written["acquisition_mode"] = "SW_CONTROLLED";
   DAQ_CAEN(CAEN_DGTZ_SetMaxNumEventsBLT(handle_, static_cast<std::uint32_t>(cfg.maxEventsBlt)));
@@ -188,6 +221,41 @@ Status CaenDigitizerBackend::configure(const DigitizerConfig& cfg) {
     auto v = readRegister(addr);
     if (!v) return Status(v.error());
     readback[name] = addr == 0x8114 ? nlohmann::json(v.value()) : nlohmann::json(hex(v.value()));
+  }
+  if (st.enabled) {
+    nlohmann::json thr = nlohmann::json::object(), msk = nlohmann::json::object(), mode = nlohmann::json::object(), reg = nlohmann::json::object();
+    for (std::uint32_t g = 0; g < 8; ++g) {
+      if (!((st.groupMask >> g) & 1u)) continue;
+      std::uint32_t tv = 0, cm = 0;
+      CAEN_DGTZ_TriggerMode_t gmode{};
+      DAQ_CAEN(CAEN_DGTZ_GetGroupTriggerThreshold(handle_, g, &tv));
+      DAQ_CAEN(CAEN_DGTZ_GetChannelGroupMask(handle_, g, &cm));
+      DAQ_CAEN(CAEN_DGTZ_GetGroupSelfTrigger(handle_, g, &gmode));
+      thr[std::to_string(g)] = tv;
+      msk[std::to_string(g)] = hex(cm);
+      mode[std::to_string(g)] = trigModeName(gmode);
+      for (std::uint32_t a : {0x1080u + 0x100u * g, 0x10A8u + 0x100u * g}) {
+        auto r = readRegister(a);
+        if (!r) return Status(r.error());
+        reg[hex(a)] = hex(r.value());
+      }
+    }
+    CAEN_DGTZ_TriggerPolarity_t pol{};
+    DAQ_CAEN(CAEN_DGTZ_GetTriggerPolarity(handle_, 0, &pol));
+    readback["group_trigger_threshold_adc"] = thr;
+    readback["channel_group_mask"] = msk;
+    readback["group_self_trigger"] = mode;
+    readback["trigger_polarity"] = pol == CAEN_DGTZ_TriggerOnFallingEdge ? "falling" : "rising";
+    readback["group_registers"] = reg;
+    auto gm = readRegister(0x810C);
+    if (!gm) return Status(gm.error());
+    readback["majority_level"] = (gm.value() >> 24) & 0x7u;
+    readback["majority_window_clk"] = (gm.value() >> 20) & 0xFu;
+    for (std::uint32_t g = 0; g < 8; ++g)
+      if (((st.groupMask >> g) & 1u) && thr[std::to_string(g)].get<std::uint32_t>() != static_cast<std::uint32_t>(st.thresholdAdc[g]))
+        return Status::failure(-1, "auto-trigger: el umbral releído del grupo " + std::to_string(g) + " no coincide con el escrito");
+    if (((gm.value() >> 24) & 0x7u) != static_cast<std::uint32_t>(st.majorityLevel()) || ((gm.value() >> 20) & 0xFu) != static_cast<std::uint32_t>(st.windowClk))
+      return Status::failure(-1, "auto-trigger: la mayoría releída de 0x810C no coincide con la escrita");
   }
   info_["config_written"] = written;
   info_["config_read"] = readback;
@@ -258,7 +326,9 @@ Result<std::size_t> CaenDigitizerBackend::readBlock(EventBlock& out, std::size_t
     Event e;
     e.counterHw = ei.EventCounter;
     e.tttRaw = ei.TriggerTimeTag;
-    e.triggerKind = static_cast<std::uint8_t>(cfg_.softwareTrigger && !cfg_.externalTrigger ? 1 : 0);
+    // 0 externo, 1 software, 2 auto-trigger, 3 auto-trigger o externo (no se distinguen en el evento)
+    e.triggerKind = static_cast<std::uint8_t>(cfg_.self.enabled ? (cfg_.externalTrigger ? 3 : 2)
+                                                                : (cfg_.softwareTrigger && !cfg_.externalTrigger ? 1 : 0));
     e.adc.assign(static_cast<std::size_t>(kChannels * recordLength_), 0);
     for (int c = 0; c < kChannels; ++c) {
       const int n = std::min<int>(static_cast<int>(ev->ChSize[c]), recordLength_);
