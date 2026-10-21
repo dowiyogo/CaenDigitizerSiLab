@@ -127,3 +127,22 @@ TEST(GainFit, FindsShouldersOnASteeplyFallingSpectrum) {
   EXPECT_TRUE(r.accepted()) << r.status;
   EXPECT_NEAR(r.gainMv, 4.0, 0.3);
 }
+
+// Fracción de coincidencias entre vecinas en los dos órdenes (DAQ2-11): con r3, dos tiras físicas
+// vecinas de hod2018 X (ch15 y ch0, posiciones 0 y 1 del orden medido) son vecinas en el orden
+// medido y no en el de la hoja (tiras 15 y 0).
+TEST(Panels, NeighbourFractionInMeasuredAndSheetOrder) {
+  auto cfg = DaqrunConfig::fromJson({{"campaign", {{"name", "t"}}}}).value();
+  auto m = hvmon::Mapping::fromFile(DAQ_SOURCE_DIR "/config/mapping/hodo_mapping_2026_10_r3.json").value();
+  const int N = 144;
+  Panels p(cfg, &m, N, kLsb);
+  dig::Event ev;
+  ev.adc.assign(64 * N, 2100);
+  std::array<double, 64> bl{};
+  bl.fill(2100);
+  for (int c : {15, 0}) ev.adc[static_cast<std::size_t>(c * N + 53)] = static_cast<std::uint16_t>(2100 - 120 / kLsb);
+  p.event(ev, bl, 1);
+  p.refresh();
+  EXPECT_DOUBLE_EQ(p.view().neighbourFrac[0][0], 1.0);  // medido
+  EXPECT_DOUBLE_EQ(p.view().neighbourFrac[1][0], 0.0);  // hoja
+}

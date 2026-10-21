@@ -318,7 +318,7 @@ int main(int argc, char** argv) {
       logError(bind.error().message);
       return 1;
     }
-    auto p = DaqrunPage::create(cfg, bind.value());
+    auto p = DaqrunPage::create(cfg, bind.value(), mapping.value().text);
     if (!p) {
       logError(p.error().message);
       return 1;
@@ -477,6 +477,8 @@ int main(int argc, char** argv) {
 
   SteadyTime nextPage = clock.now_steady();
   std::uint64_t lastPanelSeq = 0;
+  std::array<std::array<double, 4>, 2> lastNeighbourFrac{{{-1, -1, -1, -1}, {-1, -1, -1, -1}}};
+  std::array<double, 4> lastNeighbourPairs{};
   SteadyTime deadline{};
   bool stopping = false;
   while (!writerDone.load()) {
@@ -508,6 +510,8 @@ int main(int argc, char** argv) {
       di.readout = rstats.toJson();
       const auto dv = dataView.read().first;
       di.dataFlags = dv.toJson();
+      di.neighbourFrac = lastNeighbourFrac;
+      di.neighbourPairs = lastNeighbourPairs;
       const nlohmann::json status{{"run_name", run.baseName()},
                                   {"dash", dashJson(di)},
                                   {"simulated", cfg.simulated()},
@@ -521,6 +525,8 @@ int main(int argc, char** argv) {
       if (const auto [pv, pseq] = monitor.panels(); pseq != lastPanelSeq) {
         page->updatePanels(pv, dv, cfg.dataFlags.lightLeakRatio);
         lastPanelSeq = pseq;
+        lastNeighbourFrac = pv.neighbourFrac;
+        lastNeighbourPairs = pv.neighbourPairs[0];
       }
       nextPage = clock.now_steady() + std::chrono::seconds(1);
     }

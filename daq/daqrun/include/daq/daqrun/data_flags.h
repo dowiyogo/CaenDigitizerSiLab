@@ -4,7 +4,8 @@
 // (MonitorSummary, 60 s) y las muestras de hvmon; el escritor lee los bits vigentes (Snapshot).
 //
 // Unidades (del mapeo JSON):
-//  - caras físicas (estación + cara) para el bit 7, LIGHT_LEAK; hod2018 no tiene caras en el mapeo
+//  - unidades de luz del mapeo (light_units, r3: canales expuestos a la luz de la tarde) o, si no hay,
+//    caras físicas (estación + cara) para el bit 7, LIGHT_LEAK; hod2018 no tiene caras en el mapeo
 //    de octubre, así que el bit 7 cubre hod2019 (la luz de mayo entró por la cara Trasera);
 //  - grupos HV (1-8) para el bit 6, DATA_BLACKOUT; los canales de grupo desconocido no entran.
 // Conteo: todos los pulsos de la zona sin señal (pedestal + control + post, más tail sin pulso en

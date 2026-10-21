@@ -305,3 +305,36 @@ TEST(DataFlags, LowBaselineExcessDecidesWhenObservedCountsAreLarge) {
   EXPECT_GE(first, 90);
   EXPECT_LE(first, 94);
 }
+
+// Mapeo r3 (DAQ2-11): coordenada medida de hod2018 X (orden de mayo) y la de la hoja; la unidad de
+// luz empírica reemplaza a las caras de hod2019 en el bit 7.
+TEST(MappingR3, MeasuredOrderSheetOrderAndLightUnit) {
+  auto m = hvmon::Mapping::fromFile(DAQ_SOURCE_DIR "/config/mapping/hodo_mapping_2026_10_r3.json");
+  ASSERT_TRUE(m.ok()) << m.error().message;
+  const auto& r3 = m.value();
+  EXPECT_EQ(r3.version, "2026_10-r3");
+  ASSERT_EQ(r3.lightUnits.size(), 1u);
+  EXPECT_EQ(r3.lightUnits.begin()->second, (std::vector<int>{33, 35, 36, 37, 39, 43, 47, 49, 53, 55, 57, 61, 63}));
+  const std::vector<int> orderX{15, 0, 13, 2, 11, 4, 9, 6, 7, 8, 5, 10, 3, 12, 1, 14};
+  for (const auto& e : r3.channels) {
+    if (e.station == "hod2018" && e.plane == "X") {
+      EXPECT_EQ(orderX[static_cast<std::size_t>(e.strip)], e.digCh);
+      EXPECT_EQ(e.stripSheet, e.digCh);
+      EXPECT_EQ(e.label, "Canal " + std::to_string(e.digCh));
+    } else {
+      EXPECT_EQ(e.strip, e.stripSheet) << e.digCh;
+    }
+  }
+  DataFlagConfig cfg;
+  DataFlagEngine eng(cfg, r3, "t");
+  Gen g;
+  const auto hv = hvAll(4.5e-6);
+  eng.addPeriod(g.period(0), &hv);
+  int light = 0, faces = 0;
+  for (const auto& u : eng.view().units) {
+    light += u.key.rfind("light:", 0) == 0;
+    faces += u.key.rfind("face:", 0) == 0;
+  }
+  EXPECT_EQ(light, 1);
+  EXPECT_EQ(faces, 0);
+}

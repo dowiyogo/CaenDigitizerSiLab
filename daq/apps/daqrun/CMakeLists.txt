@@ -5,7 +5,13 @@ add_custom_command(OUTPUT ${DASH_H}
           -P ${PROJECT_SOURCE_DIR}/cmake/embed_text.cmake
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/dash.html ${PROJECT_SOURCE_DIR}/cmake/embed_text.cmake
   COMMENT "dash.html -> dash_html.h")
-add_executable(daqrun main.cpp http_page.cpp ${DASH_H})
+set(MAPPING_H ${CMAKE_CURRENT_BINARY_DIR}/mapping_html.h)
+add_custom_command(OUTPUT ${MAPPING_H}
+  COMMAND ${CMAKE_COMMAND} -DIN=${CMAKE_CURRENT_SOURCE_DIR}/mapping.html -DOUT=${MAPPING_H} -DNAME=kMappingHtml
+          -P ${PROJECT_SOURCE_DIR}/cmake/embed_text.cmake
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/mapping.html ${PROJECT_SOURCE_DIR}/cmake/embed_text.cmake
+  COMMENT "mapping.html -> mapping_html.h")
+add_executable(daqrun main.cpp http_page.cpp ${DASH_H} ${MAPPING_H})
 add_dependencies(daqrun daq_build_info)
 target_include_directories(daqrun PRIVATE ${DAQ_GENERATED_DIR} ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(daqrun PRIVATE daq_io daq_dig_replay daq_dig_caen daq_dig daq_daqrun daq_hvmon daq_hv_common daq_core

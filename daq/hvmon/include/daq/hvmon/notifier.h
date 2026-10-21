@@ -48,6 +48,7 @@ struct NotifierConfig {
   // Máximo de correos aceptados por proceso (sin contar los de prueba; los recuperados del outbox
   // cuentan); 0 = sin límite. Sirve para respetar un tope de correos autorizado por tarea.
   int maxMessages = 0;
+  int maxMessagesPerDay = 0;  // tope por día UTC (0 = sin tope); para runs largos (DAQ2-11)
   // Si no está vacío, solo se aceptan estos tipos (los de prueba siempre): p. ej. una tarea que
   // autoriza correos solo de fuga de luz y de triggers (DAQ2-9).
   std::vector<std::string> onlyKinds;
@@ -148,6 +149,8 @@ class Notifier {
   std::uint64_t seq_ = 0;
   bool simulatedBackend_ = false;
   std::uint64_t restored_ = 0, abandoned_ = 0, accepted_ = 0;
+  std::int64_t dayIndex_ = -1;  // día UTC (días desde la época) del contador diario
+  int acceptedToday_ = 0;
 };
 
 }  // namespace daq::hvmon

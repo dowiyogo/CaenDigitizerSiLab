@@ -112,7 +112,7 @@ void PanelRoot::update(const daqrun::PanelView& p, const daqrun::DataFlagView& d
   const int nt = std::max(1, static_cast<int>(p.rateMapT.size()));
   {
     const double span = std::max(1.0 / 60, hoursOf(p.rateMapT.empty() ? t0 : p.rateMapT.back(), t0));
-    TH2F* h = h2("overview", "rate_map", "Tasa fuera de tiempo por canal (umbral PROVISIONAL) [Hz];horas desde el primer período;canal",
+    TH2F* h = h2("overview", "rate_map", "#splitline{Tasa fuera de tiempo por canal (umbral PROVISIONAL) [Hz]}{#scale[0.7]{Normal: bandas horizontales estables; un canal que cae a 0 o un grupo que cambia junto es un problema}};horas desde el primer período;canal",
                  nt, -span / std::max(1, nt - 1) / 2, span + span / std::max(1, nt - 1) / 2, 64, -0.5, 63.5);
     for (int i = 0; i < static_cast<int>(p.rateMap.size()); ++i)
       for (int c = 0; c < 64; ++c) h->SetBinContent(i + 1, c + 1, p.rateMap[static_cast<std::size_t>(i)][static_cast<std::size_t>(c)]);
@@ -121,7 +121,7 @@ void PanelRoot::update(const daqrun::PanelView& p, const daqrun::DataFlagView& d
   const char* planes[4] = {"hod2018_X", "hod2018_Y", "hod2019_X", "hod2019_Y"};
   for (int q = 0; q < 4; ++q) {
     TGraph* g = graph("overview", std::string("live_") + planes[q],
-                      std::string("Canales vivos ") + planes[q] + " (> 2 LSB por período);horas;canales");
+                      std::string("#splitline{Canales vivos ") + planes[q] + " (> 2 LSB por período)}{#scale[0.7]{Normal: constante (hod2018 X 15 por ch03 muerto; en hod2019 hay canales oscuros)}};horas;canales");
     g->Set(0);
     for (std::size_t i = 0; i < p.livePerPlane.size(); ++i) g->AddPoint(hoursOf(p.rateMapT[i], t0), p.livePerPlane[i][static_cast<std::size_t>(q)]);
   }
@@ -167,14 +167,17 @@ void PanelRoot::update(const daqrun::PanelView& p, const daqrun::DataFlagView& d
     const bool isImon = u.kind == "imon";
     const std::string unit = isImon ? "A" : "Hz por canal";
     const std::string folder = u.kind == "face" ? "overview" : "dataflags";
-    TGraph* g = graph(folder, "rate_" + base, u.name + (isImon ? " IMon" : " tasa") + ";horas;" + unit);
+    const std::string what = u.kind == "face" ? "Normal: la curva dentro de la banda de la base; sobre ella, luz (bit 7)"
+                             : u.kind == "group" ? "Normal: estable; una caída a ~0 de todo el grupo es un apagón (bit 6)"
+                                                 : "Normal: estable de noche; sube con la luz y la temperatura";
+    TGraph* g = graph(folder, "rate_" + base, "#splitline{" + u.name + (isImon ? " IMon" : " tasa") + "}{#scale[0.7]{" + what + "}};horas;" + unit);
     g->Set(0);
     auto bandIt = obj_.find("baseline_" + base);
     TGraphAsymmErrors* band = nullptr;
     if (bandIt == obj_.end()) {
       auto b = std::make_unique<TGraphAsymmErrors>();
       b->SetName(("baseline_" + base).c_str());
-      b->SetTitle((u.name + " base (banda: hasta el umbral del aviso);horas;" + unit).c_str());
+      b->SetTitle(("#splitline{" + u.name + " base}{#scale[0.7]{Banda: de la base al umbral del aviso; normal: la tasa queda dentro}};horas;" + unit).c_str());
       band = b.get();
       obj_["baseline_" + base] = {folder, std::move(b)};
     } else {

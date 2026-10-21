@@ -18,7 +18,12 @@ namespace daq::io {
 
 class DashServer : public THttpServer {
  public:
-  DashServer(const char* engine, std::string html) : THttpServer(engine), html_(std::move(html)) {}
+  DashServer(const char* engine, std::string html, std::string mappingHtml = std::string())
+      : THttpServer(engine), html_(std::move(html)), mappingHtml_(std::move(mappingHtml)) {}
+  // /dash/mapping (daqrun): tabla del mapeo en uso.
+  static bool isMappingRequest(const std::string& path, const std::string& file) {
+    return (path == "dash" || path == "dash/") && (file == "mapping" || file == "mapping.html");
+  }
   // Ruta de la petición (sin la barra inicial) que corresponde a la página.
   static bool isDashRequest(const std::string& path, const std::string& file) {
     return ((path == "dash" || path == "dash/") && (file.empty() || file == "index.html")) || (path.empty() && file == "dash");
@@ -26,6 +31,12 @@ class DashServer : public THttpServer {
 
  protected:
   void ProcessRequest(std::shared_ptr<THttpCallArg> arg) override {
+    if (!mappingHtml_.empty() && isMappingRequest(arg->GetPathName(), arg->GetFileName())) {
+      arg->SetContentType("text/html; charset=utf-8");
+      arg->AddNoCacheHeader();
+      arg->SetContent(std::string(mappingHtml_));
+      return;
+    }
     if (isDashRequest(arg->GetPathName(), arg->GetFileName())) {
       arg->SetContentType("text/html; charset=utf-8");
       arg->AddNoCacheHeader();
@@ -36,7 +47,7 @@ class DashServer : public THttpServer {
   }
 
  private:
-  std::string html_;
+  std::string html_, mappingHtml_;
 };
 
 }  // namespace daq::io

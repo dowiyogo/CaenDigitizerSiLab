@@ -83,6 +83,10 @@ struct PanelView {
   std::vector<std::array<int, 4>> livePerPlane;      // por período: hod2018 X, Y, hod2019 X, Y
   std::vector<GainPoint> gains;
   nlohmann::json gainSummary() const;                // última hora: G por canal y conteo por estado
+  // Fracción de las coincidencias entre tiras (i ≠ j, acumulado del run) que son vecinas |i − j| = 1,
+  // por orden (0 medido r3, 1 hoja de octubre) y plano (hod2018 X, Y, hod2019 X, Y); −1 sin pares.
+  std::array<std::array<double, 4>, 2> neighbourFrac{{{-1, -1, -1, -1}, {-1, -1, -1, -1}}};
+  std::array<std::array<double, 4>, 2> neighbourPairs{};
 };
 
 struct PanelConfig {
@@ -112,10 +116,11 @@ class Panels {
   const DaqrunConfig& cfg_;
   int N_;
   double lsb_;
-  std::array<int, 64> station_{}, plane_{}, strip_{};  // plano 0-3 (hod2018 X, Y, hod2019 X, Y); −1 sin mapeo
+  std::array<int, 64> station_{}, plane_{}, strip_{}, stripSheet_{};  // plano 0-3 (hod2018 X, Y, hod2019 X, Y); −1 sin mapeo
   RollingHist amp_, integ_, minS_;
-  std::array<RollingHist, 2> hit_;
-  std::array<RollingHist, 4> coinc_;
+  // [orden][...]: 0 = coordenada medida (strip del mapeo, r3), 1 = la de la hoja de octubre (strip_sheet)
+  std::array<std::array<RollingHist, 2>, 2> hit_;
+  std::array<std::array<RollingHist, 4>, 2> coinc_;
   std::array<std::array<RollingHist, 2>, 4> mult_;
   std::array<std::vector<std::uint32_t>, 8> persPrev_, persCur_;
   int persCount_ = 0;

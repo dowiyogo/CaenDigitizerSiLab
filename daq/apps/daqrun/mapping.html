@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mapeo de canales</title>
+<!-- Tabla del mapeo en uso por daqrun (solo lectura). Lee ../status/mapping_json/root.json.gz: el
+     JSON del mapeo tal como lo cargó el run; nada está escrito a mano en esta página. -->
+<style>
+  :root { --bg: #fff; --fg: #111; --mut: #666; --line: #ddd; --bad-bg: #ffe0b0; --ok: #1b7f3b; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --mut: #999; --line: #333; --bad-bg: #5a3a00; --ok: #4cc26e; } }
+  body { margin: 0; padding: 8px 10px; background: var(--bg); color: var(--fg); font: 14px/1.35 system-ui, sans-serif; }
+  #wrap { overflow-x: auto; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 3px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; text-align: left; }
+  th { color: var(--mut); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: var(--bg); }
+  td.diff { background: var(--bad-bg); font-weight: 600; }
+  .ok { color: var(--ok); } .mut { color: var(--mut); }
+  button { font: inherit; padding: 4px 10px; margin: 6px 0; }
+</style>
+</head>
+<body>
+<div id="hdr">cargando…</div>
+<button id="csv" disabled>Descargar CSV</button>
+<div class="mut">Resaltado: la coordenada o el grupo medidos no coinciden con la hoja / planilla.</div>
+<div id="wrap"><table><thead><tr>
+  <th>canal</th><th>estación</th><th>plano</th><th>etiqueta planilla</th><th>coord. hoja</th><th>coord. medida</th>
+  <th>grupo planilla</th><th>grupo medido</th><th>grupo confirmado</th><th>coord. confirmada</th><th>luz</th>
+</tr></thead><tbody id="rows"></tbody></table></div>
+<div id="err" style="color:#c62828"></div>
+<script>
+"use strict";
+function esc(s) { return String(s == null ? "–" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+let table = [];
+function render(m) {
+  const light = new Set([].concat(...Object.values(m.light_units || {})));
+  table = (m.channels || []).slice().sort((a, b) => a.dig_ch - b.dig_ch).map(c => {
+    const conf = c.confirmed || {};
+    const sheetStrip = c.strip_sheet !== undefined ? c.strip_sheet : c.strip;
+    return { ch: c.dig_ch, station: c.station, plane: c.plane, label: c.label, strip_sheet: sheetStrip, strip: c.strip,
+             group_sheet: c.hv_group_sheet, group: c.hv_group, group_conf: conf.hv_group, strip_conf: conf.strip, light: light.has(c.dig_ch) };
+  });
+  document.getElementById("hdr").innerHTML = `mapeo <b>${esc(m.mapping_version)}</b> (anterior ${esc(m.previous_version)}), ${table.length} canales` +
+    ` — ${table.filter(r => r.group_conf === "measurement").length} con grupo medido`;
+  document.getElementById("rows").innerHTML = table.map(r => {
+    const ds = r.strip_sheet !== r.strip ? "diff" : "", dg = r.group_sheet != null && r.group != null && r.group_sheet !== r.group ? "diff" : "";
+    return `<tr><td>${r.ch}</td><td>${esc(r.station)}</td><td>${esc(r.plane)}</td><td>${esc(r.label)}</td><td>${esc(r.strip_sheet)}</td>` +
+      `<td class="${ds}">${esc(r.strip)}</td><td>${esc(r.group_sheet)}</td><td class="${dg}">${esc(r.group)}</td>` +
+      `<td class="${r.group_conf === "measurement" ? "ok" : "mut"}">${esc(r.group_conf)}</td>` +
+      `<td class="${r.strip_conf === "measurement" ? "ok" : "mut"}">${esc(r.strip_conf)}</td><td>${r.light ? "sí" : ""}</td></tr>`;
+  }).join("");
+  const b = document.getElementById("csv");
+  b.disabled = false;
+  b.onclick = () => {
+    const head = ["canal", "estacion", "plano", "etiqueta_planilla", "coord_hoja", "coord_medida", "grupo_planilla", "grupo_medido",
+                  "grupo_confirmado", "coord_confirmada", "expuesto_luz"];
+    const lines = [head.join(",")].concat(table.map(r => [r.ch, r.station, r.plane, r.label, r.strip_sheet, r.strip, r.group_sheet, r.group,
+      r.group_conf, r.strip_conf, r.light ? 1 : 0].map(v => v == null ? "" : `"${String(v).replace(/"/g, '""')}"`).join(",")));
+    const url = URL.createObjectURL(new Blob([lines.join("\n") + "\n"], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mapeo_${m.mapping_version}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+}
+fetch("../status/mapping_json/root.json.gz", { cache: "no-store" })
+  .then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  .then(o => render(JSON.parse(o.fTitle)))
+  .catch(e => { document.getElementById("err").textContent = "no se pudo leer el mapeo: " + e.message; });
+</script>
+</body>
+</html>

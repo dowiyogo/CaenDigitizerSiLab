@@ -2,6 +2,7 @@
 #define HODO_MAPPING_H
 
 #include <array>
+#include <string>
 
 // =============================================================================
 // Hodoscope Channel-to-Strip Mapping
@@ -72,12 +73,17 @@ static constexpr auto kH18Y = kCfg_2026_05.h18y;
 static constexpr auto kH19X = kCfg_2026_05.h19x;
 static constexpr auto kH19Y = kCfg_2026_05.h19y;
 
-// Returns configuration for a given run (v1..v10 return kCfg_2026_05)
+#include "hodo_mapping_json.h"
+
+// Returns configuration for a given run (v1..v10 return kCfg_2026_05). Runs of the new DAQ
+// (campaigns of October 2026 on, run names with "_2026_10") read the mapping JSON that daqrun uses
+// (hodo_mapping_json.h); kCfg_2026_10 is the fallback, with a warning, if the JSON is missing.
 inline const HodoMappingConfig& config_for_run(int /*run*/) {
     return kCfg_2026_05;
 }
 
-inline const HodoMappingConfig& config_for_run(const std::string& /*run*/) {
+inline const HodoMappingConfig& config_for_run(const std::string& run) {
+    if (run.find("_2026_10") != std::string::npos) return config_from_mapping_json(kCfg_2026_10);
     return kCfg_2026_05;
 }
 

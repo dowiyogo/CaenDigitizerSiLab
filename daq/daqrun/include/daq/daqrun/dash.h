@@ -35,6 +35,9 @@ struct DashInputs {
   std::array<double, 2> thresholdMv{20.0, 3.0};
   nlohmann::json readout = nlohmann::json::object();  // ReadoutStats::toJson()
   nlohmann::json dataFlags = nlohmann::json();         // DataFlagView::toJson() (caras, grupos, IMon)
+  // Fracción de coincidencias entre tiras vecinas por plano en el orden medido (r3) y el de la hoja.
+  std::array<std::array<double, 4>, 2> neighbourFrac{{{-1, -1, -1, -1}, {-1, -1, -1, -1}}};
+  std::array<double, 4> neighbourPairs{};
 };
 
 nlohmann::json dashJson(const DashInputs& in);

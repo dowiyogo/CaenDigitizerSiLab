@@ -99,6 +99,7 @@ Panels::Panels(const DaqrunConfig& cfg, const hvmon::Mapping* mapping, int recor
   station_.fill(-1);
   plane_.fill(-1);
   strip_.fill(-1);
+  stripSheet_.fill(-1);
   if (mapping)
     for (const auto& e : mapping->channels) {
       if (e.digCh < 0 || e.digCh >= 64) continue;
@@ -106,6 +107,7 @@ Panels::Panels(const DaqrunConfig& cfg, const hvmon::Mapping* mapping, int recor
       station_[static_cast<std::size_t>(e.digCh)] = st;
       plane_[static_cast<std::size_t>(e.digCh)] = 2 * st + (e.plane == "Y" ? 1 : 0);
       strip_[static_cast<std::size_t>(e.digCh)] = e.strip;
+      stripSheet_[static_cast<std::size_t>(e.digCh)] = e.stripSheet;
     }
   const auto& p = cfg.panels;
   const int na = std::max(1, static_cast<int>(p.inTimeAmpMaxMv / p.inTimeAmpBinMv));
@@ -115,21 +117,30 @@ Panels::Panels(const DaqrunConfig& cfg, const hvmon::Mapping* mapping, int recor
   integ_.init("intime_integral", "Integral en tiempo (QDC);canal;integral [mV#upoint ns]", 64, -0.5, 63.5, ni, 0,
               ni * p.integralBinMvNs);
   minS_.init("min_sample", "Muestra del mínimo (amplitud > umbral de impacto);canal;muestra", 64, -0.5, 63.5, N_, -0.5, N_ - 0.5);
-  for (int s = 0; s < 2; ++s)
-    hit_[static_cast<std::size_t>(s)].init(std::string("hitmap_") + (s ? "hod2019" : "hod2018"),
-                                           std::string("Impactos X #times Y ") + (s ? "hod2019" : "hod2018") +
-                                               " (en tiempo > " + std::to_string(static_cast<int>(p.hitThresholdMv[static_cast<std::size_t>(s)])) +
-                                               " mV);tira X;tira Y",
-                                           16, -0.5, 15.5, 16, -0.5, 15.5);
+  // Títulos con una segunda línea: qué muestra y cómo se ve normal (DAQ2-11).
+  const char* orderTag[2] = {"", "_hoja"};
+  const char* orderName[2] = {"orden MEDIDO (mapeo r3)", "orden de la HOJA de octubre"};
+  for (int o = 0; o < 2; ++o)
+    for (int s = 0; s < 2; ++s)
+      hit_[static_cast<std::size_t>(o)][static_cast<std::size_t>(s)].init(
+          std::string("hitmap_") + (s ? "hod2019" : "hod2018") + orderTag[o],
+          std::string("#splitline{Impactos X #times Y ") + (s ? "hod2019" : "hod2018") + ", " + orderName[o] + " (en tiempo > " +
+              std::to_string(static_cast<int>(p.hitThresholdMv[static_cast<std::size_t>(s)])) +
+              " mV)}{#scale[0.7]{Pares X-Y del mismo evento; normal: una banda continua cerca de la diagonal o una mancha compacta, no puntos dispersos}};tira X;tira Y",
+          16, -0.5, 15.5, 16, -0.5, 15.5);
   for (int q = 0; q < 4; ++q) {
-    coinc_[static_cast<std::size_t>(q)].init(std::string("coinc_") + kPlaneName[q],
-                                             std::string("Coincidencias entre tiras ") + kPlaneName[q] + ";tira;tira", 16, -0.5,
-                                             15.5, 16, -0.5, 15.5);
+    for (int o = 0; o < 2; ++o)
+      coinc_[static_cast<std::size_t>(o)][static_cast<std::size_t>(q)].init(
+          std::string("coinc_") + kPlaneName[q] + orderTag[o],
+          std::string("#splitline{Coincidencias entre tiras ") + kPlaneName[q] + ", " + orderName[o] +
+              "}{#scale[0.7]{Tiras encendidas juntas; normal (orden correcto): cuentas pegadas a la diagonal, en las vecinas}};tira;tira",
+          16, -0.5, 15.5, 16, -0.5, 15.5);
     for (int k = 0; k < 2; ++k) {
       const double thr = p.multThresholdMv[static_cast<std::size_t>(q / 2)][static_cast<std::size_t>(k)];
       mult_[static_cast<std::size_t>(q)][static_cast<std::size_t>(k)].init(
           std::string("mult_") + kPlaneName[q] + "_" + std::to_string(static_cast<int>(thr)) + "mV",
-          std::string("Multiplicidad ") + kPlaneName[q] + " (> " + std::to_string(static_cast<int>(thr)) + " mV);tiras;eventos", 17,
+          std::string("#splitline{Multiplicidad ") + kPlaneName[q] + " (> " + std::to_string(static_cast<int>(thr)) +
+              " mV)}{#scale[0.7]{Tiras encendidas por evento; normal: casi todo en 0, 1 y 2}};tiras;eventos", 17,
           -0.5, 16.5);
     }
   }
@@ -147,7 +158,7 @@ Panels::Panels(const DaqrunConfig& cfg, const hvmon::Mapping* mapping, int recor
 void Panels::event(const dig::Event& ev, const std::array<double, 64>& baselineAdc, UtcNs tUtc) {
   const auto& w = cfg_.window;
   const int s0 = std::max(0, w.signal.first), s1 = std::min(N_, w.signal.second);
-  std::array<std::uint32_t, 4> hitMask{};
+  std::array<std::array<std::uint32_t, 4>, 2> hitMask{};  // [orden][plano]
   std::array<std::array<int, 2>, 4> mult{};
   for (int c = 0; c < 64; ++c) {
     const std::uint16_t* x = ev.adc.data() + static_cast<std::size_t>(c * N_);
@@ -168,29 +179,36 @@ void Panels::event(const dig::Event& ev, const std::array<double, 64>& baselineA
       if (x[k] < x[kmin]) kmin = k;
     if ((bl - x[kmin]) * lsb_ > hitThr) minS_.fillBin(c, kmin);
     const int q = plane_[static_cast<std::size_t>(c)], strip = strip_[static_cast<std::size_t>(c)];
+    const int stripH = stripSheet_[static_cast<std::size_t>(c)];
     if (q >= 0 && strip >= 0 && strip < 16) {
-      if (amp > hitThr) hitMask[static_cast<std::size_t>(q)] |= 1u << strip;
+      if (amp > hitThr) {
+        hitMask[0][static_cast<std::size_t>(q)] |= 1u << strip;
+        if (stripH >= 0 && stripH < 16) hitMask[1][static_cast<std::size_t>(q)] |= 1u << stripH;
+      }
       for (std::size_t k = 0; k < 2; ++k)
         if (amp > cfg_.panels.multThresholdMv[static_cast<std::size_t>(q / 2)][k]) ++mult[static_cast<std::size_t>(q)][k];
     }
     const auto g = static_cast<std::size_t>(c / 8);
     for (int k = 0; k < N_; ++k) ++persCur_[g][static_cast<std::size_t>(k * v_.persistAdcBins + std::min(v_.persistAdcBins - 1, x[k] >> 4))];
   }
-  for (int s = 0; s < 2; ++s) {
-    const std::uint32_t mx = hitMask[static_cast<std::size_t>(2 * s)], my = hitMask[static_cast<std::size_t>(2 * s + 1)];
-    for (int i = 0; i < 16; ++i)
-      if (mx & (1u << i))
-        for (int j = 0; j < 16; ++j)
-          if (my & (1u << j)) hit_[static_cast<std::size_t>(s)].fillBin(i, j);
+  for (std::size_t o = 0; o < 2; ++o) {
+    for (int s = 0; s < 2; ++s) {
+      const std::uint32_t mx = hitMask[o][static_cast<std::size_t>(2 * s)], my = hitMask[o][static_cast<std::size_t>(2 * s + 1)];
+      for (int i = 0; i < 16; ++i)
+        if (mx & (1u << i))
+          for (int j = 0; j < 16; ++j)
+            if (my & (1u << j)) hit_[o][static_cast<std::size_t>(s)].fillBin(i, j);
+    }
+    for (std::size_t q = 0; q < 4; ++q) {
+      const std::uint32_t m = hitMask[o][q];
+      for (int i = 0; i < 16; ++i)
+        if (m & (1u << i))
+          for (int j = 0; j < 16; ++j)
+            if (m & (1u << j)) coinc_[o][q].fillBin(i, j);
+    }
   }
-  for (std::size_t q = 0; q < 4; ++q) {
-    const std::uint32_t m = hitMask[q];
-    for (int i = 0; i < 16; ++i)
-      if (m & (1u << i))
-        for (int j = 0; j < 16; ++j)
-          if (m & (1u << j)) coinc_[q].fillBin(i, j);
+  for (std::size_t q = 0; q < 4; ++q)
     for (std::size_t k = 0; k < 2; ++k) mult_[q][k].fillBin(mult[q][k]);
-  }
   if (++persCount_ >= std::max(1, cfg_.panels.persistenceEvents / 2)) {  // bloque anterior + en curso ≈ últimos ~1000
     persPrev_ = persCur_;
     for (auto& v : persCur_) std::fill(v.begin(), v.end(), 0u);
@@ -204,8 +222,23 @@ void Panels::event(const dig::Event& ev, const std::array<double, 64>& baselineA
 void Panels::publishHists() {
   v_.hists.clear();
   for (const RollingHist* h : {&amp_, &integ_, &minS_}) v_.hists.push_back(h->view());
-  for (const auto& h : hit_) v_.hists.push_back(h.view());
-  for (const auto& h : coinc_) v_.hists.push_back(h.view());
+  for (const auto& o : hit_)
+    for (const auto& h : o) v_.hists.push_back(h.view());
+  for (std::size_t o = 0; o < 2; ++o)
+    for (std::size_t q = 0; q < 4; ++q) {
+      const auto& h = coinc_[o][q].view();
+      v_.hists.push_back(h);
+      double all = 0, nb = 0;
+      for (int i = 0; i < 16; ++i)
+        for (int j = 0; j < 16; ++j)
+          if (i != j) {
+            const double x = static_cast<double>(h.cum[static_cast<std::size_t>(j * 16 + i)]);
+            all += x;
+            if (std::abs(i - j) == 1) nb += x;
+          }
+      v_.neighbourFrac[o][q] = all > 0 ? nb / all : -1;
+      v_.neighbourPairs[o][q] = all / 2;
+    }
   for (const auto& q : mult_)
     for (const auto& h : q) v_.hists.push_back(h.view());
   for (std::size_t g = 0; g < 8; ++g) {
@@ -216,8 +249,10 @@ void Panels::publishHists() {
 
 void Panels::period(const MonitorSummary& s, const std::vector<std::uint32_t>& ampCum, int ampBins, double ampBinMv) {
   for (RollingHist* h : {&amp_, &integ_, &minS_}) h->closeSlice();
-  for (auto& h : hit_) h.closeSlice();
-  for (auto& h : coinc_) h.closeSlice();
+  for (auto& o : hit_)
+    for (auto& h : o) h.closeSlice();
+  for (auto& o : coinc_)
+    for (auto& h : o) h.closeSlice();
   for (auto& q : mult_)
     for (auto& h : q) h.closeSlice();
   // Mapa canal × tiempo y vivos por plano.

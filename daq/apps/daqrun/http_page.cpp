@@ -2,6 +2,7 @@
 #include "http_page.h"
 
 #include "dash_html.h"  // kDashHtml, generado desde dash.html
+#include "mapping_html.h"  // kMappingHtml, generado desde mapping.html
 #include "daq/io/dash_server.h"
 #include "daq/io/hist_util.h"
 
@@ -15,11 +16,11 @@
 
 namespace daq::daqrun {
 
-Result<std::unique_ptr<DaqrunPage>> DaqrunPage::create(const DaqrunConfig& cfg, const std::string& bindAddress) {
+Result<std::unique_ptr<DaqrunPage>> DaqrunPage::create(const DaqrunConfig& cfg, const std::string& bindAddress, const std::string& mappingText) {
   using R = Result<std::unique_ptr<DaqrunPage>>;
   std::unique_ptr<DaqrunPage> p(new DaqrunPage());
   const std::string engine = "http:" + std::to_string(cfg.httpPort) + "?bind=" + bindAddress + "&thrds=2";
-  p->server_ = std::make_unique<io::DashServer>(engine.c_str(), kDashHtml);  // + /dash/
+  p->server_ = std::make_unique<io::DashServer>(engine.c_str(), kDashHtml, kMappingHtml);  // + /dash/ y /dash/mapping
   if (!p->server_->IsAnyEngine()) return R::failure(-1, "THttpServer no pudo iniciar " + engine);
   p->server_->SetReadOnly(kTRUE);
   p->server_->SetTimer(0, kTRUE);  // solo atiende en processRequests() (hilo principal)
@@ -48,6 +49,8 @@ Result<std::unique_ptr<DaqrunPage>> DaqrunPage::create(const DaqrunConfig& cfg, 
   p->json_ = std::make_unique<TNamed>("state_json", "{}");
   p->server_->Register("/status", p->table_.get());
   p->server_->Register("/status", p->json_.get());
+  p->mapping_ = std::make_unique<TNamed>("mapping_json", mappingText.c_str());  // /dash/mapping lo lee
+  p->server_->Register("/status", p->mapping_.get());
   // Vista general al abrir la página (fase 5): tasa de trigger, mapa de tasas, cara Trasera, vivos,
   // muestra del mínimo y flags; el resto en carpetas.
   std::string items;
@@ -62,7 +65,7 @@ DaqrunPage::~DaqrunPage() {
   if (server_) {
     panels_.unregisterFrom(*server_);
     for (TObject* o : std::initializer_list<TObject*>{dt_.get(), oot_.get(), amp_.get(), chFlags_.get(), evtFlags_.get(),
-                                                      rate_.get(), table_.get(), json_.get()})
+                                                      rate_.get(), table_.get(), json_.get(), mapping_.get()})
       if (o) server_->Unregister(o);
   }
 }

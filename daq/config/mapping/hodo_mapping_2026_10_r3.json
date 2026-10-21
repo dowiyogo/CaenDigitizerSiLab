@@ -1,0 +1,1789 @@
+{
+ "schema": "daqv2.mapping/1",
+ "mapping_version": "2026_10-r3",
+ "created_utc": "2026-10-21",
+ "description": "Mapeo inicial de la campaña de octubre 2026 (docs/daq_v2_design.md, sección 5.1). confirmed: measurement | cabling_record | derived | assumed | unknown. Solo 'measurement' cuenta como confirmado. r2 (DAQ2-10): grupo HV medido por canal con la prueba de apagar un grupo a la vez (2026-10-21 10:01-10:32Z, campaña commissioning2_2026_10_21 run 1, SW trigger 100 Hz); la asignación anterior queda en hv_group_previous. Canales sin medida: hv_group null. r3 (DAQ2-11): coordenada de hod2018 X medida (orden espacial de las coincidencias entre vecinas de la noche del 2026-10-19, igual al de mayo); hod2018 Y y hod2019 con la coordenada de la hoja de octubre (strip_sheet = hoja); unidad de fuga de luz empírica (light_units) en lugar de las caras de hod2019, que no están confirmadas.",
+ "hv_group_to_sy5527_channel": {
+  "1": 0,
+  "2": 1,
+  "3": 2,
+  "4": 3,
+  "5": 4,
+  "6": 5,
+  "7": 6,
+  "8": 7
+ },
+ "hv_group_to_sy5527_channel_confirmed": "measurement (René, 2026-10-18)",
+ "channels": [
+  {
+   "dig_ch": 0,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 1,
+   "face": null,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 1,
+    "confirmed": "assumed",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 1",
+   "strip_sheet": 0,
+   "label": "Canal 0",
+   "hv_group_sheet": 6,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 1,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 14,
+   "face": null,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 6,
+    "confirmed": "assumed",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 6",
+   "strip_sheet": 1,
+   "label": "Canal 1",
+   "hv_group_sheet": 4,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 2,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 3,
+   "face": null,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
+   "strip_sheet": 2,
+   "label": "Canal 2",
+   "hv_group_sheet": 6,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 3,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 12,
+   "face": null,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "unknown",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 6,
+    "confirmed": "assumed",
+    "version": "2026_10-r1"
+   },
+   "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+   "strip_sheet": 3,
+   "label": "Canal 3",
+   "hv_group_sheet": 3,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 4,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 5,
+   "face": null,
+   "hv_group": 5,
+   "hv_ch": 4,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 5",
+   "strip_sheet": 4,
+   "label": "Canal 4",
+   "hv_group_sheet": 5,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 5,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 10,
+   "face": null,
+   "hv_group": 5,
+   "hv_ch": 4,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 5",
+   "strip_sheet": 5,
+   "label": "Canal 5",
+   "hv_group_sheet": 5,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 6,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 7,
+   "face": null,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 2,
+    "confirmed": "assumed",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
+   "strip_sheet": 6,
+   "label": "Canal 6",
+   "hv_group_sheet": 5,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 7,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 8,
+   "face": null,
+   "hv_group": 5,
+   "hv_ch": 4,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 5",
+   "strip_sheet": 7,
+   "label": "Canal 7",
+   "hv_group_sheet": 2,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 8,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 9,
+   "face": null,
+   "hv_group": 5,
+   "hv_ch": 4,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 5",
+   "strip_sheet": 8,
+   "label": "Canal 8",
+   "hv_group_sheet": 5,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 9,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 6,
+   "face": null,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
+   "strip_sheet": 9,
+   "label": "Canal 9",
+   "hv_group_sheet": 5,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 10,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 11,
+   "face": null,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
+   "strip_sheet": 10,
+   "label": "Canal 10",
+   "hv_group_sheet": 7,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 11,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 4,
+   "face": null,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
+   "strip_sheet": 11,
+   "label": "Canal 11",
+   "hv_group_sheet": 7,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 12,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 13,
+   "face": null,
+   "hv_group": 4,
+   "hv_ch": 3,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 4",
+   "strip_sheet": 12,
+   "label": "Canal 12",
+   "hv_group_sheet": 3,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 13,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 2,
+   "face": null,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
+   "strip_sheet": 13,
+   "label": "Canal 13",
+   "hv_group_sheet": 1,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 14,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 15,
+   "face": null,
+   "hv_group": 4,
+   "hv_ch": 3,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 4",
+   "strip_sheet": 14,
+   "label": "Canal 14",
+   "hv_group_sheet": 3,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 15,
+   "station": "hod2018",
+   "plane": "X",
+   "strip": 0,
+   "face": null,
+   "hv_group": 8,
+   "hv_ch": 7,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 8",
+   "strip_sheet": 15,
+   "label": "Canal 15",
+   "hv_group_sheet": 8,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19 (igual al orden de mayo, kCfg_2026_05); orientación absoluta no determinada"
+  },
+  {
+   "dig_ch": 16,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 0,
+   "face": null,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 6,
+    "confirmed": "assumed",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 6",
+   "strip_sheet": 0,
+   "label": "Canal 0",
+   "hv_group_sheet": 8,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 17,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 1,
+   "face": null,
+   "hv_group": 4,
+   "hv_ch": 3,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 6,
+    "confirmed": "assumed",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 4",
+   "strip_sheet": 1,
+   "label": "Canal 1",
+   "hv_group_sheet": 6,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 18,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 2,
+   "face": null,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 6",
+   "strip_sheet": 2,
+   "label": "Canal 2",
+   "hv_group_sheet": 4,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 19,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 3,
+   "face": null,
+   "hv_group": 4,
+   "hv_ch": 3,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 4",
+   "strip_sheet": 3,
+   "label": "Canal 3",
+   "hv_group_sheet": 8,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 20,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 4,
+   "face": null,
+   "hv_group": 8,
+   "hv_ch": 7,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 2,
+    "confirmed": "assumed",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 8",
+   "strip_sheet": 4,
+   "label": "Canal 4",
+   "hv_group_sheet": 4,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 21,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 5,
+   "face": null,
+   "hv_group": 5,
+   "hv_ch": 4,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 5",
+   "strip_sheet": 5,
+   "label": "Canal 5",
+   "hv_group_sheet": 3,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 22,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 6,
+   "face": null,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 1,
+    "confirmed": "assumed",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
+   "strip_sheet": 6,
+   "label": "Canal 6",
+   "hv_group_sheet": 5,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 23,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 7,
+   "face": null,
+   "hv_group": 4,
+   "hv_ch": 3,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 4",
+   "strip_sheet": 7,
+   "label": "Canal 7",
+   "hv_group_sheet": 2,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 24,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 8,
+   "face": null,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
+   "strip_sheet": 8,
+   "label": "Canal 8",
+   "hv_group_sheet": 4,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 25,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 9,
+   "face": null,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
+   "strip_sheet": 9,
+   "label": "Canal 9",
+   "hv_group_sheet": 8,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 26,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 10,
+   "face": null,
+   "hv_group": 8,
+   "hv_ch": 7,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 8",
+   "strip_sheet": 10,
+   "label": "Canal 10",
+   "hv_group_sheet": 3,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 27,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 11,
+   "face": null,
+   "hv_group": 4,
+   "hv_ch": 3,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 4",
+   "strip_sheet": 11,
+   "label": "Canal 11",
+   "hv_group_sheet": 1,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 28,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 12,
+   "face": null,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 1",
+   "strip_sheet": 12,
+   "label": "Canal 12",
+   "hv_group_sheet": 4,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 29,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 13,
+   "face": null,
+   "hv_group": 8,
+   "hv_ch": 7,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 8",
+   "strip_sheet": 13,
+   "label": "Canal 13",
+   "hv_group_sheet": 4,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 30,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 14,
+   "face": null,
+   "hv_group": 4,
+   "hv_ch": 3,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV desconocido; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": null,
+    "confirmed": "unknown",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 4",
+   "strip_sheet": 14,
+   "label": "Canal 14",
+   "hv_group_sheet": 8,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 31,
+   "station": "hod2018",
+   "plane": "Y",
+   "strip": 15,
+   "face": null,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "measurement",
+    "hv_group": "measurement",
+    "face": "unknown"
+   },
+   "source": "kCfg_2026_10 (hoja 'Octubre 2026', no verificada: en mayo esa hoja no se cumplió); grupo HV medido en mayo (apagones), válido si los cables no se tocaron; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 1,
+    "confirmed": "assumed",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 1",
+   "strip_sheet": 15,
+   "label": "Canal 15",
+   "hv_group_sheet": 1,
+   "strip_measurement": "DAQ2-10 E: coincidencias entre vecinas, noche 2026-10-19: la hoja de octubre se cumple"
+  },
+  {
+   "dig_ch": 32,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 0,
+   "face": "Delantera",
+   "face_connector_ch": 8,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 6,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
+   "strip_sheet": 0,
+   "label": "Delantera 8",
+   "hv_group_sheet": 6
+  },
+  {
+   "dig_ch": 33,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 1,
+   "face": "Trasera",
+   "face_connector_ch": 8,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 3,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
+   "strip_sheet": 1,
+   "label": "Trasera 8",
+   "hv_group_sheet": 3
+  },
+  {
+   "dig_ch": 34,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 2,
+   "face": "Delantera",
+   "face_connector_ch": 7,
+   "hv_group": 8,
+   "hv_ch": 7,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 1,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 8",
+   "strip_sheet": 2,
+   "label": "Delantera 7",
+   "hv_group_sheet": 1
+  },
+  {
+   "dig_ch": 35,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 3,
+   "face": "Trasera",
+   "face_connector_ch": 7,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 2,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
+   "strip_sheet": 3,
+   "label": "Trasera 7",
+   "hv_group_sheet": 2
+  },
+  {
+   "dig_ch": 36,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 4,
+   "face": "Delantera",
+   "face_connector_ch": 6,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 6,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 6",
+   "strip_sheet": 4,
+   "label": "Delantera 6",
+   "hv_group_sheet": 6
+  },
+  {
+   "dig_ch": 37,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 5,
+   "face": "Trasera",
+   "face_connector_ch": 6,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 1,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 1",
+   "strip_sheet": 5,
+   "label": "Trasera 6",
+   "hv_group_sheet": 1
+  },
+  {
+   "dig_ch": 38,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 6,
+   "face": "Delantera",
+   "face_connector_ch": 5,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 3,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+   "strip_sheet": 6,
+   "label": "Delantera 5",
+   "hv_group_sheet": 3
+  },
+  {
+   "dig_ch": 39,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 7,
+   "face": "Trasera",
+   "face_connector_ch": 5,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 2,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
+   "strip_sheet": 7,
+   "label": "Trasera 5",
+   "hv_group_sheet": 2
+  },
+  {
+   "dig_ch": 40,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 8,
+   "face": "Delantera",
+   "face_connector_ch": 4,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 5,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
+   "strip_sheet": 8,
+   "label": "Delantera 4",
+   "hv_group_sheet": 5
+  },
+  {
+   "dig_ch": 41,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 9,
+   "face": "Trasera",
+   "face_connector_ch": 4,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 2,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+   "strip_sheet": 9,
+   "label": "Trasera 4",
+   "hv_group_sheet": 2
+  },
+  {
+   "dig_ch": 42,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 10,
+   "face": "Delantera",
+   "face_connector_ch": 3,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 2,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+   "strip_sheet": 10,
+   "label": "Delantera 3",
+   "hv_group_sheet": 2
+  },
+  {
+   "dig_ch": 43,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 11,
+   "face": "Trasera",
+   "face_connector_ch": 3,
+   "hv_group": 8,
+   "hv_ch": 7,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 1,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 8",
+   "strip_sheet": 11,
+   "label": "Trasera 3",
+   "hv_group_sheet": 1
+  },
+  {
+   "dig_ch": 44,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 12,
+   "face": "Delantera",
+   "face_connector_ch": 2,
+   "hv_group": 4,
+   "hv_ch": 3,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 7,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 4",
+   "strip_sheet": 12,
+   "label": "Delantera 2",
+   "hv_group_sheet": 7
+  },
+  {
+   "dig_ch": 45,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 13,
+   "face": "Trasera",
+   "face_connector_ch": 2,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 6,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+   "strip_sheet": 13,
+   "label": "Trasera 2",
+   "hv_group_sheet": 6
+  },
+  {
+   "dig_ch": 46,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 14,
+   "face": "Delantera",
+   "face_connector_ch": 1,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 7,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_candidate": {
+    "hv_group": 6,
+    "p_drop": 0.0732,
+    "note": "estadística insuficiente en la prueba de grupos (μ < 10 cuentas por paso)"
+   },
+   "strip_sheet": 14,
+   "label": "Delantera 1",
+   "hv_group_sheet": 7
+  },
+  {
+   "dig_ch": 47,
+   "station": "hod2019",
+   "plane": "X",
+   "strip": 15,
+   "face": "Trasera",
+   "face_connector_ch": 1,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 2,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
+   "strip_sheet": 15,
+   "label": "Trasera 1",
+   "hv_group_sheet": 2
+  },
+  {
+   "dig_ch": 48,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 0,
+   "face": "Opuesta",
+   "face_connector_ch": 8,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "measurement"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); ch48 (Opuesta 8, grupo 6) confirmado por HV-DIAG-5; r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 6,
+    "confirmed": "measurement",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
+   "strip_sheet": 0,
+   "label": "Opuesta 8",
+   "hv_group_sheet": 6
+  },
+  {
+   "dig_ch": 49,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 1,
+   "face": "Frontal",
+   "face_connector_ch": 8,
+   "hv_group": 7,
+   "hv_ch": 6,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 3,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 7",
+   "strip_sheet": 1,
+   "label": "Frontal 8",
+   "hv_group_sheet": 3
+  },
+  {
+   "dig_ch": 50,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 2,
+   "face": "Opuesta",
+   "face_connector_ch": 7,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 4,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_note": "no baja de razón 0.67 en ningún paso: cuentas sobre 1.5 mV dominadas por ruido que no depende de la HV",
+   "strip_sheet": 2,
+   "label": "Opuesta 7",
+   "hv_group_sheet": 4
+  },
+  {
+   "dig_ch": 51,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 3,
+   "face": "Frontal",
+   "face_connector_ch": 7,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 2,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_note": "sin pulsos sobre 1.5 mV en la referencia (canal oscuro o muerto): sin medida",
+   "strip_sheet": 3,
+   "label": "Frontal 7",
+   "hv_group_sheet": 2
+  },
+  {
+   "dig_ch": 52,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 4,
+   "face": "Opuesta",
+   "face_connector_ch": 6,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 5,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_note": "no baja de razón 0.67 en ningún paso: cuentas sobre 1.5 mV dominadas por ruido que no depende de la HV",
+   "strip_sheet": 4,
+   "label": "Opuesta 6",
+   "hv_group_sheet": 5
+  },
+  {
+   "dig_ch": 53,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 5,
+   "face": "Frontal",
+   "face_connector_ch": 6,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 1,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
+   "strip_sheet": 5,
+   "label": "Frontal 6",
+   "hv_group_sheet": 1
+  },
+  {
+   "dig_ch": 54,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 6,
+   "face": "Opuesta",
+   "face_connector_ch": 5,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 7,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
+   "strip_sheet": 6,
+   "label": "Opuesta 5",
+   "hv_group_sheet": 7
+  },
+  {
+   "dig_ch": 55,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 7,
+   "face": "Frontal",
+   "face_connector_ch": 5,
+   "hv_group": 5,
+   "hv_ch": 4,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 7,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 5",
+   "strip_sheet": 7,
+   "label": "Frontal 5",
+   "hv_group_sheet": 7
+  },
+  {
+   "dig_ch": 56,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 8,
+   "face": "Opuesta",
+   "face_connector_ch": 4,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 8,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
+   "strip_sheet": 8,
+   "label": "Opuesta 4",
+   "hv_group_sheet": 8
+  },
+  {
+   "dig_ch": 57,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 9,
+   "face": "Frontal",
+   "face_connector_ch": 4,
+   "hv_group": 3,
+   "hv_ch": 2,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 1,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 3",
+   "strip_sheet": 9,
+   "label": "Frontal 4",
+   "hv_group_sheet": 1
+  },
+  {
+   "dig_ch": 58,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 10,
+   "face": "Opuesta",
+   "face_connector_ch": 3,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 6,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_candidate": {
+    "hv_group": 1,
+    "p_drop": 0.00394,
+    "note": "estadística insuficiente en la prueba de grupos (μ < 10 cuentas por paso)"
+   },
+   "strip_sheet": 10,
+   "label": "Opuesta 3",
+   "hv_group_sheet": 6
+  },
+  {
+   "dig_ch": 59,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 11,
+   "face": "Frontal",
+   "face_connector_ch": 3,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 8,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_candidate": {
+    "hv_group": 6,
+    "p_drop": 0.000392,
+    "note": "estadística insuficiente en la prueba de grupos (μ < 10 cuentas por paso)"
+   },
+   "strip_sheet": 11,
+   "label": "Frontal 3",
+   "hv_group_sheet": 8
+  },
+  {
+   "dig_ch": 60,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 12,
+   "face": "Opuesta",
+   "face_connector_ch": 2,
+   "hv_group": null,
+   "hv_ch": null,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "unknown",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 8,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_candidate": {
+    "hv_group": 4,
+    "p_drop": 0.000243,
+    "note": "estadística insuficiente en la prueba de grupos (μ < 10 cuentas por paso)"
+   },
+   "strip_sheet": 12,
+   "label": "Opuesta 2",
+   "hv_group_sheet": 8
+  },
+  {
+   "dig_ch": 61,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 13,
+   "face": "Frontal",
+   "face_connector_ch": 2,
+   "hv_group": 1,
+   "hv_ch": 0,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 4,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 1",
+   "strip_sheet": 13,
+   "label": "Frontal 2",
+   "hv_group_sheet": 4
+  },
+  {
+   "dig_ch": 62,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 14,
+   "face": "Opuesta",
+   "face_connector_ch": 1,
+   "hv_group": 2,
+   "hv_ch": 1,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 7,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 2",
+   "strip_sheet": 14,
+   "label": "Opuesta 1",
+   "hv_group_sheet": 7
+  },
+  {
+   "dig_ch": 63,
+   "station": "hod2019",
+   "plane": "Y",
+   "strip": 15,
+   "face": "Frontal",
+   "face_connector_ch": 1,
+   "hv_group": 6,
+   "hv_ch": 5,
+   "confirmed": {
+    "strip": "cabling_record",
+    "hv_group": "measurement",
+    "face": "derived"
+   },
+   "source": "kCfg_2026_10; grupo y cara derivados de la tabla por etiquetas (handoff, sección 5); r2: grupo HV de la prueba de grupos de DAQ2-10",
+   "hv_group_previous": {
+    "hv_group": 7,
+    "confirmed": "derived",
+    "version": "2026_10-r1"
+   },
+   "hv_group_measurement": "DAQ2-10 2026-10-21: cae con el grupo apagado (razón < 0.1, p < 1e-6) solo en el paso del grupo 6",
+   "strip_sheet": 15,
+   "label": "Frontal 1",
+   "hv_group_sheet": 7
+  }
+ ],
+ "hv_groups_by_label": {
+  "1": {
+   "hod2018_X": [
+    13
+   ],
+   "hod2018_Y": [
+    11,
+    15
+   ],
+   "hod2019": [
+    "Delantera 7",
+    "Frontal 4",
+    "Frontal 6",
+    "Trasera 3",
+    "Trasera 6"
+   ]
+  },
+  "2": {
+   "hod2018_X": [
+    7
+   ],
+   "hod2018_Y": [
+    7
+   ],
+   "hod2019": [
+    "Delantera 3",
+    "Frontal 7",
+    "Trasera 1",
+    "Trasera 4",
+    "Trasera 5",
+    "Trasera 7"
+   ]
+  },
+  "3": {
+   "hod2018_X": [
+    3,
+    12,
+    14
+   ],
+   "hod2018_Y": [
+    5,
+    10
+   ],
+   "hod2019": [
+    "Delantera 5",
+    "Frontal 8",
+    "Trasera 8"
+   ]
+  },
+  "4": {
+   "hod2018_X": [
+    1
+   ],
+   "hod2018_Y": [
+    2,
+    4,
+    8,
+    12,
+    13
+   ],
+   "hod2019": [
+    "Frontal 2",
+    "Opuesta 7"
+   ]
+  },
+  "5": {
+   "hod2018_X": [
+    4,
+    5,
+    6,
+    8,
+    9
+   ],
+   "hod2018_Y": [
+    6
+   ],
+   "hod2019": [
+    "Delantera 4",
+    "Opuesta 6"
+   ]
+  },
+  "6": {
+   "hod2018_X": [
+    0,
+    2
+   ],
+   "hod2018_Y": [
+    1
+   ],
+   "hod2019": [
+    "Delantera 6",
+    "Delantera 8",
+    "Opuesta 3",
+    "Opuesta 8",
+    "Trasera 2"
+   ]
+  },
+  "7": {
+   "hod2018_X": [
+    10,
+    11
+   ],
+   "hod2018_Y": [],
+   "hod2019": [
+    "Delantera 1",
+    "Delantera 2",
+    "Frontal 1",
+    "Frontal 5",
+    "Opuesta 1",
+    "Opuesta 5"
+   ]
+  },
+  "8": {
+   "hod2018_X": [
+    15
+   ],
+   "hod2018_Y": [
+    0,
+    3,
+    9,
+    14
+   ],
+   "hod2019": [
+    "Frontal 3",
+    "Opuesta 2",
+    "Opuesta 4"
+   ]
+  }
+ },
+ "known_discrepancies": [
+  "En mayo el grupo 6 contenía ch1, ch16 y ch17 de hod2018 (y ch3, muerto, deducido), con dos MPPC del plano Y; la planilla le asigna un solo MPPC Y (Canal 1). Con las 5 entradas de hod2019, el grupo 6 tendría 9 MPPC.",
+  "r2: 43 de los 52 canales medidos tienen un grupo distinto del de r1 (casi todo hod2019, donde r1 derivaba de la planilla de mayo con los planos intercambiados): la regla etiqueta -> tira de hod2019 usada en r1 no se cumple, así que las caras (face, derived) tampoco están confirmadas.",
+  "r2: el grupo 6 sigue con dos canales Y de hod2018 (ch16 y ch18) más ch1 X; la planilla le asigna 2 X y 1 Y.",
+  "r2: los totales por grupo y estación coinciden con hv_groups_by_label salvo en los grupos 4 (2 X medidos frente a 1 en la planilla) y 5/6 por los canales sin medida."
+ ],
+ "previous_version": "2026_10-r2",
+ "light_units": {
+  "hod2019 expuestos a la luz": [
+   33,
+   35,
+   36,
+   37,
+   39,
+   43,
+   47,
+   49,
+   53,
+   55,
+   57,
+   61,
+   63
+  ]
+ },
+ "light_units_provenance": "measurement (DAQ2-11): canales de hod2019 cuya tasa fuera de tiempo sobre 3 mV subió con razón > 2 y P(N >= n) < 1e-6 frente a la noche del 2026-10-19 (23:00-08:00Z) en los dos episodios de luz de la tarde: 2026-10-19 18:18-19:08Z (commissioning_2026_10 runs 7-8) y 2026-10-20 17:17-17:47Z (phase5_test_2026_10_20). Solo en el segundo: 17, 32, 40, 44, 45, 48."
+}

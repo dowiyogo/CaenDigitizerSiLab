@@ -104,6 +104,13 @@ nlohmann::json dashJson(const DashInputs& in) {
       }
     }
   j["faces"] = faces;
+  nlohmann::json nbr = nlohmann::json::array();
+  const char* pn[4] = {"hod2018 X", "hod2018 Y", "hod2019 X", "hod2019 Y"};
+  for (std::size_t q = 0; q < 4; ++q) {
+    auto f = [](double x) { return x >= 0 ? nlohmann::json(x) : nlohmann::json(); };
+    nbr.push_back({{"plane", pn[q]}, {"measured", f(in.neighbourFrac[0][q])}, {"sheet", f(in.neighbourFrac[1][q])}, {"pairs", in.neighbourPairs[q]}});
+  }
+  j["neighbours"] = nbr;
   j["groups"] = groups;
   j["alerts"] = alerts;
   return j;

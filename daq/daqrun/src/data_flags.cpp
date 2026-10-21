@@ -95,10 +95,20 @@ DataFlagEngine::DataFlagEngine(const DataFlagConfig& cfg, const hvmon::Mapping& 
     if (!e.face.empty()) faces[e.station + " " + e.face].push_back(e.digCh);
     if (e.hvGroup) groups[*e.hvGroup].push_back(e.digCh);
   }
-  for (auto& [name, chs] : faces) {
-    Unit u;
-    u.st = UnitStatus{"face:" + name, name, "face", chs};
-    faces_.push_back(u);
+  // r3 (DAQ2-11): unidades empíricas de fuga de luz del mapeo (canales que subieron con la luz de la
+  // tarde) en lugar de las caras de hod2019, que no están confirmadas. Sin ellas, las caras.
+  if (!mapping.lightUnits.empty()) {
+    for (const auto& [name, chs] : mapping.lightUnits) {
+      Unit u;
+      u.st = UnitStatus{"light:" + name, name, "face", chs};
+      faces_.push_back(u);
+    }
+  } else {
+    for (auto& [name, chs] : faces) {
+      Unit u;
+      u.st = UnitStatus{"face:" + name, name, "face", chs};
+      faces_.push_back(u);
+    }
   }
   for (auto& [g, chs] : groups) {
     Unit u;

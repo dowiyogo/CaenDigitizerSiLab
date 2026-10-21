@@ -17,7 +17,7 @@ for b in apps/hvmon/hvmon apps/hvctl/hvctl apps/sctool/sctool apps/daqrun/daqrun
   install -m 0755 "$src" "$dst.new"   # copia nueva y rename: el proceso en marcha conserva su inodo
   mv -f "$dst.new" "$dst"
 done
-install -m 0644 "$repo/daq/config/mapping/hodo_mapping_2026_10.json" "$repo/daq/config/mapping/hodo_mapping_2026_10_r2.json" "$prefix/share/mapping/"
+install -m 0644 "$repo"/daq/config/mapping/hodo_mapping_2026_10*.json "$prefix/share/mapping/"
 mkdir -p "$prefix/share/calibration"
 install -m 0644 "$repo"/daq/config/calibration/*.json "$prefix/share/calibration/"
 git -C "$repo" rev-parse HEAD > "$prefix/INSTALLED_COMMIT"

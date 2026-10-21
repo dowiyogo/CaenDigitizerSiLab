@@ -218,6 +218,17 @@ TEST(Notifier, DaqrunMailsAreSignedByDaqrunAndPointToItsDashboard) {
   EXPECT_EQ(b.find("8081"), std::string::npos);
 }
 
+TEST(Notifier, MaxMessagesPerDayResetsAtUtcMidnight) {
+  NRig r({{"enabled", true}, {"max_messages_per_day", 2}});
+  EXPECT_TRUE(r.n->submit(gaveUp(0, 1)));
+  EXPECT_TRUE(r.n->submit(gaveUp(1, 1)));
+  EXPECT_FALSE(r.n->submit(gaveUp(2, 1)));  // tercero del día
+  r.clock.advance(std::chrono::hours(24));
+  EXPECT_TRUE(r.n->submit(gaveUp(3, 1)));  // día nuevo
+  r.n->processDue();
+  EXPECT_EQ(r.spawner.calls.size(), 3u);
+}
+
 TEST(Notifier, OnlyKindsFiltersByKind) {
   NRig r({{"enabled", true}, {"notify_each_trip", true}, {"only_kinds", {"light_leak", "no_triggers"}}});
   auto trip = gaveUp(0, 1);

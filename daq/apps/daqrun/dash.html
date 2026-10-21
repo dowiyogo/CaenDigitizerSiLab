@@ -27,7 +27,10 @@
 <table id="main"><tr><td>cargando…</td></tr></table>
 <h2>Estaciones (últimos 10 min)</h2>
 <table id="st"></table>
-<h2>Caras físicas (bit 7, fuga de luz)</h2>
+<h2>Orden de las tiras (fracción de coincidencias entre vecinas)</h2>
+<table id="nbr"></table>
+<div class="mut">Con el orden correcto la mayoría de los pares de tiras encendidas juntas son vecinas.</div>
+<h2>Unidades de luz (bit 7, fuga de luz)</h2>
 <table id="faces"></table>
 <h2>Grupos HV (bit 6 e IMon)</h2>
 <table id="groups"></table>
@@ -71,6 +74,8 @@ function render(d) {
   document.getElementById("groups").innerHTML = `<tr><th>grupo</th><th style="text-align:right">vivos</th><th style="text-align:right">IMon µA</th><th style="text-align:right">base µA</th><th style="text-align:right">datos</th><th style="text-align:right">IMon</th></tr>` +
     (d.groups || []).map(g => `<tr><th>${esc(g.name)}</th><td>${g.live}/${g.channels}</td><td>${typeof g.imon_A === "number" ? (g.imon_A * 1e6).toFixed(3) : "–"}</td>` +
       `<td>${typeof g.imon_baseline_A === "number" ? (g.imon_baseline_A * 1e6).toFixed(3) : "–"}</td><td>${warn(g.blackout, g.decided)}</td><td>${g.imon_warning ? '<span class="bad">AVISO</span>' : "ok"}</td></tr>`).join("");
+  document.getElementById("nbr").innerHTML = `<tr><th>plano</th><th style="text-align:right">medido (r3)</th><th style="text-align:right">hoja de octubre</th><th style="text-align:right">pares</th></tr>` +
+    (d.neighbours || []).map(n => `<tr><th>${esc(n.plane)}</th><td>${num(n.measured, 3)}</td><td>${num(n.sheet, 3)}</td><td>${num(n.pairs, 0)}</td></tr>`).join("");
   document.getElementById("alerts").innerHTML = (d.alerts || []).map(a => `<div>${esc(a)}</div>`).join("");
 }
 async function tick() {

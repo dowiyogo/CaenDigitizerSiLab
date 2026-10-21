@@ -145,6 +145,7 @@ Result<NotifierConfig> NotifierConfig::fromJson(const nlohmann::json& j) {
     c.connectionLostMin = j.value("connection_lost_min", c.connectionLostMin);
     c.problemIntervalMin = j.value("problem_interval_min", c.problemIntervalMin);
     c.maxMessages = j.value("max_messages", c.maxMessages);
+    c.maxMessagesPerDay = j.value("max_messages_per_day", c.maxMessagesPerDay);
     c.onlyKinds = j.value("only_kinds", c.onlyKinds);
     c.retryDelaysMin = j.value("retry_delays_min", c.retryDelaysMin);
     c.curlPath = j.value("curl", c.curlPath);
@@ -174,7 +175,7 @@ nlohmann::json NotifierConfig::toJson() const {
                         {"mapping_file", mappingFile}, {"local_timezone", localTimezone},
                         {"page_ssh_user", pageSshUser}, {"page_ssh_host", pageSshHost},
                         {"retry_hourly_min", retryHourlyMin}, {"max_age_h", maxAgeH}, {"outbox_dir", outboxDir},
-                        {"max_messages", maxMessages}, {"only_kinds", onlyKinds}};
+                        {"max_messages", maxMessages}, {"max_messages_per_day", maxMessagesPerDay}, {"only_kinds", onlyKinds}};
 }
 
 Result<SmtpSettings> SmtpSettings::fromSecrets(Secrets& s) {
@@ -469,6 +470,13 @@ bool Notifier::submit(NotifyEvent e) {
     if (e.kind == "connection_lost" && !cfg_.notifyConnectionLost) return drop("notify_connection_lost = false");
     if (!cfg_.onlyKinds.empty() && std::find(cfg_.onlyKinds.begin(), cfg_.onlyKinds.end(), e.kind) == cfg_.onlyKinds.end())
       return drop("tipo " + e.kind + " fuera de only_kinds");
+    const std::int64_t day = clock_.now_utc_ns() / (86400LL * 1000000000LL);
+    if (day != dayIndex_) {
+      dayIndex_ = day;
+      acceptedToday_ = 0;
+    }
+    if (cfg_.maxMessagesPerDay > 0 && acceptedToday_ >= cfg_.maxMessagesPerDay)
+      return drop("tope de max_messages_per_day = " + std::to_string(cfg_.maxMessagesPerDay) + " alcanzado hoy (UTC)");
     if (cfg_.maxMessages > 0 && accepted_ >= static_cast<std::uint64_t>(cfg_.maxMessages))
       return drop("tope de max_messages = " + std::to_string(cfg_.maxMessages) + " alcanzado");
     if (e.kind == "trip" || e.kind == "recovery" || e.kind == "gave_up" || e.kind == "light_leak" || e.kind == "data_blackout" ||
@@ -488,7 +496,10 @@ bool Notifier::submit(NotifyEvent e) {
       lastProblem_[e.kind] = now;
     }
   }
-  if (!e.test) ++accepted_;
+  if (!e.test) {
+    ++accepted_;
+    ++acceptedToday_;
+  }
   ++seq_;
   Pending p;
   p.ev = std::move(e);
