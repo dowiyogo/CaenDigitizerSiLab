@@ -90,3 +90,17 @@ TEST(TriggerMode, RateHighAlertOncePerEpisode) {
   EXPECT_FALSE(w.tickHigh(t, std::nullopt));
   EXPECT_TRUE(w.highAlerted());
 }
+
+TEST(TriggerMode, SinglePairSignatureIsDistinct) {
+  auto a = selfCfg();
+  a["trigger"]["self"]["groups"] = {0, 2};
+  a["trigger"]["self"]["threshold_adc"] = {2000, 2000, 2010, 2000, 0, 0, 0, 0};
+  auto b = a;
+  b["trigger"]["self"]["groups"] = {1, 3};
+  auto da = dig::DigitizerConfig::fromJson(a).value(), db = dig::DigitizerConfig::fromJson(b).value();
+  EXPECT_EQ(da.self.groupMask, 0x5u);
+  EXPECT_EQ(da.self.majorityLevel(), 1);
+  EXPECT_NE(da.triggerSignature(), db.triggerSignature());
+  EXPECT_NE(da.triggerSignature().find("groups=0+2 majority=2"), std::string::npos) << da.triggerSignature();
+  EXPECT_EQ(dig::DigitizerConfig::fromJson({{"backend", "fake"}}).value().triggerSignature(), "external");
+}

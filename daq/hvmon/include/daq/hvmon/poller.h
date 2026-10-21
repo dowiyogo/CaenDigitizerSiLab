@@ -11,6 +11,11 @@
 //   o con un trip); escritura; verificación en las lecturas rápidas siguientes hasta un timeout
 //   V0Set/RUp (o V0Set/RDWn) + margen; registro de cada fase en el archivo de cambios. Un comando
 //   a la vez; si la petición viene de hvmon mismo (internal), además ningún canal en rampa.
+// - Barrido de tensión (DAQ2-14, bias_scan.h): bias-begin registra el nominal; v0set escribe V0Set
+//   con los límites de BiasSession (relectura previa, verificación de la rampa por V0Set releído y
+//   VMon − V0Set − desvío ≤ 0.05 V, aborto si hay trip o Status inesperado); bias-restore lleva todos
+//   los canales al nominal en escalones de ≤ 0.5 V y Pw = 1, y cierra la sesión. La sesión se persiste:
+//   si hvmon arranca con una sesión activa, restaura el nominal solo.
 // - measure-offsets: promedia IMon y VMon de los canales con Pw = 0 durante N s de lecturas
 //   rápidas; rechaza los canales con Pw = 1.
 // step() hace una iteración y duerme hasta el próximo vencimiento (máximo 200 ms): con un
@@ -20,6 +25,8 @@
 #pragma once
 
 #include <deque>
+#include <map>
+#include <set>
 #include <future>
 #include <memory>
 #include <optional>
@@ -31,6 +38,7 @@
 #include "daq/core/bounded_queue.h"
 #include "daq/core/clock.h"
 #include "daq/hv/hv_backend.h"
+#include "daq/hvmon/bias_scan.h"
 #include "daq/hvmon/change_detector.h"
 #include "daq/core/file_system.h"
 #include "daq/hvmon/config.h"
@@ -42,7 +50,7 @@
 namespace daq::hvmon {
 
 struct PollRequest {
-  enum class Kind { Pw, Offsets };
+  enum class Kind { Pw, Offsets, BiasBegin, V0Set, BiasRestore, BiasStatus };
   Kind kind = Kind::Pw;
   int ch = -1;
   bool on = false;
@@ -53,6 +61,8 @@ struct PollRequest {
   std::vector<int> channels;      // offsets (vacío = todos)
   std::uint64_t retryToken = 0;   // != 0: escritura pedida por la máquina de reintento
   bool clearAlarmFirst = false;   // ClrAlarm de la placa antes de Pw = 1 (clear_alarm_before_retry)
+  double value = 0;               // V0Set pedido (V)
+  std::map<int, double> expected; // bias-begin: V0Set nominal esperado por canal
   std::shared_ptr<std::promise<nlohmann::json>> reply = std::make_shared<std::promise<nlohmann::json>>();
 };
 
@@ -70,6 +80,9 @@ class Poller {
   void enableRetryPersistence(FileSystem& fs);
   void setNotifyQueue(BoundedQueue<NotifyEvent>* q) { notifyQ_ = q; }
   const RetryMachine& retry() const { return retry_; }
+  // DAQ2-14: persistencia de la sesión de barrido (si estaba activa, restaura el nominal al conectar).
+  void enableBiasPersistence(FileSystem& fs, const std::string& path);
+  const BiasSession& bias() const { return bias_; }
 
   // Para tests.
   const ReadStats& stats() const { return stats_; }
@@ -85,6 +98,9 @@ class Poller {
     std::string reason, requester;
     std::shared_ptr<std::promise<nlohmann::json>> reply;
     std::uint64_t retryToken = 0;
+    bool v0set = false;   // DAQ2-14: escritura de V0Set (target)
+    bool offWrite = false;  // V0Set nominal con el canal apagado (restauración tras un trip): sin rampa
+    double target = 0;
   };
   struct ActiveOffsets {
     std::vector<int> channels;
@@ -105,6 +121,11 @@ class Poller {
   void fullRead(SteadyTime now);
   void handleRequest(PollRequest& r, SteadyTime now);
   void handlePw(PollRequest& r, SteadyTime now);
+  void handleBiasBegin(PollRequest& r);
+  void handleV0Set(PollRequest& r, SteadyTime now);
+  void handleBiasRestore(PollRequest& r, SteadyTime now);
+  void advanceRestore(SteadyTime now);
+  void persistBias();
   void handleOffsets(PollRequest& r, SteadyTime now);
   void verifyCommand(const hv::ChannelReading& r, SteadyTime now);
   void accumulateOffsets(const hv::ChannelReading& r, SteadyTime now);
@@ -154,6 +175,15 @@ class Poller {
   std::map<int, std::pair<WindowStats, WindowStats>> window_;  // canal -> (VMon, IMon), 600 s
   FileSystem* fs_ = nullptr;
   BoundedQueue<NotifyEvent>* notifyQ_ = nullptr;
+  BiasSession bias_;
+  std::string biasPath_;
+  // Restauración en curso: escalones pendientes (canal, V0Set; V0Set < 0 = Pw on) y quien la pidió.
+  std::deque<std::pair<int, double>> restoreSteps_;
+  bool restoring_ = false, restoreFailed_ = false, autoRestorePending_ = false;
+  std::string restoreReason_, restoreDetail_;
+  std::shared_ptr<std::promise<nlohmann::json>> restoreReply_;
+  std::optional<std::shared_future<nlohmann::json>> restoreFut_;
+  std::set<int> restorePwTried_;  // verificación del escalón en curso
 };
 
 }  // namespace daq::hvmon

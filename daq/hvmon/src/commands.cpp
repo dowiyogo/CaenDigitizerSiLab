@@ -39,7 +39,8 @@ bool CommandHandler::isLong(const std::string& line) {
   try {
     const auto j = nlohmann::json::parse(line);
     const std::string cmd = j.value("cmd", "");
-    return cmd == "pw" || cmd == "measure-offsets" || cmd == "notify-test";
+    return cmd == "pw" || cmd == "measure-offsets" || cmd == "notify-test" || cmd == "bias-begin" || cmd == "v0set" ||
+           cmd == "bias-restore" || cmd == "notify-summary";
   } catch (...) {
     return false;
   }
@@ -148,6 +149,45 @@ nlohmann::json CommandHandler::dispatch(const nlohmann::json& req, const PeerCre
     r.requester = describePeer(peer);
     // El rechazo con allow_commands = false lo hace (y lo registra) el hilo de sondeo.
     return forward(std::move(r), 3600.0);
+  }
+  if (cmd == "bias-begin" || cmd == "v0set" || cmd == "bias-restore" || cmd == "bias-status") {
+    PollRequest r;
+    r.requester = describePeer(peer);
+    r.reason = req.value("authorize", "");
+    if (cmd != "bias-status" && r.reason.empty()) return error(cmd + ": falta \"authorize\" (motivo de la escritura)");
+    if (cmd == "bias-begin") {
+      r.kind = PollRequest::Kind::BiasBegin;
+      if (!req.contains("expected") || !req["expected"].is_object()) return error("bias-begin: falta \"expected\" {canal: V0Set}");
+      for (const auto& [k, v] : req["expected"].items()) r.expected[std::stoi(k)] = v.get<double>();
+    } else if (cmd == "v0set") {
+      r.kind = PollRequest::Kind::V0Set;
+      if (!req.contains("ch") || !req["ch"].is_number_integer()) return error("v0set: falta \"ch\"");
+      if (!req.contains("value") || !req["value"].is_number()) return error("v0set: falta \"value\" (V)");
+      r.ch = req["ch"].get<int>();
+      r.value = req["value"].get<double>();
+    } else if (cmd == "bias-restore") {
+      r.kind = PollRequest::Kind::BiasRestore;
+    } else {
+      r.kind = PollRequest::Kind::BiasStatus;
+    }
+    return forward(std::move(r), 3600.0);
+  }
+  if (cmd == "notify-summary") {
+    // DAQ2-14: correo de resumen (p. ej. del barrido de tensión) con el texto pedido; cuenta en los límites del notificador.
+    if (!notifyQ_) return error("notificador no disponible en este hvmon");
+    if (!req.contains("text") || !req["text"].is_string()) return error("notify-summary: falta \"text\"");
+    NotifyEvent e;
+    e.kind = req.value("kind", std::string("summary"));
+    e.ch = -1;
+    e.slot = cfg_.slot;
+    e.reason = req["text"].get<std::string>();
+    e.origin = req.value("origin", describePeer(peer));
+    e.tUtcNs = clock_.now_utc_ns();
+    e.reply = std::make_shared<std::promise<nlohmann::json>>();
+    auto fut = e.reply->get_future();
+    if (!notifyQ_->try_push(std::move(e), DropPolicy::DropNewest)) return error("cola del notificador llena");
+    if (fut.wait_for(std::chrono::seconds(180)) != std::future_status::ready) return error("sin respuesta del notificador en 180 s");
+    return fut.get();
   }
   if (cmd == "notify-test") {
     if (!notifyQ_) return error("notificador no disponible en este hvmon");

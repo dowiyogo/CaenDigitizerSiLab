@@ -3,6 +3,8 @@
 
 #include <time.h>
 
+#include <cstdio>
+
 namespace daq::dig {
 
 std::int64_t monotonicNowNs() {
@@ -132,6 +134,22 @@ Result<DigitizerConfig> DigitizerConfig::fromJson(const nlohmann::json& j) {
   if (c.backend != "fake" && c.backend != "replay" && c.backend != "caen")
     return R::failure(-1, "digitizer.backend = " + c.backend + ": debe ser fake, replay o caen");
   return c;
+}
+
+std::string DigitizerConfig::triggerSignature() const {
+  if (!self.enabled) return softwareTrigger ? (externalTrigger ? "software+external" : "software") : "external";
+  std::string g, thr, m;
+  for (int i = 0; i < kGroups; ++i)
+    if ((self.groupMask >> i) & 1u) {
+      g += (g.empty() ? "" : "+") + std::to_string(i);
+      if (static_cast<int>(self.thresholdAdc.size()) == kGroups)
+        thr += (thr.empty() ? "" : ",") + std::string("G") + std::to_string(i) + ":" + std::to_string(self.thresholdAdc[static_cast<std::size_t>(i)]);
+    }
+  for (int c : self.maskedChannels) m += (m.empty() ? "" : ",") + std::to_string(c);
+  char pe[32] = "";
+  if (!self.thresholdPe.empty()) std::snprintf(pe, sizeof pe, " T=%gpe", self.thresholdPe.front());
+  return "self_hod2018 groups=" + g + " majority=" + std::to_string(self.majorityGroups) + " window_clk=" + std::to_string(self.windowClk) +
+         pe + " thr_adc=" + thr + " masked=" + (m.empty() ? "-" : m) + (self.includeExternal ? " +external" : "");
 }
 
 nlohmann::json DigitizerConfig::toJson() const {

@@ -1,7 +1,8 @@
 // caen_hv_backend.cpp
 // Implementación sobre la Wrapper: InitSystem, DeinitSystem, GetCrateMap, GetChParamInfo,
 // GetChParamProp, GetChParam, GetBd*, GetError, Free, CAENHVLibSwRel y dos escrituras:
-// CAENHV_SetChParam("Pw") en setChannelPw() y CAENHV_SetBdParam("ClrAlarm") en clearBoardAlarm().
+// CAENHV_SetChParam("Pw") en setChannelPw(), CAENHV_SetChParam("V0Set") en setChannelV0Set() (DAQ2-14)
+// y CAENHV_SetBdParam("ClrAlarm") en clearBoardAlarm().
 #include "daq/hv/caen_hv_backend.h"
 
 #include <array>
@@ -363,7 +364,18 @@ Status CaenHVBackend::setChannelPw(int slot, int channel, bool on) {
   return okStatus();
 }
 
-// Segunda (y última) escritura del código base: ClrAlarm de la placa.
+// Tercera escritura (DAQ2-14): V0Set de un canal, en V (unidad de la placa). Solo la usa la sesión de
+// barrido de tensión de hvmon, que aplica los límites y verifica la rampa.
+Status CaenHVBackend::setChannelV0Set(int slot, int channel, double volts) {
+  if (!isConnected()) return Status::failure(-1, "no conectado");
+  unsigned short ch = static_cast<unsigned short>(channel);
+  float value = static_cast<float>(volts);
+  const CAENHVRESULT r = CAENHV_SetChParam(handle_, static_cast<unsigned short>(slot), "V0Set", 1, &ch, &value);
+  if (r != CAENHV_OK) return Status(wrapperError(r, "SetChParam(V0Set)"));
+  return okStatus();
+}
+
+// Escritura de ClrAlarm de la placa.
 Status CaenHVBackend::clearBoardAlarm(int slot) {
   if (!isConnected()) return Status::failure(-1, "no conectado");
   unsigned short s = static_cast<unsigned short>(slot);

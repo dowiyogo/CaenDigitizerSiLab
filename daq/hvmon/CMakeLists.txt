@@ -11,6 +11,7 @@ add_library(daq_hvmon
   src/retry.cpp
   src/notifier.cpp
   src/mapping.cpp
-  src/compressor.cpp)
+  src/compressor.cpp
+  src/bias_scan.cpp)
 target_include_directories(daq_hvmon PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(daq_hvmon PUBLIC daq_hv_common daq_temp daq_core PRIVATE daq_warnings)

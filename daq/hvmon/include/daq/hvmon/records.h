@@ -41,6 +41,7 @@ struct CommandRecord {
   int ch = 0;
   std::string param = "Pw";
   int value = 0;
+  double valueV = 0;      // V0Set pedido (param = "V0Set", DAQ2-14)
   std::string phase;      // request, rejected, aborted, noop, written, write_failed, verified, verify_failed
   std::string reason;     // texto de --authorize
   std::string requester;  // uid/pid del cliente o "hvmon"

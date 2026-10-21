@@ -1,6 +1,6 @@
 // selftrig_noise.C — DAQ2-13, parte A.2 (solo lectura). Tasa de pulsos oscuros de hod2018 contra el umbral,
 // desde runs de SW trigger con registro completo (el SW trigger muestrea al azar: todo el registro sirve).
-//  - Por canal 0-31: espectro de amplitud (línea base recortada de [0,40) − mínimo del pulso, buscador del
+//  - Por canal 0-31 (o 0-63 con nch = 64, DAQ2-14): espectro de amplitud (línea base recortada de [0,40) − mínimo del pulso, buscador del
 //    DAQ, separación 4, piso 1.0 mV) en todo el registro, bins de 0.25 mV hasta 200 mV (último = desborde).
 //  - Exposición por canal = eventos usados × muestras × 16 ns.
 //  - Con jsonl (controlador de la prueba de grupos): solo eventos dentro de ventanas; en las ventanas "off"
@@ -29,7 +29,7 @@ struct Win {
 };
 }  // namespace
 
-void selftrig_noise(const char* pattern, const char* jsonl, const char* mappingJson, const char* out) {
+void selftrig_noise(const char* pattern, const char* jsonl, const char* mappingJson, const char* out, int nch = 32) {
   std::vector<int> hvGroup(64, 0);
   {
     std::ifstream in(mappingJson);
@@ -65,8 +65,8 @@ void selftrig_noise(const char* pattern, const char* jsonl, const char* mappingJ
   const double lsb = daq::pulse::lsbMv();
   const double binMv = 0.25;
   const int nb = static_cast<int>(200.0 / binMv);
-  std::vector<std::vector<long>> spec(32, std::vector<long>(static_cast<std::size_t>(nb) + 1, 0));
-  std::vector<long> used(32, 0);
+  std::vector<std::vector<long>> spec(static_cast<std::size_t>(nch), std::vector<long>(static_cast<std::size_t>(nb) + 1, 0));
+  std::vector<long> used(static_cast<std::size_t>(nch), 0);
   const std::vector<daq::pulse::Region> zones{{0, n}};
   const Long64_t ne = t.GetEntries();
   for (Long64_t e = 0; e < ne; ++e) {
@@ -82,7 +82,7 @@ void selftrig_noise(const char* pattern, const char* jsonl, const char* mappingJ
       off = w->offGroup;
     }
     t.GetEntry(e);
-    for (int c = 0; c < 32; ++c) {
+    for (int c = 0; c < nch; ++c) {
       if (off > 0 && hvGroup[static_cast<std::size_t>(c)] == off) continue;
       ++used[static_cast<std::size_t>(c)];
       const UShort_t* x = adc.data() + c * n;
@@ -97,9 +97,9 @@ void selftrig_noise(const char* pattern, const char* jsonl, const char* mappingJ
   }
   FILE* f = fopen(out, "w");
   fprintf(f, "# selftrig_noise %s; muestras por evento %d\n", pattern, n);
-  for (int c = 0; c < 32; ++c) fprintf(f, "#exposure %d %.6f\n", c, used[static_cast<std::size_t>(c)] * n * 16e-9);
+  for (int c = 0; c < nch; ++c) fprintf(f, "#exposure %d %.6f\n", c, used[static_cast<std::size_t>(c)] * n * 16e-9);
   fprintf(f, "ch,bin_lo_mV,counts\n");
-  for (int c = 0; c < 32; ++c)
+  for (int c = 0; c < nch; ++c)
     for (int b = 0; b <= nb; ++b)
       if (spec[static_cast<std::size_t>(c)][static_cast<std::size_t>(b)]) fprintf(f, "%d,%.2f,%ld\n", c, b * binMv, spec[static_cast<std::size_t>(c)][static_cast<std::size_t>(b)]);
   fclose(f);

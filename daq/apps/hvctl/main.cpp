@@ -63,6 +63,10 @@ const char* kUsage =
     "  measure-offsets --seconds N [--ch 0-11] [--json]   offsets con Pw = 0\n"
     "  pw --ch N on|off --authorize \"<motivo>\"          escritura de Pw (requiere allow_commands)\n"
     "  notify-test [--ch N]                  correo de PRUEBA por el notificador de hvmon\n"
+    "  bias begin --expected V0,V1,...,V7 --authorize \"<motivo>\"   sesión de barrido de V0Set (DAQ2-14)\n"
+    "  bias set --ch N --value V --authorize \"<motivo>\"   V0Set con límites (≤ nominal, ≥ nominal − 2 V, escalón ≤ 0.5 V)\n"
+    "  bias restore --authorize \"<motivo>\" | bias status   nominal en todos los canales y cierre / estado\n"
+    "  notify-summary --text-file F [--kind K]   correo de resumen por el notificador de hvmon\n"
     "Sin hvmon (modo directo, solo lectura):\n"
     "  map                                   mapa del crate\n"
     "  board  --slot S [--json]              parámetros de placa (BdStatus, HVMax, HIMax, Temp)\n"
@@ -75,9 +79,9 @@ struct Options {
   std::string command;
   std::vector<std::string> args;  // posicionales tras el subcomando (note, pw)
   std::string configPath;
-  std::optional<std::string> host, credentials, fake, chSpec, paramSpec, authorize, socket;
+  std::optional<std::string> host, credentials, fake, chSpec, paramSpec, authorize, socket, expected, textFile, kind;
   std::optional<int> slot, ch, n;
-  std::optional<double> seconds;
+  std::optional<double> seconds, value;
   bool json = false;
   bool decode = false;
 };
@@ -197,6 +201,21 @@ std::optional<Options> parseArgs(int argc, char** argv, std::string& err) {
         err = "valor no numérico para --seconds: " + *v;
         return std::nullopt;
       }
+    } else if (a == "--value") {
+      auto v = need(i);
+      if (!v) return std::nullopt;
+      try {
+        o.value = std::stod(*v);
+      } catch (...) {
+        err = "valor no numérico para --value: " + *v;
+        return std::nullopt;
+      }
+    } else if (a == "--expected") {
+      if (!strOpt(o.expected)) return std::nullopt;
+    } else if (a == "--text-file") {
+      if (!strOpt(o.textFile)) return std::nullopt;
+    } else if (a == "--kind") {
+      if (!strOpt(o.kind)) return std::nullopt;
     } else if (a == "--json") {
       o.json = true;
     } else if (a == "--decode") {
@@ -706,6 +725,58 @@ int cmdNotifyTest(const std::string& sock, const Options& o) {
   return kExitOk;
 }
 
+int cmdBias(const std::string& sock, const Options& o) {
+  const std::string sub = o.args.empty() ? "" : o.args[0];
+  nlohmann::json req;
+  if (sub == "status") {
+    req = {{"cmd", "bias-status"}};
+  } else if (!o.authorize) {
+    std::fprintf(stderr, "hvctl bias %s: falta --authorize\n", sub.c_str());
+    return kExitUsage;
+  } else if (sub == "begin") {
+    if (!o.expected) {
+      std::fprintf(stderr, "Uso: hvctl bias begin --expected V0,...,V7 --authorize \"<motivo>\"\n");
+      return kExitUsage;
+    }
+    nlohmann::json e = nlohmann::json::object();
+    std::stringstream ss(*o.expected);
+    std::string tok;
+    int ch = 0;
+    while (std::getline(ss, tok, ',')) e[std::to_string(ch++)] = std::stod(tok);
+    req = {{"cmd", "bias-begin"}, {"expected", e}, {"authorize", *o.authorize}};
+  } else if (sub == "set") {
+    auto ch = o.chSpec ? toInt(*o.chSpec) : std::nullopt;
+    if (!ch || !o.value) {
+      std::fprintf(stderr, "Uso: hvctl bias set --ch N --value V --authorize \"<motivo>\"\n");
+      return kExitUsage;
+    }
+    req = {{"cmd", "v0set"}, {"ch", *ch}, {"value", *o.value}, {"authorize", *o.authorize}};
+  } else if (sub == "restore") {
+    req = {{"cmd", "bias-restore"}, {"authorize", *o.authorize}};
+  } else {
+    std::fprintf(stderr, "Uso: hvctl bias begin|set|restore|status ...\n");
+    return kExitUsage;
+  }
+  auto r = request(sock, req, 3700);
+  if (!r) return fail(r.error());
+  std::printf("%s\n", r.value().dump().c_str());
+  return r.value().value("ok", false) ? kExitOk : kExitError;
+}
+
+int cmdNotifySummary(const std::string& sock, const Options& o) {
+  if (!o.textFile) {
+    std::fprintf(stderr, "Uso: hvctl notify-summary --text-file F [--kind K]\n");
+    return kExitUsage;
+  }
+  std::ifstream in(*o.textFile);
+  std::stringstream text;
+  text << in.rdbuf();
+  auto r = request(sock, {{"cmd", "notify-summary"}, {"text", text.str()}, {"kind", o.kind.value_or("summary")}, {"origin", "hvctl notify-summary"}}, 200);
+  if (!r) return fail(r.error());
+  std::printf("%s\n", r.value().dump().c_str());
+  return r.value().value("ok", false) ? kExitOk : kExitError;
+}
+
 int cmdPw(const std::string& sock, const Options& o) {
   if (!o.chSpec || o.args.size() != 1 || (o.args[0] != "on" && o.args[0] != "off") || !o.authorize) {
     std::fprintf(stderr, "Uso: hvctl pw --ch N on|off --authorize \"<motivo>\"\n");
@@ -740,7 +811,7 @@ int main(int argc, char** argv) {
     std::fputs(kUsage, o.command == "help" ? stdout : stderr);
     return o.command == "help" ? kExitOk : kExitUsage;
   }
-  const std::vector<std::string> socketOnly{"status", "changes", "note", "measure-offsets", "pw", "notify-test"};
+  const std::vector<std::string> socketOnly{"status", "changes", "note", "measure-offsets", "pw", "notify-test", "bias", "notify-summary"};
   const std::vector<std::string> directOnly{"map", "params", "bench", "board"};
   const bool isSocketOnly = std::find(socketOnly.begin(), socketOnly.end(), o.command) != socketOnly.end();
   const bool isDirectOnly = std::find(directOnly.begin(), directOnly.end(), o.command) != directOnly.end();
@@ -772,6 +843,8 @@ int main(int argc, char** argv) {
     if (o.command == "note") return cmdNote(sock, o);
     if (o.command == "measure-offsets") return cmdOffsets(sock, o);
     if (o.command == "notify-test") return cmdNotifyTest(sock, o);
+    if (o.command == "bias") return cmdBias(sock, o);
+    if (o.command == "notify-summary") return cmdNotifySummary(sock, o);
     return cmdPw(sock, o);
   }
   if (hvmonRunning) {

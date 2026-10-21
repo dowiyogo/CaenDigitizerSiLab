@@ -20,9 +20,11 @@ nlohmann::json ChangeRecord::toJson() const {
 }
 
 nlohmann::json CommandRecord::toJson() const {
-  return nlohmann::json{{"type", "command"}, {"command_id", id}, {"t_utc_ns", tUtcNs}, {"t_utc", formatUtcIso(tUtcNs)},
-                        {"slot", slot},      {"ch", ch},         {"param", param},    {"value", value},
-                        {"phase", phase},    {"reason", reason}, {"requester", requester}, {"detail", detail}};
+  auto j = nlohmann::json{{"type", "command"}, {"command_id", id}, {"t_utc_ns", tUtcNs}, {"t_utc", formatUtcIso(tUtcNs)},
+                          {"slot", slot},      {"ch", ch},         {"param", param},    {"value", value},
+                          {"phase", phase},    {"reason", reason}, {"requester", requester}, {"detail", detail}};
+  if (param == "V0Set") j["value"] = valueV;
+  return j;
 }
 
 nlohmann::json ReadStats::toJson() const {

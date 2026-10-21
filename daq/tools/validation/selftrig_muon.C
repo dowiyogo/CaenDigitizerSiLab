@@ -1,7 +1,7 @@
 // selftrig_muon.C — DAQ2-13, parte A.3 (solo lectura). Amplitudes en tiempo de hod2018 por grupo del
 // digitizador en runs de trigger externo, para la eficiencia a muones contra el umbral.
 //  - Por evento y grupo 0-3 (ch 0-7, 8-15 = hod2018 X; 16-23, 24-31 = Y): máximo sobre los canales del
-//    grupo de (línea base recortada de [0,40) − mínimo) en la ventana signal [49,58) y en la de control
+//    grupo (sin los canales de masked, p. ej. "2,9,15": fuera del auto-trigger) de (línea base recortada de [0,40) − mínimo) en la ventana signal [49,58) y en la de control
 //    [40,49) (accidentales, mismo ancho), en mV y en p.e. (G de la calibración; canales sin G: mediana).
 // Salida: CSV evento,s0_mV..s3_mV,c0_mV..c3_mV,s0_pe..s3_pe,c0_pe..c3_pe.
 // Uso: root -l -b -q -e 'gSystem->AddIncludePath("-I<repo>/daq/core/include")' \
@@ -13,13 +13,26 @@
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <string>
 #include <vector>
 
 #include <nlohmann/json.hpp>
 
 #include "daq/pulse_finder.h"
 
-void selftrig_muon(const char* pattern, const char* calibJson, const char* out) {
+void selftrig_muon(const char* pattern, const char* calibJson, const char* out, const char* masked = "") {
+  std::vector<bool> skip(64, false);
+  {
+    std::string m = masked ? masked : "";
+    std::size_t p = 0;
+    while (p < m.size()) {
+      const std::size_t q = m.find(',', p);
+      const std::string tok = m.substr(p, q == std::string::npos ? std::string::npos : q - p);
+      if (!tok.empty()) skip[static_cast<std::size_t>(std::stoi(tok))] = true;
+      if (q == std::string::npos) break;
+      p = q + 1;
+    }
+  }
   std::vector<double> G(64, NAN);
   {
     std::ifstream in(calibJson);
@@ -48,6 +61,7 @@ void selftrig_muon(const char* pattern, const char* calibJson, const char* out) 
     t.GetEntry(e);
     double sm[4] = {0, 0, 0, 0}, cm[4] = {0, 0, 0, 0}, sp[4] = {0, 0, 0, 0}, cp[4] = {0, 0, 0, 0};
     for (int c = 0; c < 32; ++c) {
+      if (skip[static_cast<std::size_t>(c)]) continue;
       const UShort_t* x = adc.data() + c * n;
       const double bl = daq::pulse::trimmedMean(x, daq::pulse::Region{0, 40}, 2.0 / lsb);
       UShort_t ms = x[49], mc = x[40];

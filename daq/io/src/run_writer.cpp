@@ -104,6 +104,7 @@ RunWriter::RunWriter(const daqrun::DaqrunConfig& cfg, const daqrun::RunReservati
             {"mapping_sha256", mapping_.sha256},
             {"calibration_version", calVersion()},
             {"record_length", N_},
+            {"trigger_signature", cfg_.digitizer.triggerSignature()},
             {"segments", nlohmann::json::array()}};
 }
 
@@ -258,7 +259,8 @@ nlohmann::json RunWriter::runInfo(bool final) const {
           {"calibration_file", calib_ ? calib_->path : std::string()},
           {"flag_delay_s", cfg_.flagDelayS},
           {"mapping_version", mapping_.version},
-          {"mapping_sha256", mapping_.sha256}};
+          {"mapping_sha256", mapping_.sha256},
+          {"trigger_signature", cfg_.digitizer.triggerSignature()}};
 }
 
 Status RunWriter::closeSegment(bool clean) {
@@ -282,6 +284,7 @@ Status RunWriter::closeSegment(bool clean) {
   TNamed("calibration_json", calib_ ? calib_->raw.dump().c_str() : "none").Write();
   TNamed("calibration_version", calVersion().c_str()).Write();
   TNamed("run_info_json", runInfo(final).dump().c_str()).Write();
+  TNamed("trigger_signature", cfg_.digitizer.triggerSignature().c_str()).Write();
   TNamed("hvmon_state_at_start", st_.hvAtStart.dump().c_str()).Write();
   for (TTree* t : {events_, hv_, hvChanges_, notes_, monitor_}) t->Write("", TObject::kOverwrite);
   file_->Close();
@@ -532,7 +535,8 @@ Status RunWriter::finish(bool cleanShutdown) {
                              {"complete", true},
                              {"closed_cleanly", cleanShutdown},
                              {"mapping_version", mapping_.version},
-                             {"calibration_version", calVersion()}};
+                             {"calibration_version", calVersion()},
+                             {"trigger_signature", cfg_.digitizer.triggerSignature()}};
   if (auto s = daqrun::updateManifestRun(run_.location(), entry); !s && st) st = s;
   stats_.setCurrentSegment("");
   return st;

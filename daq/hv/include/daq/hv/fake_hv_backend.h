@@ -62,6 +62,7 @@ class FakeHVBackend final : public HVBackend {
   Result<std::vector<ParamInfo>> boardParamNames(int slot) override;
   Result<BoardReading> readBoard(int slot, const std::vector<std::string>& params) override;
   Status setChannelPw(int slot, int channel, bool on) override;
+  Status setChannelV0Set(int slot, int channel, double volts) override;
   // Fake: borra los bits de trip retenidos del slot sin encender nada [I: a verificar con la placa].
   Status clearBoardAlarm(int slot) override;
   std::uint64_t clearAlarmWrites() const { return clearAlarmWrites_; }
@@ -73,6 +74,7 @@ class FakeHVBackend final : public HVBackend {
   double trueVoltage(int slot, int channel);
   std::uint64_t callCount() const { return calls_; }
   std::uint64_t pwWrites() const { return pwWrites_; }
+  std::uint64_t v0setWrites() const { return v0setWrites_; }
 
  private:
   struct Channel {
@@ -128,6 +130,7 @@ class FakeHVBackend final : public HVBackend {
   bool connected_ = false;
   std::uint64_t calls_ = 0;
   std::uint64_t pwWrites_ = 0;
+  std::uint64_t v0setWrites_ = 0;
   std::uint64_t clearAlarmWrites_ = 0;
   std::vector<std::string> writeLog_;
   bool pwWriteIgnored_ = false;

@@ -24,7 +24,8 @@ add_executable(daq_tests
   test_x740.cpp
   test_data_flags.cpp
   test_panels.cpp
-  test_self_trigger.cpp)
+  test_self_trigger.cpp
+  test_bias_scan.cpp)
 target_compile_definitions(daq_tests PRIVATE DAQ_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_link_libraries(daq_tests PRIVATE daq_daqrun daq_dig daq_hvmon daq_temp daq_hv_common daq_core GTest::gtest
                       GTest::gtest_main daq_warnings)

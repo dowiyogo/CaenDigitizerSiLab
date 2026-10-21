@@ -2,6 +2,7 @@
 #include "daq/hv/fake_hv_backend.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cmath>
 #include <fstream>
 #include <stdexcept>
@@ -462,6 +463,25 @@ Status FakeHVBackend::setChannelPw(int slot, int channel, bool on) {
   e.channel = channel;
   e.param = "Pw";
   e.value = on ? 1.0 : 0.0;
+  apply(e);
+  return okStatus();
+}
+
+Status FakeHVBackend::setChannelV0Set(int slot, int channel, double volts) {
+  if (auto st = checkLink(); !st) return st;
+  Slot* s = findSlot(slot);
+  if (!s || channel < 0 || channel >= s->info.channels) return Status::failure(-3, "fake: slot o canal inexistente");
+  ++v0setWrites_;
+  char b[64];
+  std::snprintf(b, sizeof b, "V0Set:%d=%.2f", channel, volts);
+  writeLog_.push_back(b);
+  Event e;
+  e.t = simTime_;
+  e.type = "set";
+  e.slot = slot;
+  e.channel = channel;
+  e.param = "V0Set";
+  e.value = volts;
   apply(e);
   return okStatus();
 }

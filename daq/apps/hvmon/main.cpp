@@ -169,6 +169,8 @@ int main(int argc, char** argv) {
   SlowControlWriter writer(cfg.slowcontrolDir, cfg.fsyncPeriodS, fs, clock, hub);
   Poller poller(cfg, *backend, clock, writerQ, hub, pollQ);
   poller.enableRetryPersistence(fs);
+  // DAQ2-14: sesión de barrido de tensión (junto al estado de reintento); si estaba activa, restaura el nominal.
+  poller.enableBiasPersistence(fs, parentDirectory(cfg.retry.stateFile) + "/hvmon_bias_state.json");
   if (!cfg.retry.enabledChannels.empty())
     logWarn("auto-retry HABILITADO en ", cfg.retry.enabledChannels.size(), " canales (allow_commands = true)",
             cfg.retry.testModeEnabled ? "; test_mode activo" : "");

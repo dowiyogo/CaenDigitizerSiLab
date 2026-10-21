@@ -1,8 +1,9 @@
 // hv_backend.h
-// Interfaz de acceso a una fuente de HV CAEN. Solo hay DOS operaciones de escritura en todo el
-// código: setChannelPw() (Pw de un canal a 0 o 1) y clearBoardAlarm() (ClrAlarm de la placa,
-// opcional antes de un reintento, fase 2). No existe escritura de V0Set, I0Set, Trip ni de ningún
-// otro parámetro. Ambas las llama solo el hilo de sondeo de hvmon, tras validar allow_commands y la
+// Interfaz de acceso a una fuente de HV CAEN. Hay TRES operaciones de escritura en todo el código:
+// setChannelPw() (Pw de un canal a 0 o 1), clearBoardAlarm() (ClrAlarm de la placa, opcional antes
+// de un reintento, fase 2) y, desde DAQ2-14, setChannelV0Set() (solo dentro de una sesión de barrido
+// de tensión de hvmon, con los límites de bias_scan.h). No existe escritura de I0Set, Trip ni de
+// ningún otro parámetro. Las llama solo el hilo de sondeo de hvmon, tras validar allow_commands y la
 // secuencia de docs/daq_v2_design.md, sección 9.2.
 // Seguridad entre hilos: una instancia NO es segura entre hilos; la usa un único hilo dueño
 // (en hvmon, el hilo HV). Unidades: ver hv_types.h (SI por encima del backend).
@@ -38,6 +39,8 @@ class HVBackend {
 
   // Escribe Pw de un canal. No verifica: la verificación por relectura la hace hvmon.
   virtual Status setChannelPw(int slot, int channel, bool on) = 0;
+  // Escribe V0Set (V) de un canal. No verifica ni limita: los límites y la verificación son de hvmon.
+  virtual Status setChannelV0Set(int slot, int channel, double volts) = 0;
   // Escribe ClrAlarm = 1 en la placa (borrado de alarmas). Uso opcional (clear_alarm_before_retry).
   virtual Status clearBoardAlarm(int slot) = 0;
 

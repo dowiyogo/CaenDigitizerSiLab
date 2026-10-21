@@ -81,6 +81,10 @@ struct DigitizerConfig {
 
   static Result<DigitizerConfig> fromJson(const nlohmann::json& j);
   nlohmann::json toJson() const;
+  // DAQ2-14: firma corta de la configuración de trigger (modo, grupos, mayoría, ventana, umbrales ADC,
+  // canales fuera del trigger, TRG IN). Va al índice, a la cabecera y al manifiesto: runs con firmas
+  // distintas no se mezclan.
+  std::string triggerSignature() const;
 };
 
 // Conversión a mV del código antiguo (adc2mV de CaenDigitizerSiLab.h):
