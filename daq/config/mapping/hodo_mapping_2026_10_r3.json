@@ -3013,7 +3013,8 @@
   "En mayo el grupo 6 contenía ch1, ch16 y ch17 de hod2018 (y ch3, muerto, deducido), con dos MPPC del plano Y; la planilla le asigna un solo MPPC Y (Canal 1). Con las 5 entradas de hod2019, el grupo 6 tendría 9 MPPC.",
   "r2: 43 de los 52 canales medidos tienen un grupo distinto del de r1 (casi todo hod2019, donde r1 derivaba de la planilla de mayo con los planos intercambiados): la regla etiqueta -> tira de hod2019 usada en r1 no se cumple, así que las caras (face, derived) tampoco están confirmadas.",
   "r2: el grupo 6 sigue con dos canales Y de hod2018 (ch16 y ch18) más ch1 X; la planilla le asigna 2 X y 1 Y.",
-  "r2: los totales por grupo y estación coinciden con hv_groups_by_label salvo en los grupos 4 (2 X medidos frente a 1 en la planilla) y 5/6 por los canales sin medida."
+  "r2: los totales por grupo y estación coinciden con hv_groups_by_label salvo en los grupos 4 (2 X medidos frente a 1 en la planilla) y 5/6 por los canales sin medida.",
+  "DAQ2-11c, conteo por grupo (planilla contra prueba de grupos): hod2019 cuadra con la planilla en la estación y en cada plano si las caras Opuesta/Frontal están en el plano X y Delantera/Trasera en el Y (al revés de la regla usada para label y face); lo que falla es el supuesto cara <-> plano, no la agrupación de la planilla. hod2018 no cuadra con ninguna reasignación de etiquetas: un canal medido de más en el grupo 4 (plano X) y en el grupo 6 (plano Y), con caídas completas; al menos 1 MPPC de hod2018 (2 si los planos de las etiquetas son correctos) tiene en la planilla un canal SY5527 distinto del que lo alimenta."
  ],
  "previous_version": "2026_10-r2",
  "light_units": {
@@ -3035,13 +3036,795 @@
  },
  "light_units_provenance": "measurement (DAQ2-11): canales de hod2019 cuya tasa fuera de tiempo sobre 3 mV subió con razón > 2 y P(N >= n) < 1e-6 frente a la noche del 2026-10-19 (23:00-08:00Z) en los dos episodios de luz de la tarde: 2026-10-19 18:18-19:08Z (commissioning_2026_10 runs 7-8) y 2026-10-20 17:17-17:47Z (phase5_test_2026_10_20). Solo en el segundo: 17, 32, 40, 44, 45, 48.",
  "sources": {
-  "strip_sheet": "hoja 'Octubre 2026' de Disposicion Correcta Hodoscopios.xlsx (laboratorio): canal k = coordenada k en cada plano",
-  "label": "etiqueta del MPPC en Voltajes Hodoscopio.xlsx; la relación etiqueta -> canal del digitizador es un supuesto (handoff sección 5)",
-  "hv_group_sheet": "grupo HV que Voltajes Hodoscopio.xlsx asigna a esa etiqueta (hv_groups_by_label); hereda el supuesto de la etiqueta",
-  "hv_group": "medido: prueba de grupos HV del 2026-10-21 (DAQ2-10), campos hv_group_test",
-  "strip": "hod2018: medido por coincidencias entre vecinas (mayo y noche 2026-10-19); hod2019: no medido, copia de la hoja"
+  "strip_sheet": "hoja 'Octubre 2026' de Disposicion Correcta Hodoscopios.xlsx (laboratorio): canal k = posición k en cada plano",
+  "label": "etiqueta del MPPC en Voltajes Hodoscopio.xlsx; qué etiqueta tiene cada canal del digitizador es un supuesto (handoff, sección 5)",
+  "hv_group_sheet": "grupo que Voltajes Hodoscopio.xlsx da a esa etiqueta; hereda el supuesto de la etiqueta",
+  "hv_group": "medido con la prueba de grupos del 2026-10-21 (DAQ2-10)",
+  "strip": "hod2018: medido con las coincidencias entre vecinas (mayo y noche 2026-10-19); hod2019: sin validar, copia de la hoja"
  },
  "revisions": [
-  "2026-10-21 DAQ2-11b: campos de documentación añadidos (sources, hv_group_test, strip_test, label_link); ch3 confirmed.strip pasa de measurement a derived (canal muerto, posición deducida). Ninguna asignación (strip, hv_group, label, light_units) cambia."
- ]
+  "2026-10-21 DAQ2-11b: campos de documentación añadidos (sources, hv_group_test, strip_test, label_link); ch3 confirmed.strip pasa de measurement a derived (canal muerto, posición deducida). Ninguna asignación (strip, hv_group, label, light_units) cambia.",
+  "2026-10-21 DAQ2-11c: evidencia de vecinas de la noche (neighbour_evidence) y resultado del conteo por grupo en known_discrepancies. Ninguna asignación cambia."
+ ],
+ "neighbour_evidence": {
+  "night": {
+   "description": "noche 2026-10-19/20 (night_2026_10_19 run 1, 41425 eventos con trigger externo), daqoffline con los paneles de daqrun: tiras sobre el umbral de impactos en la ventana en tiempo; azar = mismo par entre un evento y el anterior",
+   "threshold_mV": {
+    "hod2018": 50.0,
+    "hod2019": 5.0
+   },
+   "events": 41425,
+   "source": "/data/daq/sim/offline/night_pairs/panels.root (coinc_*_hoja, coinc_mix_*_hoja)",
+   "channels": {
+    "0": [
+     {
+      "ch": 15,
+      "same": 36,
+      "mixed": 0.0
+     },
+     {
+      "ch": 2,
+      "same": 9,
+      "mixed": 2.5
+     }
+    ],
+    "1": [
+     {
+      "ch": 14,
+      "same": 12,
+      "mixed": 1.0
+     },
+     {
+      "ch": 9,
+      "same": 4,
+      "mixed": 1.5
+     }
+    ],
+    "2": [
+     {
+      "ch": 13,
+      "same": 16,
+      "mixed": 1.5
+     },
+     {
+      "ch": 15,
+      "same": 10,
+      "mixed": 2.5
+     }
+    ],
+    "3": [
+     {
+      "ch": 0,
+      "same": 0,
+      "mixed": 0.0
+     },
+     {
+      "ch": 1,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "4": [
+     {
+      "ch": 9,
+      "same": 23,
+      "mixed": 1.0
+     },
+     {
+      "ch": 11,
+      "same": 11,
+      "mixed": 0.0
+     }
+    ],
+    "5": [
+     {
+      "ch": 10,
+      "same": 14,
+      "mixed": 1.0
+     },
+     {
+      "ch": 8,
+      "same": 13,
+      "mixed": 0.0
+     }
+    ],
+    "6": [
+     {
+      "ch": 9,
+      "same": 39,
+      "mixed": 1.5
+     },
+     {
+      "ch": 7,
+      "same": 28,
+      "mixed": 0.5
+     }
+    ],
+    "7": [
+     {
+      "ch": 6,
+      "same": 28,
+      "mixed": 0.5
+     },
+     {
+      "ch": 8,
+      "same": 21,
+      "mixed": 0.5
+     }
+    ],
+    "8": [
+     {
+      "ch": 7,
+      "same": 21,
+      "mixed": 0.5
+     },
+     {
+      "ch": 5,
+      "same": 13,
+      "mixed": 0.0
+     }
+    ],
+    "9": [
+     {
+      "ch": 6,
+      "same": 39,
+      "mixed": 1.5
+     },
+     {
+      "ch": 4,
+      "same": 23,
+      "mixed": 1.0
+     }
+    ],
+    "10": [
+     {
+      "ch": 5,
+      "same": 14,
+      "mixed": 1.0
+     },
+     {
+      "ch": 14,
+      "same": 5,
+      "mixed": 1.0
+     }
+    ],
+    "11": [
+     {
+      "ch": 4,
+      "same": 11,
+      "mixed": 0.0
+     },
+     {
+      "ch": 2,
+      "same": 5,
+      "mixed": 4.5
+     }
+    ],
+    "12": [
+     {
+      "ch": 9,
+      "same": 5,
+      "mixed": 1.0
+     },
+     {
+      "ch": 10,
+      "same": 4,
+      "mixed": 0.5
+     }
+    ],
+    "13": [
+     {
+      "ch": 2,
+      "same": 16,
+      "mixed": 1.5
+     },
+     {
+      "ch": 0,
+      "same": 6,
+      "mixed": 1.5
+     }
+    ],
+    "14": [
+     {
+      "ch": 1,
+      "same": 12,
+      "mixed": 1.0
+     },
+     {
+      "ch": 10,
+      "same": 5,
+      "mixed": 1.0
+     }
+    ],
+    "15": [
+     {
+      "ch": 0,
+      "same": 36,
+      "mixed": 0.0
+     },
+     {
+      "ch": 2,
+      "same": 10,
+      "mixed": 2.5
+     }
+    ],
+    "16": [
+     {
+      "ch": 17,
+      "same": 11,
+      "mixed": 0.5
+     },
+     {
+      "ch": 18,
+      "same": 7,
+      "mixed": 1.5
+     }
+    ],
+    "17": [
+     {
+      "ch": 16,
+      "same": 11,
+      "mixed": 0.5
+     },
+     {
+      "ch": 18,
+      "same": 7,
+      "mixed": 0.0
+     }
+    ],
+    "18": [
+     {
+      "ch": 19,
+      "same": 13,
+      "mixed": 1.0
+     },
+     {
+      "ch": 16,
+      "same": 7,
+      "mixed": 1.5
+     }
+    ],
+    "19": [
+     {
+      "ch": 18,
+      "same": 13,
+      "mixed": 1.0
+     },
+     {
+      "ch": 20,
+      "same": 13,
+      "mixed": 0.0
+     }
+    ],
+    "20": [
+     {
+      "ch": 21,
+      "same": 15,
+      "mixed": 0.0
+     },
+     {
+      "ch": 19,
+      "same": 13,
+      "mixed": 0.0
+     }
+    ],
+    "21": [
+     {
+      "ch": 20,
+      "same": 15,
+      "mixed": 0.0
+     },
+     {
+      "ch": 22,
+      "same": 12,
+      "mixed": 0.5
+     }
+    ],
+    "22": [
+     {
+      "ch": 21,
+      "same": 12,
+      "mixed": 0.5
+     },
+     {
+      "ch": 16,
+      "same": 2,
+      "mixed": 1.5
+     }
+    ],
+    "23": [
+     {
+      "ch": 24,
+      "same": 4,
+      "mixed": 0.0
+     },
+     {
+      "ch": 16,
+      "same": 2,
+      "mixed": 0.0
+     }
+    ],
+    "24": [
+     {
+      "ch": 25,
+      "same": 13,
+      "mixed": 0.5
+     },
+     {
+      "ch": 23,
+      "same": 4,
+      "mixed": 0.0
+     }
+    ],
+    "25": [
+     {
+      "ch": 24,
+      "same": 13,
+      "mixed": 0.5
+     },
+     {
+      "ch": 26,
+      "same": 12,
+      "mixed": 1.0
+     }
+    ],
+    "26": [
+     {
+      "ch": 25,
+      "same": 12,
+      "mixed": 1.0
+     },
+     {
+      "ch": 28,
+      "same": 5,
+      "mixed": 0.5
+     }
+    ],
+    "27": [
+     {
+      "ch": 28,
+      "same": 4,
+      "mixed": 0.0
+     },
+     {
+      "ch": 23,
+      "same": 1,
+      "mixed": 0.0
+     }
+    ],
+    "28": [
+     {
+      "ch": 29,
+      "same": 29,
+      "mixed": 1.5
+     },
+     {
+      "ch": 26,
+      "same": 5,
+      "mixed": 0.5
+     }
+    ],
+    "29": [
+     {
+      "ch": 30,
+      "same": 30,
+      "mixed": 0.0
+     },
+     {
+      "ch": 28,
+      "same": 29,
+      "mixed": 1.5
+     }
+    ],
+    "30": [
+     {
+      "ch": 29,
+      "same": 30,
+      "mixed": 0.0
+     },
+     {
+      "ch": 31,
+      "same": 5,
+      "mixed": 0.0
+     }
+    ],
+    "31": [
+     {
+      "ch": 30,
+      "same": 5,
+      "mixed": 0.0
+     },
+     {
+      "ch": 28,
+      "same": 4,
+      "mixed": 0.0
+     }
+    ],
+    "32": [
+     {
+      "ch": 34,
+      "same": 1,
+      "mixed": 0.0
+     },
+     {
+      "ch": 33,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "33": [
+     {
+      "ch": 35,
+      "same": 1,
+      "mixed": 0.5
+     },
+     {
+      "ch": 32,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "34": [
+     {
+      "ch": 36,
+      "same": 2,
+      "mixed": 0.0
+     },
+     {
+      "ch": 32,
+      "same": 1,
+      "mixed": 0.0
+     }
+    ],
+    "35": [
+     {
+      "ch": 37,
+      "same": 3,
+      "mixed": 0.0
+     },
+     {
+      "ch": 33,
+      "same": 1,
+      "mixed": 0.5
+     }
+    ],
+    "36": [
+     {
+      "ch": 34,
+      "same": 2,
+      "mixed": 0.0
+     },
+     {
+      "ch": 32,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "37": [
+     {
+      "ch": 35,
+      "same": 3,
+      "mixed": 0.0
+     },
+     {
+      "ch": 39,
+      "same": 1,
+      "mixed": 0.5
+     }
+    ],
+    "38": [
+     {
+      "ch": 40,
+      "same": 1,
+      "mixed": 0.0
+     },
+     {
+      "ch": 32,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "39": [
+     {
+      "ch": 37,
+      "same": 1,
+      "mixed": 0.5
+     },
+     {
+      "ch": 47,
+      "same": 1,
+      "mixed": 2.0
+     }
+    ],
+    "40": [
+     {
+      "ch": 38,
+      "same": 1,
+      "mixed": 0.0
+     },
+     {
+      "ch": 44,
+      "same": 1,
+      "mixed": 0.0
+     }
+    ],
+    "41": [
+     {
+      "ch": 32,
+      "same": 0,
+      "mixed": 0.0
+     },
+     {
+      "ch": 33,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "42": [
+     {
+      "ch": 32,
+      "same": 0,
+      "mixed": 0.0
+     },
+     {
+      "ch": 33,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "43": [
+     {
+      "ch": 47,
+      "same": 2,
+      "mixed": 0.0
+     },
+     {
+      "ch": 32,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "44": [
+     {
+      "ch": 40,
+      "same": 1,
+      "mixed": 0.0
+     },
+     {
+      "ch": 32,
+      "same": 0,
+      "mixed": 1.0
+     }
+    ],
+    "45": [
+     {
+      "ch": 32,
+      "same": 0,
+      "mixed": 0.0
+     },
+     {
+      "ch": 33,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "46": [
+     {
+      "ch": 32,
+      "same": 0,
+      "mixed": 0.0
+     },
+     {
+      "ch": 33,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "47": [
+     {
+      "ch": 43,
+      "same": 2,
+      "mixed": 0.0
+     },
+     {
+      "ch": 35,
+      "same": 1,
+      "mixed": 0.5
+     }
+    ],
+    "48": [
+     {
+      "ch": 49,
+      "same": 0,
+      "mixed": 0.5
+     },
+     {
+      "ch": 50,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "49": [
+     {
+      "ch": 51,
+      "same": 1,
+      "mixed": 0.0
+     },
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.5
+     }
+    ],
+    "50": [
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.0
+     },
+     {
+      "ch": 49,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "51": [
+     {
+      "ch": 49,
+      "same": 1,
+      "mixed": 0.0
+     },
+     {
+      "ch": 53,
+      "same": 1,
+      "mixed": 0.0
+     }
+    ],
+    "52": [
+     {
+      "ch": 54,
+      "same": 1,
+      "mixed": 0.5
+     },
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "53": [
+     {
+      "ch": 55,
+      "same": 2,
+      "mixed": 0.0
+     },
+     {
+      "ch": 57,
+      "same": 2,
+      "mixed": 0.5
+     }
+    ],
+    "54": [
+     {
+      "ch": 52,
+      "same": 1,
+      "mixed": 0.5
+     },
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "55": [
+     {
+      "ch": 57,
+      "same": 4,
+      "mixed": 0.0
+     },
+     {
+      "ch": 53,
+      "same": 2,
+      "mixed": 0.0
+     }
+    ],
+    "56": [
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.5
+     },
+     {
+      "ch": 49,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "57": [
+     {
+      "ch": 55,
+      "same": 4,
+      "mixed": 0.0
+     },
+     {
+      "ch": 53,
+      "same": 2,
+      "mixed": 0.5
+     }
+    ],
+    "58": [
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.0
+     },
+     {
+      "ch": 49,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "59": [
+     {
+      "ch": 61,
+      "same": 1,
+      "mixed": 0.0
+     },
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "60": [
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.0
+     },
+     {
+      "ch": 49,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ],
+    "61": [
+     {
+      "ch": 59,
+      "same": 1,
+      "mixed": 0.0
+     },
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.5
+     }
+    ],
+    "62": [
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.0
+     },
+     {
+      "ch": 49,
+      "same": 0,
+      "mixed": 0.5
+     }
+    ],
+    "63": [
+     {
+      "ch": 57,
+      "same": 1,
+      "mixed": 0.0
+     },
+     {
+      "ch": 48,
+      "same": 0,
+      "mixed": 0.0
+     }
+    ]
+   }
+  }
+ }
 }

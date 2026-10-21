@@ -146,3 +146,31 @@ TEST(Panels, NeighbourFractionInMeasuredAndSheetOrder) {
   EXPECT_DOUBLE_EQ(p.view().neighbourFrac[0][0], 1.0);  // medido
   EXPECT_DOUBLE_EQ(p.view().neighbourFrac[1][0], 0.0);  // hoja
 }
+
+TEST(Panels, MixedEventCoincidencePairsCurrentWithPreviousEvent) {
+  auto cfg = DaqrunConfig::fromJson({{"campaign", {{"name", "t"}}}}).value();
+  auto m = hvmon::Mapping::fromFile(DAQ_SOURCE_DIR "/config/mapping/hodo_mapping_2026_10_r3.json").value();
+  const int N = 144;
+  Panels p(cfg, &m, N, kLsb);
+  std::array<double, 64> bl{};
+  bl.fill(2100);
+  // Evento 1: ch15 (tira 15 de la hoja); evento 2: ch0 (tira 0). Ningún par en el mismo evento.
+  for (int c : {15, 0}) {
+    dig::Event ev;
+    ev.adc.assign(64 * N, 2100);
+    ev.adc[static_cast<std::size_t>(c * N + 53)] = static_cast<std::uint16_t>(2100 - 120 / kLsb);
+    p.event(ev, bl, 1);
+  }
+  p.refresh();
+  const PanelHist* mix = nullptr;
+  const PanelHist* same = nullptr;
+  for (const auto& h : p.view().hists) {
+    if (h.name == "coinc_mix_hod2018_X_hoja") mix = &h;
+    if (h.name == "coinc_hod2018_X_hoja") same = &h;
+  }
+  ASSERT_NE(mix, nullptr);
+  ASSERT_NE(same, nullptr);
+  EXPECT_EQ(mix->cum[15 * 16 + 0], 1u);  // (i = 0 en el evento actual, j = 15 en el anterior)
+  EXPECT_EQ(mix->cum[0 * 16 + 15], 0u);
+  EXPECT_EQ(same->cum[15 * 16 + 0], 0u);
+}

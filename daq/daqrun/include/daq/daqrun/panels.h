@@ -8,7 +8,8 @@
 //  - integral en tiempo por canal: Σ (línea base − x)·16 ns en signal (mV·ns, equivalente QDC);
 //  - muestra del mínimo del registro por canal, en eventos con amplitud > hit_threshold_mV;
 //  - mapas X × Y por estación (tiras en orden de coordenada del mapeo) con amplitud en tiempo >
-//    hit_threshold_mV; matriz de coincidencias entre tiras de un plano (16 × 16); multiplicidad por
+//    hit_threshold_mV; matriz de coincidencias entre tiras de un plano (16 × 16) y la misma con eventos
+//    mezclados (tiras del evento actual × tiras del evento anterior: azar esperado); multiplicidad por
 //    plano en dos umbrales;
 //  - persistencia por grupo del digitizador (muestra × ADC de sus 8 canales, últimos ~1000 eventos:
 //    bloque anterior + bloque en curso de persistence_events/2) y el último evento (canal × muestra);
@@ -121,6 +122,8 @@ class Panels {
   // [orden][...]: 0 = coordenada medida (strip del mapeo, r3), 1 = la de la hoja de octubre (strip_sheet)
   std::array<std::array<RollingHist, 2>, 2> hit_;
   std::array<std::array<RollingHist, 4>, 2> coinc_;
+  std::array<std::array<RollingHist, 4>, 2> coincMix_;     // evento actual × evento anterior (azar)
+  std::array<std::array<std::uint32_t, 4>, 2> prevMask_{};  // tiras encendidas del evento anterior
   std::array<std::array<RollingHist, 2>, 4> mult_;
   std::array<std::vector<std::uint32_t>, 8> persPrev_, persCur_;
   int persCount_ = 0;

@@ -135,6 +135,12 @@ Panels::Panels(const DaqrunConfig& cfg, const hvmon::Mapping* mapping, int recor
           std::string("#splitline{Coincidencias entre tiras ") + kPlaneName[q] + ", " + orderName[o] +
               "}{#scale[0.7]{Tiras encendidas juntas; normal (orden correcto): cuentas pegadas a la diagonal, en las vecinas}};tira;tira",
           16, -0.5, 15.5, 16, -0.5, 15.5);
+    for (int o = 0; o < 2; ++o)
+      coincMix_[static_cast<std::size_t>(o)][static_cast<std::size_t>(q)].init(
+          std::string("coinc_mix_") + kPlaneName[q] + orderTag[o],
+          std::string("#splitline{Coincidencias al azar entre tiras ") + kPlaneName[q] + ", " + orderName[o] +
+              "}{#scale[0.7]{Tiras del evento actual con las del anterior (eventos mezclados): lo que da el azar; sin estructura en la diagonal}};tira;tira",
+          16, -0.5, 15.5, 16, -0.5, 15.5);
     for (int k = 0; k < 2; ++k) {
       const double thr = p.multThresholdMv[static_cast<std::size_t>(q / 2)][static_cast<std::size_t>(k)];
       mult_[static_cast<std::size_t>(q)][static_cast<std::size_t>(k)].init(
@@ -205,6 +211,14 @@ void Panels::event(const dig::Event& ev, const std::array<double, 64>& baselineA
         if (m & (1u << i))
           for (int j = 0; j < 16; ++j)
             if (m & (1u << j)) coinc_[o][q].fillBin(i, j);
+      // Eventos mezclados: (i en este evento, j en el anterior), i ≠ j; en esperanza simétrica como coinc_.
+      const std::uint32_t pm = prevMask_[o][q];
+      if (v_.events > 0)
+        for (int i = 0; i < 16; ++i)
+          if (m & (1u << i))
+            for (int j = 0; j < 16; ++j)
+              if (j != i && (pm & (1u << j))) coincMix_[o][q].fillBin(i, j);
+      prevMask_[o][q] = m;
     }
   }
   for (std::size_t q = 0; q < 4; ++q)
@@ -239,6 +253,8 @@ void Panels::publishHists() {
       v_.neighbourFrac[o][q] = all > 0 ? nb / all : -1;
       v_.neighbourPairs[o][q] = all / 2;
     }
+  for (const auto& o : coincMix_)
+    for (const auto& h : o) v_.hists.push_back(h.view());
   for (const auto& q : mult_)
     for (const auto& h : q) v_.hists.push_back(h.view());
   for (std::size_t g = 0; g < 8; ++g) {
@@ -252,6 +268,8 @@ void Panels::period(const MonitorSummary& s, const std::vector<std::uint32_t>& a
   for (auto& o : hit_)
     for (auto& h : o) h.closeSlice();
   for (auto& o : coinc_)
+    for (auto& h : o) h.closeSlice();
+  for (auto& o : coincMix_)
     for (auto& h : o) h.closeSlice();
   for (auto& q : mult_)
     for (auto& h : q) h.closeSlice();
