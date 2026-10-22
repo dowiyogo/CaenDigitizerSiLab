@@ -16,7 +16,7 @@
 # de las 10:00Z, se omiten los que faltan.
 # Escrituras de HV: solo por hvctl (hvmon), cada una con --authorize. Registro: /data/daq/logs/biasscan.log
 # y biasscan.jsonl. Resultados: outputs/daq2-14/.
-# Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS"]
+# Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS" | --max-hours H]
 #   --sim: hvmon de prueba con FakeHVBackend, daqrun fake, duraciones cortas
 import calendar, glob, itertools, json, math, os, statistics, subprocess, sys, time
 
@@ -36,8 +36,12 @@ STEPS = [0.0, -0.5, -1.0, -1.5]
 # Límite: las 10:00Z siguientes al arranque (07:00 Chile, antes de la luz de la mañana), o --deadline "AAAA-MM-DD HH:MM:SS" (UTC).
 _now = time.gmtime()
 _next10 = calendar.timegm((_now.tm_year, _now.tm_mon, _now.tm_mday, 10, 0, 0, 0, 0, 0))
-DEADLINE = calendar.timegm(time.strptime(_arg("--deadline", ""), "%Y-%m-%d %H:%M:%S")) if "--deadline" in sys.argv else (
-    _next10 if time.time() < _next10 else _next10 + 86400)
+if "--max-hours" in sys.argv:  # DAQ2-14 (2026-10-22): corte = arranque + N horas
+    DEADLINE = time.time() + float(_arg("--max-hours", "6")) * 3600
+elif "--deadline" in sys.argv:
+    DEADLINE = calendar.timegm(time.strptime(_arg("--deadline", ""), "%Y-%m-%d %H:%M:%S"))
+else:
+    DEADLINE = _next10 if time.time() < _next10 else _next10 + 86400
 STEP_EST_S = 70 * 60 if not SIM else 60  # duración estimada de un escalón completo
 DUR = {"stab": 120, "sw": 120, "ext": 900, "self": 600} if not SIM else {"stab": 5, "sw": 15, "ext": 20, "self": 15}
 MASKED = [2, 9, 15]
@@ -398,6 +402,27 @@ def physics_status():
     return {"active": act == "active", "state": act, "last": last}
 
 
+def physics_alive():
+    """El run de física está vivo: unidad activa, página del run respondiendo, sin errores de lectura y con
+    triggers externos en los últimos 10 min (tasa > 0.1 Hz). Devuelve (vivo, detalle)."""
+    if SIM:
+        return True, "(sim)"
+    st = physics_status()
+    if not st["active"]:
+        return False, f"unidad daq-physics {st['state']}; última línea: {st['last']}"
+    try:
+        import urllib.request
+        r = urllib.request.urlopen("http://127.0.0.1:8080/status/state_json/root.json", timeout=10).read()
+        s = json.loads(json.loads(r)["fTitle"])
+        d = s["dash"]
+        detail = (f"run {d.get('run')}, {d.get('events')} eventos, tasa 10 min {d.get('rate_10min_Hz')} Hz, último trigger hace "
+                  f"{d.get('since_last_trigger_s')} s, errores de lectura {s['readout'].get('read_errors')}")
+        ok = (s["readout"].get("read_errors", 1) == 0 and not s["readout"].get("finished", False) and (d.get("rate_10min_Hz") or 0) > 0.1)
+        return ok, detail
+    except Exception as e:  # noqa: BLE001
+        return False, f"la página del run no responde: {e}"
+
+
 def physics_stop():
     """Detiene el run de física y espera a que el daqrun termine (cierre del digitizador)."""
     if SIM:
@@ -425,6 +450,8 @@ def physics_start():
            "--property=TimeoutStopSec=300", "--property=StandardOutput=append:/data/daq/logs/daq-physics.log",
            "--property=StandardError=append:/data/daq/logs/daq-physics.log", "--setenv=LD_LIBRARY_PATH=" + os.path.expanduser("~/root6/lib"),
            "--working-directory=" + os.path.expanduser("~"), BIN + "/daqrun", "--config", PHYS_CFG]
+    if sh(["systemctl", "--user", "is-active", "daq-physics"], check=False).stdout.strip() == "active":
+        return "ya estaba activo (no se reinició)"
     for attempt in range(1, OPEN_RETRIES + 1):
         wait_board_gap("run de física")
         size = os.path.getsize(PHYS_LOG) if os.path.exists(PHYS_LOG) else 0
@@ -470,6 +497,11 @@ def main():
         if any(abs(a - b) > 0.005 for a, b in zip(read, NOMINAL)):
             raise Abort(f"V0Set leído {read} distinto del nominal esperado {NOMINAL}: no se empieza")
         check_hv("inicio")
+        alive, detail = physics_alive()
+        log(f"run de física antes de empezar: {'VIVO' if alive else 'NO VIVO'} ({detail})")
+        results["physics_check"] = {"alive": alive, "detail": detail}
+        if not alive:
+            raise Abort("el run de física no está vivo (sin triggers externos o con errores): no se empieza el barrido: " + detail)
         # Campaña y configuraciones base
         camp = ["daqcampaign"] + (["--sim"] if SIM else ["--authorize", AUTH])
         sh([(REPO + "/daq/build/apps/daqcampaign/" if SIM else BIN + "/") + "daqcampaign"] + camp[1:] + ["open", CAMPAIGN], check=False)
@@ -546,10 +578,13 @@ def main():
         except Exception as e:  # noqa: BLE001
             results["physics"] = f"NO ARRANCÓ: {e}"
         log(f"run de física al final: {results['physics']}")
+        results["physics_ok"] = bool(results["physics"]) and not str(results["physics"]).startswith("NO")
         json.dump(results, open(f"{OUT}/biasscan_results.json", "w"), indent=1, ensure_ascii=False, default=str)
         lines = [f"DAQ2-14 barrido de tensión de hod2018{' (SIMULACIÓN)' if SIM else ''}: " + ("ABORTADO: " + results["aborted"] if results["aborted"] else "completo"),
+                 "REARRANQUE DEL RUN DE FÍSICA: " + ("OK" if results.get("physics_ok") else "FALLÓ") + f" ({results.get('physics')})",
                  f"Escalones hechos: {[s['delta_V'] for s in results['steps']]}; omitidos: {results['skipped']}",
                  f"Restauración: {results['restore'].get('result')} {results['restore'].get('detail', '')}",
+                 f"Comprobación previa del run de física: {results.get('physics_check', {}).get('detail', '–')}",
                  f"Run de física antes del barrido: {'activo' if results.get('physics_before', {}).get('was_active') else 'NO activo'}"
                  f" (última línea del log: {results.get('physics_before', {}).get('before_last', '–')})",
                  f"Run de física al final: {results.get('physics')}"]

@@ -1,0 +1,15 @@
+# biasscan.service — DAQ2-14: barrido de tensión de hod2018 y auto-trigger con pares X·Y (sin atención).
+# Se arranca a mano (systemctl --user start biasscan.service); corte = arranque + 6 h (--max-hours 6).
+# ExecStopPost: pase lo que pase, nominal restaurado (noop si la sesión ya se cerró) y run de física activo.
+[Unit]
+Description=DAQ2-14 barrido de tensión de hod2018 (biasscan.py --max-hours 6)
+After=hvmon.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I /home/xplus/digitizer/CaenDigitizerSiLab-jai/daq/tools/biasscan/biasscan.py --max-hours 6
+ExecStopPost=/home/xplus/digitizer/CaenDigitizerSiLab-jai/daq/tools/biasscan/biasscan_safety.sh
+KillSignal=SIGTERM
+TimeoutStopSec=900
+RuntimeMaxSec=25200
+Restart=no
