@@ -183,6 +183,10 @@ nlohmann::json CommandHandler::dispatch(const nlohmann::json& req, const PeerCre
     e.reason = req["text"].get<std::string>();
     e.origin = req.value("origin", describePeer(peer));
     e.tUtcNs = clock_.now_utc_ns();
+    // Contexto como en notify-test (sin él, el cuerpo decía "Temperatura de la placa: sin dato").
+    const auto state = hub_.compose(cfg_, e.tUtcNs, ++statusSeq_, false);
+    e.context["board_temperature_degC"] = state["board_temperature_degC"];
+    e.context["geco_running"] = state["geco_running"];
     e.reply = std::make_shared<std::promise<nlohmann::json>>();
     auto fut = e.reply->get_future();
     if (!notifyQ_->try_push(std::move(e), DropPolicy::DropNewest)) return error("cola del notificador llena");

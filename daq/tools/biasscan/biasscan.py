@@ -16,7 +16,8 @@
 # de las 10:00Z, se omiten los que faltan.
 # Escrituras de HV: solo por hvctl (hvmon), cada una con --authorize. Registro: /data/daq/logs/biasscan.log
 # y biasscan.jsonl. Resultados: outputs/daq2-14/.
-# Uso: biasscan.py [--sim]   (--sim: hvmon de prueba con FakeHVBackend, daqrun fake, duraciones cortas)
+# Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS"]
+#   --sim: hvmon de prueba con FakeHVBackend, daqrun fake, duraciones cortas
 import calendar, glob, itertools, json, math, os, statistics, subprocess, sys, time
 
 SIM = "--sim" in sys.argv
@@ -24,11 +25,19 @@ REPO = "/home/xplus/digitizer/CaenDigitizerSiLab-jai"
 BIN = os.path.expanduser("~/.local/opt/daqv2/bin")
 HVCTL = ([REPO + "/daq/build/apps/hvctl/hvctl", "--socket", "/run/user/1000/daqv2-test/hvmon.sock"] if SIM else [BIN + "/hvctl"])
 DAQRUN = (REPO + "/daq/build/apps/daqrun/daqrun") if SIM else BIN + "/daqrun"
-CAMPAIGN = "biasscan_sim_2026_10_22" if SIM else "biasscan_2026_10_22"
+def _arg(name, default):
+    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
+
+
+CAMPAIGN = _arg("--campaign", "biasscan_sim_2026_10_22" if SIM else "biasscan_2026_10_22")
 AUTH = "DAQ2-14 bias scan and self-trigger experiment, authorized by René"
 NOMINAL = [65.75, 65.75, 65.90, 65.85, 65.75, 65.70, 66.15, 65.90]
 STEPS = [0.0, -0.5, -1.0, -1.5]
-DEADLINE = calendar.timegm(time.strptime("2026-10-22 10:00:00", "%Y-%m-%d %H:%M:%S"))
+# Límite: las 10:00Z siguientes al arranque (07:00 Chile, antes de la luz de la mañana), o --deadline "AAAA-MM-DD HH:MM:SS" (UTC).
+_now = time.gmtime()
+_next10 = calendar.timegm((_now.tm_year, _now.tm_mon, _now.tm_mday, 10, 0, 0, 0, 0, 0))
+DEADLINE = calendar.timegm(time.strptime(_arg("--deadline", ""), "%Y-%m-%d %H:%M:%S")) if "--deadline" in sys.argv else (
+    _next10 if time.time() < _next10 else _next10 + 86400)
 STEP_EST_S = 70 * 60 if not SIM else 60  # duración estimada de un escalón completo
 DUR = {"stab": 120, "sw": 120, "ext": 900, "self": 600} if not SIM else {"stab": 5, "sw": 15, "ext": 20, "self": 15}
 MASKED = [2, 9, 15]
@@ -140,9 +149,46 @@ def write_cfg(name, base, mutate):
     return p
 
 
+BOARD_GAP_S = 10 if not SIM else 1   # mínimo entre cerrar y volver a abrir el VX1740 (DAQ2-14: dos cuelgues)
+OPEN_RETRIES = 3
+OPEN_RETRY_WAIT_S = 30 if not SIM else 1
+_last_close = [0.0]
+OPEN_FAIL = ("configuración del digitizador", "CAEN_DGTZ_CommError", "CAEN_DGTZ_Timeout", "OpenDigitizer")
+
+
+def wait_board_gap(what):
+    """Espera a que no quede ningún daqrun y a que pasen BOARD_GAP_S desde el último cierre del digitizador."""
+    t0 = time.time()
+    while sh(["pgrep", "-f", DAQRUN], check=False).returncode == 0:
+        if time.time() - t0 > 330:
+            raise Abort(f"{what}: sigue corriendo otro daqrun después de 330 s")
+        time.sleep(2)
+    wait = _last_close[0] + BOARD_GAP_S - time.time()
+    if wait > 0:
+        time.sleep(wait)
+
+
 def daqrun(cfg, seconds):
+    """Un run de daqrun; la apertura del digitizador se reintenta OPEN_RETRIES veces si falla por
+    comunicación (antes de "digitizador abierto"); siempre BOARD_GAP_S entre cierre y apertura."""
+    for attempt in range(1, OPEN_RETRIES + 1):
+        try:
+            return _daqrun_once(cfg, seconds)
+        except OpenFailed as e:
+            log(f"  apertura del digitizador falló (intento {attempt} de {OPEN_RETRIES}): {e}")
+            if attempt == OPEN_RETRIES:
+                raise Abort(f"el digitizador no abre tras {OPEN_RETRIES} intentos: {e}")
+            time.sleep(OPEN_RETRY_WAIT_S)
+
+
+class OpenFailed(Exception):
+    pass
+
+
+def _daqrun_once(cfg, seconds):
     """Un run de daqrun; mientras corre, HV de CH00-07 vigilada cada 5 s: un trip o Status distinto de 0x1
     detiene el run (SIGTERM, cierre limpio) y aborta la secuencia."""
+    wait_board_gap(os.path.basename(cfg))
     t0 = time.time()
     logf = f"{OUT}/daqrun_{os.path.basename(cfg)}.log"
     with open(logf, "w") as lf:
@@ -161,7 +207,10 @@ def daqrun(cfg, seconds):
                 p.terminate()
                 p.wait(timeout=300)
                 raise Abort(f"daqrun {os.path.basename(cfg)} no terminó a tiempo")
+    _last_close[0] = time.time()
     txt = open(logf).read()
+    if p.returncode != 0 and "digitizador abierto" not in txt and any(k in txt for k in OPEN_FAIL):
+        raise OpenFailed(next((l for l in txt.splitlines() if "ERROR" in l), txt[-300:])[-300:])
     if hv_err:
         raise Abort(f"{hv_err} (run {os.path.basename(cfg)} detenido)")
     r = subprocess.CompletedProcess(p.args, p.returncode)
@@ -332,12 +381,40 @@ def analyse_self(run, step, T, gx, gy, cal, sw):
 
 # ---------------------------------------------------------------- secuencia
 
-def physics_stop():
+PHYS_LOG = "/data/daq/logs/daq-physics.log"
+
+
+def physics_status():
+    """Estado del run de física: unidad activa y última línea relevante de su log."""
     if SIM:
-        return
-    sh(["systemctl", "--user", "stop", "daq-physics"], timeout=400, check=False)
-    time.sleep(3)
-    log("run de física detenido")
+        return {"active": False, "last": "(sim)"}
+    act = sh(["systemctl", "--user", "is-active", "daq-physics"], check=False).stdout.strip()
+    last = ""
+    try:
+        lines = [l for l in open(PHYS_LOG, errors="replace").read().splitlines()[-400:] if "ERROR" in l or "termina" in l or "arranca" in l or "abierto" in l]
+        last = lines[-1][:300] if lines else ""
+    except OSError:
+        pass
+    return {"active": act == "active", "state": act, "last": last}
+
+
+def physics_stop():
+    """Detiene el run de física y espera a que el daqrun termine (cierre del digitizador)."""
+    if SIM:
+        return {"was_active": False}
+    before = physics_status()
+    log(f"run de física antes del barrido: {before['state']}; última línea: {before['last']}")
+    if before["active"]:
+        sh(["systemctl", "--user", "stop", "daq-physics"], timeout=400, check=False)
+    t0 = time.time()
+    while sh(["pgrep", "-f", DAQRUN], check=False).returncode == 0:
+        if time.time() - t0 > 330:
+            raise Abort("el daqrun de física no terminó en 330 s")
+        time.sleep(2)
+    _last_close[0] = time.time()
+    after = physics_status()
+    log(f"run de física detenido ({after['state']}); última línea: {after['last']}")
+    return {"was_active": before["active"], "before_last": before["last"], "after_last": after["last"]}
 
 
 def physics_start():
@@ -348,11 +425,29 @@ def physics_start():
            "--property=TimeoutStopSec=300", "--property=StandardOutput=append:/data/daq/logs/daq-physics.log",
            "--property=StandardError=append:/data/daq/logs/daq-physics.log", "--setenv=LD_LIBRARY_PATH=" + os.path.expanduser("~/root6/lib"),
            "--working-directory=" + os.path.expanduser("~"), BIN + "/daqrun", "--config", PHYS_CFG]
-    r = sh(cmd, timeout=60, check=False)
-    time.sleep(15)
-    act = sh(["systemctl", "--user", "is-active", "daq-physics"], check=False).stdout.strip()
-    log(f"run de física reiniciado con trigger externo: {act} ({(r.stdout + r.stderr).strip()[:200]})")
-    return act
+    for attempt in range(1, OPEN_RETRIES + 1):
+        wait_board_gap("run de física")
+        size = os.path.getsize(PHYS_LOG) if os.path.exists(PHYS_LOG) else 0
+        r = sh(cmd, timeout=60, check=False)
+        time.sleep(15)
+        act = sh(["systemctl", "--user", "is-active", "daq-physics"], check=False).stdout.strip()
+        new_txt = ""
+        try:
+            with open(PHYS_LOG, errors="replace") as f:
+                f.seek(size)
+                new_txt = f.read()
+        except OSError:
+            pass
+        opened = "digitizador abierto" in new_txt
+        err = next((l for l in new_txt.splitlines() if "ERROR" in l), "")[:300]
+        log(f"run de física (intento {attempt}): unidad {act}, digitizador {'abierto' if opened else 'NO abierto'} {err}")
+        if act == "active" and opened:
+            return f"activo con trigger externo (intento {attempt})"
+        if act != "active":
+            _last_close[0] = time.time()
+        if attempt < OPEN_RETRIES:
+            time.sleep(OPEN_RETRY_WAIT_S)
+    return f"NO ARRANCÓ tras {OPEN_RETRIES} intentos: {err or act} (el digitizador puede necesitar reiniciar el crate VME)"
 
 
 def summary_mail(text):
@@ -364,7 +459,8 @@ def summary_mail(text):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    log("=== DAQ2-14 barrido de tensión" + (" (SIMULACIÓN)" if SIM else ""))
+    log("=== DAQ2-14 barrido de tensión" + (" (SIMULACIÓN)" if SIM else "") + f"; campaña {CAMPAIGN}; límite "
+        + time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(DEADLINE)))
     results = {"steps": [], "aborted": None, "skipped": []}
     phys_stopped = False
     try:
@@ -379,7 +475,7 @@ def main():
         sh([(REPO + "/daq/build/apps/daqcampaign/" if SIM else BIN + "/") + "daqcampaign"] + camp[1:] + ["open", CAMPAIGN], check=False)
         swcfg = write_cfg("sw", "/data/daq/config/commissioning3_2026_10_21/toggle2_sw100_full.json", lambda c: None)
         extcfg = write_cfg("ext", PHYS_CFG, lambda c: c["run"].__setitem__("max_duration_s", 0))
-        physics_stop()
+        results["physics_before"] = physics_stop()
         phys_stopped = True
         res = hvctl("bias", "begin", "--expected", ",".join(f"{v:.2f}" for v in NOMINAL), "--authorize", AUTH)
         log(f"bias begin: {res.get('result')} ({res.get('detail')})", res=res)
@@ -444,13 +540,19 @@ def main():
             log(f"HV final: {'nominal y Pw = 1 en CH00-07' if not bad else 'NO nominal en ' + str(bad)}", hv=results["hv_final"])
         except Exception as e:  # noqa: BLE001
             log(f"no se pudo leer el estado final de HV: {e}")
-        if phys_stopped:
+        # Siempre: el run de física vuelve con trigger externo (también si no corría antes o si se abortó).
+        try:
             results["physics"] = physics_start()
+        except Exception as e:  # noqa: BLE001
+            results["physics"] = f"NO ARRANCÓ: {e}"
+        log(f"run de física al final: {results['physics']}")
         json.dump(results, open(f"{OUT}/biasscan_results.json", "w"), indent=1, ensure_ascii=False, default=str)
         lines = [f"DAQ2-14 barrido de tensión de hod2018{' (SIMULACIÓN)' if SIM else ''}: " + ("ABORTADO: " + results["aborted"] if results["aborted"] else "completo"),
                  f"Escalones hechos: {[s['delta_V'] for s in results['steps']]}; omitidos: {results['skipped']}",
                  f"Restauración: {results['restore'].get('result')} {results['restore'].get('detail', '')}",
-                 f"Run de física: {results.get('physics')}"]
+                 f"Run de física antes del barrido: {'activo' if results.get('physics_before', {}).get('was_active') else 'NO activo'}"
+                 f" (última línea del log: {results.get('physics_before', {}).get('before_last', '–')})",
+                 f"Run de física al final: {results.get('physics')}"]
         for s in results["steps"]:
             e = s["ext"]["all"]
             lines.append(f"ΔV {s['delta_V']:+.1f} V: G mediana {s['sw']['G_median_mV']:.3f} mV; ε_XY ctl 5/8/10/12 p.e. "
