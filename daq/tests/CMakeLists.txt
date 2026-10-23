@@ -46,3 +46,10 @@ endif()
 gtest_discover_tests(daq_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 300 ENVIRONMENT "DAQV2_SECRETS=/nonexistent/daq_tests_secrets.env")
 gtest_discover_tests(daq_root_tests DISCOVERY_TIMEOUT 120 PROPERTIES TIMEOUT 600
                      ENVIRONMENT "DAQV2_SECRETS=/nonexistent/daq_tests_secrets.env")
+# DAQ2-16: estimador X·Y compartido de hod2018 (Python + numpy). La regresión con el run 8 se salta si faltan sus
+# impactos (outputs/, fuera de git).
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  add_test(NAME py_xy_estimator COMMAND ${Python3_EXECUTABLE} -I ${PROJECT_SOURCE_DIR}/tools/characterization/test_xy_estimator.py)
+  set_tests_properties(py_xy_estimator PROPERTIES TIMEOUT 300)
+endif()

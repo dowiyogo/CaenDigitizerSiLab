@@ -12,6 +12,9 @@ import calendar, csv, glob, gzip, json, math, os, statistics, subprocess, sys, t
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import xy_estimator as xy  # noqa: E402
+
 OUT = sys.argv[1]
 W = OUT + "/work"
 REPO = "/home/xplus/digitizer/CaenDigitizerSiLab-jai"
@@ -372,38 +375,18 @@ X18, Y18 = PLANES[("hod2018", "X")], PLANES[("hod2018", "Y")]
 
 
 def eff(e, T, excl=()):
+    """Fracción X·Y con el estimador compartido (xy_estimator.xy_fraction); impacto = mínimo de la ventana (sección 3)."""
     p, cp = pe(e)
     xs = [c for c in X18 if c not in excl]
     ys = [c for c in Y18 if c not in excl]
-    X = (p[:, xs] > T).any(1); Y = (p[:, ys] > T).any(1)
-    Xc = (cp[:, xs] > T).any(1); Yc = (cp[:, ys] > T).any(1)
-    N = len(e)
-    nxy = int((X & Y).sum())
-    a1, a2, a3 = int((X & Yc).sum()), int((Xc & Y).sum()), int((Xc & Yc).sum())
-    acc_ctl = a1 + a2 - a3
-    m1, m2 = int((X[:-1] & Y[1:]).sum()), int((Y[:-1] & X[1:]).sum())
-    acc_mix = 0.5 * (m1 + m2) * N / (N - 1)
-    out = {"T": T, "N": N, "N_XY": nxy, "acc_ctl": acc_ctl, "acc_mix": acc_mix, "N_X": int(X.sum()), "N_Y": int(Y.sum()),
-           "N_Xc": int(Xc.sum()), "N_Yc": int(Yc.sum())}
-    # Con ruido independiente (aX, aY de la ventana fuera de tiempo; rX, rY verdaderas por plano):
-    #   mismo − mezclados = (q − rX·rY)(1−aX)(1−aY); mismo − fuera de tiempo = q(1−aX)(1−aY)  (fórmula de mayo,
-    #   hod2018_good_time_step2.C; corregido en DAQ2-15: antes faltaban rX·rY y el factor (1−aX)(1−aY)).
-    aX, aY = out["N_Xc"] / N, out["N_Yc"] / N
-    rX, rY = (out["N_X"] / N - aX) / (1 - aX), (out["N_Y"] / N - aY) / (1 - aY)
-    den = (1 - aX) * (1 - aY)
-    out.update(aX=aX, aY=aY, rX=rX, rY=rY)
-    for tag, acc, vacc, add in (("mix", acc_mix, (m1 + m2) / 4, rX * rY), ("ctl", acc_ctl, a1 + a2 + a3, 0.0)):
-        f = (nxy - acc) / (N * den) + add
-        ef = math.sqrt(nxy + vacc) / (N * den)
-        out[f"frac_{tag}"] = f
-        out[f"frac_{tag}_err"] = ef
-        out[f"eps_geo_{tag}"] = f / ACC_GEOM
-        out[f"eps_geo_{tag}_err"] = ef / ACC_GEOM
-        for a_, r_ in (("X|Y", rY), ("Y|X", rX)):
-            v = f / r_ if r_ > 0 else float("nan")
-            out[f"cond_{a_}_{tag}"] = v
-            out[f"cond_{a_}_{tag}_err"] = math.sqrt((ef / r_) ** 2 + max(v * (1 - v), 0) / (r_ * N)) if r_ > 0 else float("nan")
-    out["frac_raw"] = nxy / N
+    r = xy.xy_fraction((p[:, xs] > T).any(1), (p[:, ys] > T).any(1), (cp[:, xs] > T).any(1), (cp[:, ys] > T).any(1))
+    out = {"T": T, "frac_raw": r["N_XY"] / r["N"]}
+    out.update({k: r[k] for k in ("N", "N_XY", "acc_ctl", "acc_mix", "N_X", "N_Y", "N_Xc", "N_Yc", "aX", "aY", "rX", "rY")})
+    for tag in ("mix", "ctl"):
+        out[f"frac_{tag}"], out[f"frac_{tag}_err"] = r[f"f_{tag}"], r[f"f_{tag}_err"]
+        out[f"eps_geo_{tag}"], out[f"eps_geo_{tag}_err"] = r[f"f_{tag}"] / ACC_GEOM, r[f"f_{tag}_err"] / ACC_GEOM
+        for a_ in ("X|Y", "Y|X"):
+            out[f"cond_{a_}_{tag}"], out[f"cond_{a_}_{tag}_err"] = r[f"e_{a_}_{tag}"], r[f"e_{a_}_{tag}_err"]
     return out
 
 

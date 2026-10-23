@@ -1,4 +1,5 @@
 # biasscan_night.service — DAQ2-15: barrido de tensión de noche (lo arranca biasscan_night.timer a las 02:00Z; corte 10:00Z)
+# DAQ2-16: --self-check-only (solo el run de control del auto-trigger, con volcado de registros; sin los runs de auto-trigger).
 # ExecStopPost: pase lo que pase, nominal restaurado (noop si la sesión ya se cerró) y run de física activo.
 [Unit]
 Description=DAQ2-15 barrido de tensión de noche (lo arranca biasscan_night.timer a las 02:00Z; corte 10:00Z)
@@ -6,7 +7,7 @@ After=hvmon.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -I /home/xplus/digitizer/CaenDigitizerSiLab-jai/daq/tools/biasscan/biasscan.py --campaign biasscan_2026_10_24_night --deadline "2026-10-24 10:00:00"
+ExecStart=/usr/bin/python3 -I /home/xplus/digitizer/CaenDigitizerSiLab-jai/daq/tools/biasscan/biasscan.py --campaign biasscan_2026_10_24_night --deadline "2026-10-24 10:00:00" --self-check-only
 ExecStopPost=/home/xplus/digitizer/CaenDigitizerSiLab-jai/daq/tools/biasscan/biasscan_safety.sh
 KillSignal=SIGTERM
 TimeoutStopSec=900

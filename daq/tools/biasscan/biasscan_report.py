@@ -10,6 +10,12 @@
 # Salida: <out>/report_es.md y <out>/biasscan_analysis.json.  Uso: biasscan_report.py <dir de resultados> <jsonl>
 import json, math, statistics, sys
 
+
+def med(v):
+    """Mediana o nan si no hay valores (DAQ2-16: bajo la ruptura no hay pulsos y el informe no debe caerse)."""
+    v = list(v)
+    return statistics.median(v) if v else float("nan")
+
 out, jl = sys.argv[1], sys.argv[2]
 R = json.load(open(out + "/biasscan_results.json"))
 steps = R["steps"]
@@ -46,8 +52,13 @@ lines.append("|---|---|---|---|---|")
 for s in steps:
     t = [b["degC"] for b in s.get("board_temp", [])]
     c = s.get("selftrigger_check", {})
-    cs = (f"{c['pair']} a {c['T_pe']} p.e.: {c['rate_Hz']:.3f} Hz contra {c['pred_acc_Hz']:.3f} Hz previstos ({c['frac_of_pred']:.3g}); "
-          if "rate_Hz" in c else "") + ("funciona" if c.get("working") else f"NO funciona: {c.get('reason')}") if c else "–"
+    verdict = "funciona" if c.get("working") else (f"no comprobable: {c.get('reason')}" if c.get("working") is None and "rate_Hz" in c else
+                                                    f"NO funciona: {c.get('reason')}")
+    rg = c.get("registers") or {}
+    regs = (f"; releído 0x810C {rg['read'].get('global_trigger_mask_0x810C')}, umbrales ADC {rg['read'].get('group_trigger_threshold_adc')}, "
+            f"distintos de lo escrito: {rg.get('mismatch') or 'ninguno'}") if rg.get("read") else ""
+    cs = ((f"{c['pair']} a {c['T_pe']} p.e.: {c['rate_Hz']:.3f} Hz contra {c['pred_acc_Hz']:.3f} Hz previstos ({c['frac_of_pred']:.3g}); "
+           if "rate_Hz" in c else "") + verdict + regs) if c else "–"
     lines.append(f"| {s['delta_V']:+.1f} | {s.get('t_start_utc')} | {s.get('t_start_chile', '–')} | {t} | {cs} |")
 lines.append("")
 lines.append("## G contra tensión y tensión de ruptura (G medida; V_bd estimada por extrapolación lineal)")
@@ -77,20 +88,25 @@ for ch in range(32):
 lines.append("")
 lines.append("## Por escalón")
 lines.append("")
+_new = any("f_mix" in (v if isinstance(v, dict) else {}) for s in steps for v in s.get("ext", {}).get("all", {}).values())
+lines.append("ε_XY = fracción X·Y con el estimador compartido (xy_estimator.py) / 0.0360; impacto = pulso en la ventana signal, sin ch3 (DAQ2-16)." if _new else
+             "ε_XY = versión del barrido: impacto = mínimo de la ventana por grupo y estimador sin rX·rY ni (1−aX)(1−aY) (anterior a DAQ2-16); "
+             "los valores corregidos están en \"Recálculo offline (DAQ2-16)\".")
+lines.append("")
 lines.append("| ΔV | G mediana (mV) | diafonía mediana P(>1.5)/P(>0.5) | ruido mediano > 5 / 8 / 10 / 12 p.e. por canal (Hz) | ε_XY ctl 5/8/10/12 | ε_XY mezclados 5/8/10/12 | hod2019 > 1 mV mediana (Hz) |")
 lines.append("|---|---|---|---|---|---|---|")
 for s in steps:
     pc = s["sw"]["per_channel"]
     get = lambda ch: pc.get(str(ch), pc.get(ch))
     xt = [get(ch)["rate_1.5pe_Hz"] / get(ch)["rate_0.5pe_Hz"] for ch in range(32) if get(ch).get("rate_0.5pe_Hz")]
-    nz = {T: statistics.median([get(ch)[f"rate_{T}pe_Hz"] for ch in range(32) if get(ch).get(f"rate_{T}pe_Hz") is not None]) for T in TH}
+    nz = {T: med([get(ch)[f"rate_{T}pe_Hz"] for ch in range(32) if get(ch).get(f"rate_{T}pe_Hz") is not None]) for T in TH}
     h19 = [get(ch)["rate_1mV_Hz"] for ch in range(32, 64) if get(ch).get("rate_1mV_Hz") is not None]
     e = s["ext"]["all"]
     gete = lambda T, k: e.get(T, e.get(int(T), {})).get(k, float("nan"))
-    lines.append(f"| {s['delta_V']:+.1f} | {s['sw']['G_median_mV']:.3f} | {statistics.median(xt):.3f} | " + " / ".join(f"{nz[T]:.4g}" for T in TH)
+    lines.append(f"| {s['delta_V']:+.1f} | {s['sw']['G_median_mV']:.3f} | {med(xt):.3f} | " + " / ".join(f"{nz[T]:.4g}" for T in TH)
                  + " | " + "/".join(f"{gete(T, 'eff_ctl'):.3f}" for T in TH) + " | " + "/".join(f"{gete(T, 'eff_mix'):.3f}" for T in TH)
-                 + f" | {statistics.median(h19):.4g} |")
-    ana["steps"].append({"delta_V": s["delta_V"], "crosstalk_median": statistics.median(xt), "noise_median_Hz": nz, "hod2019_1mV_median_Hz": statistics.median(h19)})
+                 + f" | {med(h19):.4g} |")
+    ana["steps"].append({"delta_V": s["delta_V"], "crosstalk_median": med(xt), "noise_median_Hz": nz, "hod2019_1mV_median_Hz": med(h19)})
 lines.append("")
 lines.append("## Auto-trigger con un par de grupos (G_X ∧ G_Y, mayoría 2 en 8 ns, ch2/9/15 fuera)")
 lines.append("")

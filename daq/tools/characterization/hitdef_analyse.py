@@ -14,9 +14,12 @@ import calendar, csv, json, math, sys, time
 
 import numpy as np
 
+sys.path.insert(0, __import__("os").path.dirname(__import__("os").path.abspath(__file__)))
+import xy_estimator as xy  # noqa: E402
+
 W, OUTF = sys.argv[1], sys.argv[2]
 REPO = "/home/xplus/digitizer/CaenDigitizerSiLab-jai"
-DT = np.dtype([("t", "<f8"), ("aS", "<f4", 32), ("aC", "<f4", 32), ("aG", "<f4", 32), ("kG", "u1", 32), ("aM", "<f4", 32), ("aMc", "<f4", 32)])
+DT = xy.HITS_DTYPE
 TS = list(range(3, 13))
 X, Y = list(range(16)), list(range(16, 32))  # mayo (kCfg_2026_05) y octubre (r4): mismos conjuntos de canales por plano
 EXCL = {"sin_ch3": [3], "sin_2_3_9_15": [2, 3, 9, 15]}
@@ -68,32 +71,7 @@ def good_may(t):
 DS = {"may8": ("mayo v8 (tiempo bueno)", g_may()), "night": ("noche 2026-10-19", g_c1()), "run008": ("run 8 (2026-10-22/23)", g_c1())}
 
 
-def frac(Xs, Ys, Xc, Yc):
-    """Fracción de triggers con muón en X y en Y (q). Con ruido independiente de probabilidad aX, aY por ventana
-    (medida en la ventana fuera de tiempo) y rX, rY = probabilidades verdaderas por plano:
-      mismo evento − mezclados = (q − rX·rY)(1 − aX)(1 − aY)       -> q = (N_XY − acc_mix) / (N(1−aX)(1−aY)) + rX·rY
-      mismo evento − fuera de tiempo = q (1 − aX)(1 − aY)          -> q = (N_XY − acc_ctl) / (N(1−aX)(1−aY))
-    (la primera es la fórmula del análisis de mayo, hod2018_good_time_step2.C). ε(X|Y) = q / rY, ε(Y|X) = q / rX."""
-    N = len(Xs)
-    nxy = int((Xs & Ys).sum())
-    a1, a2, a3 = int((Xs & Yc).sum()), int((Xc & Ys).sum()), int((Xc & Yc).sum())
-    m1, m2 = int((Xs[:-1] & Ys[1:]).sum()), int((Ys[:-1] & Xs[1:]).sum())
-    out = {"N": N, "N_XY": nxy, "acc_ctl": a1 + a2 - a3, "acc_mix": 0.5 * (m1 + m2) * N / (N - 1), "N_X": int(Xs.sum()), "N_Y": int(Ys.sum()),
-           "N_Xc": int(Xc.sum()), "N_Yc": int(Yc.sum())}
-    aX, aY = out["N_Xc"] / N, out["N_Yc"] / N
-    rX, rY = (out["N_X"] / N - aX) / (1 - aX), (out["N_Y"] / N - aY) / (1 - aY)
-    den = (1 - aX) * (1 - aY)
-    out.update(aX=aX, aY=aY, rX=rX, rY=rY)
-    for tag, acc, v, add in (("mix", out["acc_mix"], (m1 + m2) / 4, rX * rY), ("ctl", out["acc_ctl"], a1 + a2 + a3, 0.0)):
-        q = (nxy - acc) / (N * den) + add
-        eq = math.sqrt(nxy + v) / (N * den)
-        out[f"f_{tag}"] = q
-        out[f"f_{tag}_err"] = eq
-        for a, r in (("X|Y", rY), ("Y|X", rX)):
-            e = q / r if r > 0 else float("nan")
-            out[f"e_{a}_{tag}"] = e
-            out[f"e_{a}_{tag}_err"] = math.sqrt((eq / r) ** 2 + max(e * (1 - e), 0) / (r * N)) if r > 0 else float("nan")
-    return out
+frac = xy.xy_fraction  # estimador compartido (xy_estimator.py)
 
 
 res = {"definition": {"pedestal": "media recortada (±2 mV de la mediana) de las 40 muestras [s0−49, s0−9)",

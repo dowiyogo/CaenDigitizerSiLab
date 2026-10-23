@@ -9,7 +9,11 @@
 //  - hod2019: tasa oscura > 3 mV (indicador de ganancia); sin G, provisional.
 // Salida: JSON daqv2.pe_calibration/1 con versión, run de origen, estado de HV y temperatura de la
 // placa al inicio del run (hvmon_state_at_start del segmento).
-// Uso: root -l -b -q 'daq/tools/validation/commissioning_pe_calibration.C+("<run>_seg*.root", "<version>", "<salida.json>")'
+//  - DAQ2-16: con loFrac, hiFrac > 0 la ventana de picos es [max(loFrac × semilla, loFloorMv), hiFrac × semilla] (la semilla es la
+//    G esperada) en lugar de 5-26 mV; el piso evita el bulto del umbral del buscador (1.0-1.5 mV). Si con la semilla no hay
+//    G aceptada (ok/changed), se reintenta con semilla × 0.75, × 0.55 y × 0.4 (cada intento con las reglas de la fase 5; con semilla
+//    reducida solo vale "ok") y se queda el primero aceptado; queda registrada la semilla usada. Sin loFrac: reglas de la fase 5 sin cambios.
+// Uso: root -l -b -q 'daq/tools/validation/commissioning_pe_calibration.C+("<run>_seg*.root", "<version>", "<salida.json>"[, "<semillas>", loFrac, hiFrac, loFloorMv])'
 R__ADD_INCLUDE_PATH(daq/core/include)
 #include <TChain.h>
 #include <TFile.h>
@@ -30,7 +34,8 @@ R__ADD_INCLUDE_PATH(daq/core/include)
 #include "daq/pulse_finder.h"
 
 void commissioning_pe_calibration(const char* pattern, const char* version, const char* outJson,
-                                  const char* seeds = "/data/daq/sim/offline/night_default/gains.json") {
+                                  const char* seeds = "/data/daq/sim/offline/night_default/gains.json", double loFrac = -1, double hiFrac = -1,
+                                  double loFloorMv = 2.5) {
   std::map<int, std::vector<double>> seedVals;
   {
     std::ifstream in(seeds);
@@ -53,6 +58,11 @@ void commissioning_pe_calibration(const char* pattern, const char* version, cons
   const double lsb = daq::pulse::lsbMv();
   const int nb = static_cast<int>(100.0 / lsb);
   std::vector<std::vector<std::uint32_t>> spec(64, std::vector<std::uint32_t>(static_cast<std::size_t>(nb), 0));
+  // DAQ2-16: espectro fino (0.25 mV) para la ventana que sigue a la G esperada: con G ≈ 2 mV, el suavizado de 3 bins de 1 LSB
+  // (≈ 1.5 mV) borra los picos.
+  const double fineMv = 0.25;
+  const int nbf = static_cast<int>(100.0 / fineMv);
+  std::vector<std::vector<std::uint32_t>> specFine(64, std::vector<std::uint32_t>(static_cast<std::size_t>(nbf), 0));
   std::vector<double> pedSum(64, 0);
   std::vector<long> dark3(64, 0);
   const std::vector<daq::pulse::Region> zones{{0, 49}, {102, std::min(622, n)}};
@@ -72,6 +82,8 @@ void commissioning_pe_calibration(const char* pattern, const char* version, cons
       for (const auto& q : p) {
         const int b = static_cast<int>(q.amplitudeMv / lsb);
         if (b >= 0 && b < nb) ++spec[static_cast<std::size_t>(c)][static_cast<std::size_t>(b)];
+        const int bf = static_cast<int>(q.amplitudeMv / fineMv);
+        if (bf >= 0 && bf < nbf) ++specFine[static_cast<std::size_t>(c)][static_cast<std::size_t>(bf)];
         if (q.amplitudeMv > 3.0) ++dark3[static_cast<std::size_t>(c)];
       }
     }
@@ -118,7 +130,28 @@ void commissioning_pe_calibration(const char* pattern, const char* version, cons
         std::sort(v.begin(), v.end());
         seed = v[v.size() / 2];
       }
-      const auto r = daq::gain::fitGain(spec[i], lsb, seed);
+      daq::gain::Result r;
+      double used = seed;
+      if (loFrac > 0 && hiFrac > loFrac) {
+        for (double f : {1.0, 0.75, 0.55, 0.4}) {
+          daq::gain::Options opt;
+          opt.loMv = std::max(loFrac * seed * f, loFloorMv);
+          opt.hiMv = hiFrac * seed * f;
+          const auto t = daq::gain::fitGain(specFine[i], fineMv, seed * f, opt);
+          // con la semilla esperada valen ok y changed (fase 5); con una semilla reducida, solo ok (G a ±20 % de esa semilla)
+          const bool acc = f == 1.0 ? t.accepted() : t.status == "ok";
+          if (f == 1.0 || acc) {
+            r = t;
+            used = seed * f;
+            e["fit_window_mV"] = {opt.loMv, opt.hiMv};
+          }
+          if (acc) break;
+        }
+        e["seed_used_mV"] = used;
+        e["fit_bin_mV"] = fineMv;
+      } else {
+        r = daq::gain::fitGain(spec[i], lsb, seed);
+      }
       e["seed_mV"] = seed;
       e["status"] = r.status;
       e["peaks"] = r.peaks;

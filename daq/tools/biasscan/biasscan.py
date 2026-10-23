@@ -25,14 +25,22 @@
 # de control de 2 min con un par a 8 p.e.: si la tasa medida es < 10 % de la tasa accidental prevista, la
 # configuración del auto-trigger se marca como que no funciona y se omiten los runs de auto-trigger de ese
 # escalón (se sigue con el siguiente). Temperatura de la placa A7030DP y hora del día en cada escalón.
+# DAQ2-16 (2026-10-23): eficiencia X·Y con el estimador compartido (daq/tools/characterization/xy_estimator.py) y la
+# definición única de impacto (hitdef_extract.C: pulso con mínimo en la ventana signal, pedestal = media recortada de las
+# 40 muestras previas); ventana del ajuste de G = [0.5, 6] × G esperada (la del escalón anterior medida, o c1 en ΔV = 0);
+# el control del auto-trigger registra los registros escritos y releídos (run_info_json) y es "no comprobable" si la
+# predicción da < 3 eventos; --self-check-only: solo el run de control, sin los runs de auto-trigger.
 # Escrituras de HV: solo por hvctl (hvmon), cada una con --authorize. Registro: /data/daq/logs/biasscan_<campaña>.log
 # y .jsonl. Resultados: outputs/daq2-15/<campaña>/.
-# Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS" | --max-hours H]
+# Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS" | --max-hours H] [--self-check-only]
 #   --sim: hvmon de prueba con FakeHVBackend, daqrun fake, duraciones cortas
 import calendar, glob, itertools, json, math, os, statistics, subprocess, sys, time
 
 SIM = "--sim" in sys.argv
+SELF_CHECK_ONLY = "--self-check-only" in sys.argv
 REPO = "/home/xplus/digitizer/CaenDigitizerSiLab-jai"
+sys.path.insert(0, REPO + "/daq/tools/characterization")
+import xy_estimator as xy  # noqa: E402  estimador X·Y compartido (DAQ2-16)
 BIN = os.path.expanduser("~/.local/opt/daqv2/bin")
 HVCTL = ([REPO + "/daq/build/apps/hvctl/hvctl", "--socket", "/run/user/1000/daqv2-test/hvmon.sock"] if SIM else [BIN + "/hvctl"])
 DAQRUN = (REPO + "/daq/build/apps/daqrun/daqrun") if SIM else BIN + "/daqrun"
@@ -53,10 +61,13 @@ elif "--deadline" in sys.argv:
     DEADLINE = calendar.timegm(time.strptime(_arg("--deadline", ""), "%Y-%m-%d %H:%M:%S"))
 else:
     DEADLINE = _next10 if time.time() < _next10 else _next10 + 86400
-STEP_EST_S = 75 * 60 if not SIM else 60  # duración estimada de un escalón completo
+STEP_EST_S = (35 if SELF_CHECK_ONLY else 75) * 60 if not SIM else 60  # duración estimada de un escalón completo
 DUR = {"stab": 120, "sw": 120, "ext": 900, "check": 120, "self": 600} if not SIM else {"stab": 5, "sw": 15, "ext": 20, "check": 10, "self": 15}
 CHECK_T_PE = 8        # run de control del auto-trigger: un par a 8 p.e.
 CHECK_MIN_FRAC = 0.10  # tasa medida < 10 % de la accidental prevista -> configuración que no funciona
+CHECK_MIN_EXPECTED = 3.0  # menos eventos previstos en el run de control: no comprobable (DAQ2-16: antes 0/0 = "funciona")
+GAIN_WINDOW = (0.5, 6.0)  # ventana de picos del ajuste de G en múltiplos de la G esperada (DAQ2-16)
+DEAD = [3]                # ch3 muerto: fuera de la eficiencia X·Y
 MASKED = [2, 9, 15]
 PAIRS = [(0, 2), (0, 3), (1, 2), (1, 3)]
 THRESHOLDS = [4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30]
@@ -310,9 +321,9 @@ def _daqrun_once(cfg, seconds):
             "trigger_signature": idx.get("trigger_signature", "")}
 
 
-def root(macro, *args):
+def root(macro, *args, d="validation"):
     a = ",".join(json.dumps(x) if isinstance(x, str) else str(x).lower() if isinstance(x, bool) else str(x) for x in args)
-    sh(["root", "-l", "-b", "-q", "-e", ROOTINC, f"{REPO}/daq/tools/validation/{macro}.C+({a})"], timeout=3000, heavy=True)
+    sh(["root", "-l", "-b", "-q", "-e", ROOTINC, f"{REPO}/daq/tools/{d}/{macro}.C+({a})"], timeout=3000, heavy=True)
 
 
 # ---------------------------------------------------------------- análisis de cada escalón
@@ -321,20 +332,31 @@ def analyse_sw(run, step, seedsCal):
     pat = RAW + "/" + run["base"] + "_seg*.root"
     seeds = f"{OUT}/seeds_step{step}.json"
     cal0 = json.load(open(seedsCal))
-    json.dump([{"ch": c["ch"], "status": "ok", "value": c["G_mV"]} for c in cal0["channels"] if c.get("G_mV")], open(seeds, "w"))
+    # G esperada por canal (DAQ2-16): la medida en el escalón anterior (o c1); si no se midió, la esperada que traía.
+    expected = {}
+    for c in cal0["channels"]:
+        if c["ch"] >= 32:
+            continue
+        measured = c.get("G_mV") and c.get("status") in ("ok", "changed") and "G_mV_fallback" not in c
+        g = c["G_mV"] if measured else c.get("G_expected_mV") or c.get("seed_mV") or c.get("G_mV")
+        if g:
+            expected[c["ch"]] = g
+    json.dump([{"ch": ch, "status": "ok", "value": g} for ch, g in expected.items()], open(seeds, "w"))
     cal = f"{OUT}/pecal_step{step}.json"
-    root("commissioning_pe_calibration", pat, f"daq2-14-step{step}", cal, seeds)
+    root("commissioning_pe_calibration", pat, f"daq2-16-step{step}", cal, seeds, GAIN_WINDOW[0], GAIN_WINDOW[1])
     noise = f"{OUT}/noise_step{step}.csv"
     root("selftrig_noise", pat, "", MAP, noise, 64)
     c = json.load(open(cal))
     G = {e["ch"]: e.get("G_mV") for e in c["channels"]}
     ok = [G[ch] for ch in range(32) if G.get(ch) and c["channels"][ch].get("status") in ("ok", "changed")]
     med = statistics.median(ok) if ok else statistics.median([e["G_mV"] for e in cal0["channels"] if e.get("G_mV")])
-    # calibración del escalón para daqrun: canales sin G aceptada -> mediana del escalón (marcados)
+    # calibración del escalón para daqrun: canales sin G aceptada -> su G esperada (o la mediana), marcados
     for e in c["channels"]:
+        if e["ch"] < 32:
+            e["G_expected_mV"] = expected.get(e["ch"], med)
         if e["ch"] < 32 and not (e.get("G_mV") and e.get("status") in ("ok", "changed")):
-            e["G_mV_fallback"] = med
-            e["G_mV"] = med
+            e["G_mV_fallback"] = expected.get(e["ch"], med)
+            e["G_mV"] = e["G_mV_fallback"]
             e["provisional"] = True
     json.dump(c, open(cal, "w"), indent=1)
     exp, spec = {}, {}
@@ -366,36 +388,42 @@ def analyse_sw(run, step, seedsCal):
 
 
 def analyse_ext(run, step, cal):
+    """Eficiencia X·Y (DAQ2-16): impactos con la definición única (hitdef_extract.C) y el estimador compartido
+    xy_estimator.xy_fraction; "all" sin ch3 (muerto), "masked" sin ch2, ch3, ch9, ch15. eff_* = q / ACC_GEOM."""
     pat = RAW + "/" + run["base"] + "_seg*.root"
+    G = [0.0] * 32
+    for e in json.load(open(cal))["channels"]:
+        if e["ch"] < 32 and e.get("G_mV"):
+            G[e["ch"]] = e["G_mV"]
+    med = statistics.median(g for g in G if g > 0)
+    G = [g if g > 0 else med for g in G]
+    pref = f"{OUT}/hits_step{step}"
+    root("hitdef_extract", pat, "daqv2", ",".join(f"{g:.5f}" for g in G), pref, d="characterization")
+    ev = xy.load_hits(pref + "_hits.bin")
+    keep = ("N", "N_XY", "acc_ctl", "acc_mix", "N_X", "N_Y", "N_Xc", "N_Yc", "aX", "aY", "rX", "rY", "f_mix", "f_mix_err", "f_ctl", "f_ctl_err",
+            "e_X|Y_mix", "e_Y|X_mix")
     res = {}
-    for tag, mask in (("all", ""), ("masked", ",".join(map(str, MASKED)))):
-        f = f"{OUT}/muon_step{step}_{tag}.csv"
-        root("selftrig_muon", pat, cal, f, mask)
-        rows = [{k: float(v) for k, v in r.items()} for r in __import__("csv").DictReader(open(f))]
-        N = len(rows)
-        out = {"N": N}
+    for tag, excl in (("all", DEAD), ("masked", sorted(set(MASKED + DEAD)))):
+        out = {"N": len(ev), "excluded_channels": excl}
         for T in THRESHOLDS:
-            sx = [max(r["s0_pe"], r["s1_pe"]) > T for r in rows]
-            sy = [max(r["s2_pe"], r["s3_pe"]) > T for r in rows]
-            cx = [max(r["c0_pe"], r["c1_pe"]) > T for r in rows]
-            cy = [max(r["c2_pe"], r["c3_pe"]) > T for r in rows]
-            n = sum(a and b for a, b in zip(sx, sy))
-            acc_ctl = sum(a and b for a, b in zip(sx, cy)) + sum(a and b for a, b in zip(cx, sy)) - sum(a and b for a, b in zip(cx, cy))
-            acc_mix = 0.5 * (sum(sx[i] and sy[i + 1] for i in range(N - 1)) + sum(sy[i] and sx[i + 1] for i in range(N - 1)))
-            d = {"N_XY": n, "acc_ctl": acc_ctl, "acc_mix": acc_mix, "frac_raw": n / N if N else 0,
-                 "eff_ctl": (n - acc_ctl) / (ACC_GEOM * N) if N else 0, "eff_mix": (n - acc_mix) / (ACC_GEOM * N) if N else 0}
+            Xs, Xc = xy.plane_hits(ev, G, T, [c for c in range(16) if c not in excl])
+            Ys, Yc = xy.plane_hits(ev, G, T, [c for c in range(16, 32) if c not in excl])
+            r = xy.xy_fraction(Xs, Ys, Xc, Yc)
+            d = {k: r.get(k) for k in keep}
+            d.update(frac_raw=r["N_XY"] / r["N"] if r["N"] else 0, eff_mix=r.get("f_mix", 0) / ACC_GEOM, eff_ctl=r.get("f_ctl", 0) / ACC_GEOM)
             pairs = {}
             for gx, gy in PAIRS:
-                a = [r[f"s{gx}_pe"] > T for r in rows]; b = [r[f"s{gy}_pe"] > T for r in rows]
-                ca = [r[f"c{gx}_pe"] > T for r in rows]; cb = [r[f"c{gy}_pe"] > T for r in rows]
-                np_ = sum(x and y for x, y in zip(a, b))
-                acc = sum(x and y for x, y in zip(a, cb)) + sum(x and y for x, y in zip(ca, b)) - sum(x and y for x, y in zip(ca, cb))
-                pairs[f"G{gx}G{gy}"] = {"N": np_, "acc_ctl": acc, "eff": (np_ - acc) / (ACC_GEOM * N) if N else 0}
+                a, ca = xy.plane_hits(ev, G, T, [c for c in range(8 * gx, 8 * gx + 8) if c not in excl])
+                b, cb = xy.plane_hits(ev, G, T, [c for c in range(8 * gy, 8 * gy + 8) if c not in excl])
+                p = xy.xy_fraction(a, b, ca, cb)
+                pairs[f"G{gx}G{gy}"] = {"N": p["N_XY"], "acc_ctl": p["acc_ctl"], "f_mix": p.get("f_mix"), "eff": p.get("f_mix", 0) / ACC_GEOM}
             d["pairs"] = pairs
             out[T] = d
         if tag == "all":
-            sel = [r for r in rows if max(r["s2_pe"], r["s3_pe"]) > 5]
-            xs = sorted(max(r["s0_pe"], r["s1_pe"]) for r in sel)
+            Gx = [G[c] for c in range(16) if c not in excl]
+            xs_ = [c for c in range(16) if c not in excl]
+            ys5 = (ev["aS"][:, 16:32] / [G[c] for c in range(16, 32)] > 5).any(1)
+            xs = sorted((ev["aS"][ys5][:, xs_] / Gx).max(1).tolist())
             out["spectrum_X_given_Y5_quartiles_pe"] = statistics.quantiles(xs, n=4) if len(xs) >= 4 else xs
             out["spectrum_X_given_Y5_hist"] = [sum(1 for x in xs if lo <= x < lo + 2) for lo in range(0, 60, 2)]
         res[tag] = out
@@ -660,8 +688,9 @@ def run_step(step, i, dv, prevCal, swcfg, extcfg):
     step["self"] = []
     board_temp(step, "antes del auto-trigger")
     chk = step["selftrigger_check"] = selftrigger_check(step, i, prevCal, extcfg)
-    if not chk.get("working"):
-        log(f"  AUTO-TRIGGER NO FUNCIONA en este escalón ({chk.get('reason')}): se omiten sus runs de auto-trigger")
+    if SELF_CHECK_ONLY or not chk.get("working"):
+        log(f"  runs de auto-trigger omitidos: " + ("--self-check-only (DAQ2-16)" if SELF_CHECK_ONLY else
+            f"{'NO COMPROBABLE' if chk.get('working') is None else 'NO FUNCIONA'} ({chk.get('reason')})"))
         step["self_muons_per_h_sum"] = None
         step["t_end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         return prevCal
@@ -695,7 +724,7 @@ def selftrigger_check(step, i, cal, extcfg):
         c["digitizer"]["trigger"] = {"mode": "self_hod2018", "self": {"groups": [gx, gy], "threshold_pe": CHECK_T_PE, "masked_channels": MASKED,
                                                                       "majority_groups": 2, "window_clk": 1, "include_external": False,
                                                                       "target_rate_Hz": max(50.0, 2 * pred)}}
-    out = {"pair": f"G{gx}G{gy}", "T_pe": CHECK_T_PE, "pred_acc_Hz": pred, "duration_s": DUR["check"]}
+    out = {"pair": f"G{gx}G{gy}", "T_pe": CHECK_T_PE, "pred_acc_Hz": pred, "duration_s": DUR["check"], "expected_events": pred * DUR["check"]}
     check_hv("antes del run de control del auto-trigger")
     try:
         run = daqrun(write_cfg(f"check_step{i}_G{gx}G{gy}", extcfg, mut), DUR["check"])
@@ -703,13 +732,53 @@ def selftrigger_check(step, i, cal, extcfg):
         out.update(working=False, reason=f"run de control falló: {e}")
         return out
     rate = run["events"] / DUR["check"]
-    frac = rate / pred if pred > 0 else float("inf")
-    out.update(events=run["events"], rate_Hz=rate, frac_of_pred=frac, base=run["base"], trigger_signature=run["trigger_signature"],
-               working=frac >= CHECK_MIN_FRAC)
-    if not out["working"]:
-        out["reason"] = f"tasa medida {rate:.3f} Hz = {frac:.3g} de la prevista {pred:.3f} Hz (< {CHECK_MIN_FRAC:.0%})"
+    frac = rate / pred if pred > 0 else float("nan")
+    out.update(events=run["events"], rate_Hz=rate, frac_of_pred=frac, base=run["base"], trigger_signature=run["trigger_signature"])
+    if out["expected_events"] < CHECK_MIN_EXPECTED:
+        out["working"] = None
+        out["reason"] = f"no comprobable: la predicción da {out['expected_events']:.2f} eventos en {DUR['check']} s (< {CHECK_MIN_EXPECTED:.0f})"
+    else:
+        out["working"] = frac >= CHECK_MIN_FRAC
+        if not out["working"]:
+            out["reason"] = f"tasa medida {rate:.3f} Hz = {frac:.3g} de la prevista {pred:.3f} Hz (< {CHECK_MIN_FRAC:.0%})"
+    verdict = "FUNCIONA" if out["working"] else "NO COMPROBABLE" if out["working"] is None else "NO FUNCIONA"
     log(f"  control del auto-trigger G{gx}∧G{gy} a {CHECK_T_PE} p.e.: {run['events']} eventos en {DUR['check']} s = {rate:.3f} Hz; "
-        f"accidentales previstos {pred:.3f} Hz; fracción {frac:.3g}: {'FUNCIONA' if out['working'] else 'NO FUNCIONA'}")
+        f"accidentales previstos {pred:.3f} Hz ({out['expected_events']:.1f} eventos); fracción {frac:.3g}: {verdict}")
+    out["registers"] = guarded(lambda: trigger_registers(run, i), "registros del run de control")
+    return out
+
+
+TRIG_KEYS = ("global_trigger_mask_0x810C", "group_trigger_threshold_adc", "channel_group_mask", "group_self_trigger", "trigger_polarity",
+             "majority_level", "majority_window_clk", "group_dc_offset", "group_enable_mask", "ext_trigger", "sw_trigger")
+
+
+def trigger_registers(run, i):
+    """Registros de trigger escritos y releídos por daqrun (run_info_json del primer segmento) junto a lo pedido en la
+    configuración (umbral en p.e., conversión a ADC, DC offset); cada uno al registro."""
+    if not run["segments"]:
+        return {"error": "sin segmentos"}
+    f = f"{OUT}/check_step{i}_run_info.json"
+    sh(["root", "-l", "-b", "-q", f"{REPO}/daq/tools/biasscan/run_info_dump.C({json.dumps(run['segments'][0])}, {json.dumps(f)})"], timeout=300)
+    d = json.load(open(f))
+    dig = (d.get("run_info") or {}).get("digitizer", {})
+    wr, rd = dig.get("config_written", {}), dig.get("config_read", {})
+    asked = ((d.get("config") or {}).get("digitizer") or {})
+    selfc = asked.get("trigger", {}).get("self", {})
+    out = {"written": {k: wr.get(k) for k in TRIG_KEYS}, "read": {k: rd.get(k) for k in TRIG_KEYS},
+           "group_registers_read": rd.get("group_registers"), "group_configuration_0x8000_read": rd.get("group_configuration_0x8000"),
+           "group_enable_mask_0x8120_read": rd.get("group_enable_mask_0x8120"),
+           "asked": {"groups": selfc.get("groups"), "threshold_pe": selfc.get("threshold_pe"), "threshold_adc": selfc.get("threshold_adc"),
+                     "majority_groups": selfc.get("majority_groups"), "majority_level_register": selfc.get("majority_level_register"),
+                     "window_clk": selfc.get("window_clk"), "channel_masks": selfc.get("channel_masks"), "group_dc_offset": asked.get("group_dc_offset"),
+                     "conversion": {g: {k: v for k, v in c.items() if k in ("threshold_adc", "baseline_median_adc", "G_median_mV", "channel_mask")}
+                                    for g, c in (selfc.get("conversion") or {}).items() if isinstance(c, dict)}}}
+    out["mismatch"] = [k for k in TRIG_KEYS if k not in ("group_self_trigger", "trigger_polarity") and wr.get(k) != rd.get(k)]
+    for k in TRIG_KEYS:
+        log(f"    registro {k}: escrito {json.dumps(wr.get(k), ensure_ascii=False)}; releído {json.dumps(rd.get(k), ensure_ascii=False)}")
+    log(f"    registros por grupo releídos {json.dumps(rd.get('group_registers'))}; 0x8000 {rd.get('group_configuration_0x8000')}; "
+        f"0x8120 {rd.get('group_enable_mask_0x8120')}")
+    log(f"    pedido: {json.dumps(out['asked'], ensure_ascii=False)}")
+    log(f"    distintos entre escrito y releído: {out['mismatch'] or 'ninguno'}")
     return out
 
 
@@ -758,7 +827,13 @@ def finish(results):
                      + (f"{mu:.1f}" if mu is not None else "– (runs omitidos)"))
         c = s.get("selftrigger_check", {})
         lines.append(f"   control {c.get('pair')} a {c.get('T_pe')} p.e.: " + (f"{c.get('rate_Hz', 0):.3f} Hz contra {c.get('pred_acc_Hz', 0):.3f} Hz previstos "
-                     f"({c.get('frac_of_pred', 0):.3g}): " if "rate_Hz" in c else "") + ("FUNCIONA" if c.get("working") else f"NO FUNCIONA ({c.get('reason')})"))
+                     f"({c.get('frac_of_pred', 0):.3g}): " if "rate_Hz" in c else "") + ("FUNCIONA" if c.get("working") else
+                     f"{'NO COMPROBABLE' if c.get('working') is None and 'rate_Hz' in c else 'NO FUNCIONA'} ({c.get('reason')})"))
+        rg = c.get("registers") or {}
+        if rg.get("read"):
+            lines.append(f"   registros releídos: 0x810C {rg['read'].get('global_trigger_mask_0x810C')}, umbrales {rg['read'].get('group_trigger_threshold_adc')}, "
+                         f"máscaras {rg['read'].get('channel_group_mask')}, mayoría {rg['read'].get('majority_level')}, ventana {rg['read'].get('majority_window_clk')}; "
+                         f"distintos de lo escrito: {rg.get('mismatch') or 'ninguno'}")
         for a in s["self"]:
             lines.append(f"   {a['pair']}: {a['rate_Hz']:.2f} Hz, X·Y {a['N_XY_in_time']}, accidentales previstos {a['acc_pred']:.1f}, razón {a['ratio_pred']:.2f}")
     try:
