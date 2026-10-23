@@ -130,6 +130,31 @@ for part in (0, 1):
                  "series": [{"name": f"ch{ch} {'día' if k == 0 else 'noche'}", "x": [p[0] for p in pts], "y": [p[1] for p in pts], "yerr": None}
                             for ch in range(16 * part, 16 * part + 16) for k, pts in ((0, VB[ch]["points_day"]), (1, VB[ch]["points_night"])) if pts]})
 
+# ---------------------------------------------------------------- mayo contra octubre con el mismo V0Set (René, DAQ2-17)
+G_MAY = {}
+for l in open(REPO + "/outputs/pe_calibration_v8.txt"):
+    if not l.startswith("#") and l.split() and int(l.split()[0]) < 32:
+        G_MAY[int(l.split()[0])] = float(l.split()[3])
+L += ["## Mayo contra octubre con el mismo V0Set", "",
+      "El V0Set de mayo registrado (captura de GECO2020, handoff línea 21; no se sabe en cuáles de v7-v10 rigió) es igual al nominal de hoy. "
+      "Con V0Set igual, la diferencia de G implica un corrimiento de la tensión de ruptura de ΔV_bd ≈ (G_mayo − G_oct) / k, con k la pendiente "
+      "del ajuste de esta noche (G de mayo: `outputs/pe_calibration_v8.txt`, con el pedestal común G_ajustada/G_archivo = 0.9946; G de octubre: "
+      "escalón ΔV = 0 de la noche). Estimado: supone que la cadena de lectura tiene la misma ganancia en mV por p.e. y que el V0Set de mayo "
+      "era el registrado.", "",
+      "| canal | G mayo (mV) | G oct. ΔV = 0 (mV) | k noche (mV/V) | ΔV_bd ≈ (G_mayo − G_oct)/k (V) |", "|---|---|---|---|---|"]
+dvb = []
+for ch in range(32):
+    g0 = next((g for v, g, dv in night_pts[ch] if dv == 0), None)
+    k = VB[ch]["night"]["k_mV_per_V"] if VB[ch]["night"] else None
+    d = (G_MAY[ch] - g0) / k if (ch in G_MAY and g0 and k) else None
+    if d is not None:
+        dvb.append(d)
+    L.append(f"| {ch} | {f(G_MAY.get(ch))} | {f(g0)} | {f(k)} | {f(d, 2)} |")
+L += ["", f"Mediana de ΔV_bd ≈ {f(statistics.median(dvb), 2) if dvb else '–'} V en {len(dvb)} canales (G de octubre menor: V_bd más alta en octubre, o "
+      "menos ganancia de la cadena). Causas posibles, que con los datos actuales no se distinguen: temperatura del detector (no medida; la placa "
+      "A7030DP no la representa), ganancia de la cadena de lectura (cables, amplificadores, DC offset), y un cambio de V0Set no registrado "
+      "durante v8 (René cambió V0Set a mano el 2026-05-29, handoff línea 64).", ""]
+
 # ---------------------------------------------------------------- por escalón de la noche
 def ov_med(s):
     o = []

@@ -194,6 +194,10 @@ FakeHVBackend::FakeHVBackend(const nlohmann::json& sc, const Clock& clock)
       end.t = e.t + e.duration;
       end.value = -e.value;
       events_.push_back(end);
+    } else if (e.type == "vmon_offset") {
+      // DAQ2-17: corrimiento permanente del desvío de VMon del canal (V), p. ej. la deriva de la placa con la corriente
+      e.value = je.at("shift_V").get<double>();
+      events_.push_back(e);
     } else if (e.type == "board") {
       e.param = je.at("param").get<std::string>();
       e.value = je.at("value").get<double>();
@@ -256,6 +260,10 @@ void FakeHVBackend::apply(const Event& e) {
   if (e.type == "current") {
     c.extraUA += e.value;
     if (std::fabs(c.extraUA) < kEps) c.extraUA = 0.0;
+    return;
+  }
+  if (e.type == "vmon_offset") {
+    c.vmonOffsetV += e.value;
     return;
   }
   // "set": cambio externo (p. ej. hecho en GECO).

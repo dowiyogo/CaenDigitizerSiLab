@@ -37,6 +37,7 @@ Status BiasSession::begin(const std::map<int, double>& expected, const std::map<
   }
   nominal_ = nom;
   offset_ = off;
+  offsetNominal_ = off;
   lim_.maxAboveV = maxAboveV;
   lim_.maxStepV = maxStepV > 0 ? maxStepV : baseMaxStepV_;
   startUtc_ = now;
@@ -69,6 +70,10 @@ bool BiasSession::reached(int ch, double target, double v0setRead, double vmon, 
   return step * moved > 0 && std::fabs(moved) >= lim_.minMoveFrac * std::fabs(step);
 }
 
+bool BiasSession::offsetDriftOk(int ch, double v0setRead, double vmon) const {
+  return active_ && inSession(ch) && offsetNominal_.count(ch) && std::fabs(vmon - v0setRead - offsetNominal_.at(ch)) <= lim_.maxOffsetDriftV + 1e-9;
+}
+
 bool BiasSession::withinTolerance(int ch, double v0setRead, double vmon) const {
   return active_ && inSession(ch) && std::fabs(vmon - v0setRead - offset_.at(ch)) <= lim_.vmonTolV;
 }
@@ -93,15 +98,17 @@ std::vector<std::pair<int, double>> BiasSession::restorePlan(const std::map<int,
 }
 
 nlohmann::json BiasSession::toJson(UtcNs now) const {
-  nlohmann::json nom = nlohmann::json::object(), off = nlohmann::json::object();
+  nlohmann::json nom = nlohmann::json::object(), off = nlohmann::json::object(), off0 = nlohmann::json::object();
   for (const auto& [ch, v] : nominal_) nom[std::to_string(ch)] = v;
   for (const auto& [ch, v] : offset_) off[std::to_string(ch)] = v;
-  return {{"schema", "daqv2.hvmon_bias_session/1"}, {"active", active_}, {"nominal_V0Set_V", nom}, {"vmon_offset_V", off},
+  for (const auto& [ch, v] : offsetNominal_) off0[std::to_string(ch)] = v;
+  return {{"schema", "daqv2.hvmon_bias_session/1"}, {"active", active_}, {"nominal_V0Set_V", nom}, {"vmon_offset_V", off}, {"vmon_offset_nominal_V", off0},
           {"start_utc_ns", startUtc_}, {"start_utc", startUtc_ ? formatUtcIso(startUtc_) : ""}, {"reason", reason_},
           {"saved_utc", formatUtcIso(now)},
           {"limits", {{"max_below_V", lim_.maxBelowV}, {"max_step_V", lim_.maxStepV}, {"max_above_V", lim_.maxAboveV}, {"vmon_tol_V", lim_.vmonTolV},
                       {"match_tol_V", lim_.matchTolV},
-                      {"min_move_frac", lim_.minMoveFrac}, {"ramp_tau_s", lim_.rampTauS}, {"opposite_V", lim_.oppositeV}}}};
+                      {"min_move_frac", lim_.minMoveFrac}, {"ramp_tau_s", lim_.rampTauS}, {"opposite_V", lim_.oppositeV},
+                      {"max_offset_drift_V", lim_.maxOffsetDriftV}}}};
 }
 
 Status BiasSession::restore(const nlohmann::json& j) {
@@ -111,6 +118,9 @@ Status BiasSession::restore(const nlohmann::json& j) {
     offset_.clear();
     for (const auto& [k, v] : j.at("nominal_V0Set_V").items()) nominal_[std::stoi(k)] = v.get<double>();
     for (const auto& [k, v] : j.at("vmon_offset_V").items()) offset_[std::stoi(k)] = v.get<double>();
+    offsetNominal_ = offset_;  // estado anterior a DAQ2-17 sin el desvío al nominal: el último verificado
+    if (j.contains("vmon_offset_nominal_V"))
+      for (const auto& [k, v] : j.at("vmon_offset_nominal_V").items()) offsetNominal_[std::stoi(k)] = v.get<double>();
     startUtc_ = j.value("start_utc_ns", static_cast<UtcNs>(0));
     reason_ = j.value("reason", "");
     active_ = j.value("active", false);

@@ -38,10 +38,13 @@
 # solo y de pares con ventanas 1-8 relojes). Siempre: tras cada cambio, |VMon − V0Set − desvío| ≤ 0.05 V; guarda de
 # corriente: IMon > 12 µA (80 % de I0Set) en algún grupo durante 30 s -> no se pasa al escalón siguiente; IMon ≥ 14 µA
 # -> aborto con restauración inmediata. Al final la restauración se reintenta hasta dejar todo en el nominal.
+# DAQ2-17 (revisión de René): la guarda de corriente corre además en un hilo cada 5 s durante todo el barrido (también en
+# los análisis entre runs); IMon ≥ 14 µA -> SIGUSR1 al proceso -> Abort en el hilo principal (restauración). El desvío
+# VMon − V0Set que se aleje más de 0.15 V del desvío al nominal también aborta (hvmon y check_vmon).
 # Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS" | --max-hours H] [--self-check-only]
 #        [--steps L] [--max-above V] [--max-step V] [--authorize T] [--ext-s S] [--trigger-diag]
 #   --sim: hvmon de prueba con FakeHVBackend, daqrun fake, duraciones cortas
-import calendar, glob, itertools, json, math, os, statistics, subprocess, sys, time
+import calendar, glob, itertools, json, math, os, signal, statistics, subprocess, sys, threading, time
 
 SIM = "--sim" in sys.argv
 SELF_CHECK_ONLY = "--self-check-only" in sys.argv
@@ -63,6 +66,8 @@ MAX_ABOVE_V = float(_arg("--max-above", "0"))   # DAQ2-17: V0Set máximo sobre e
 MAX_STEP_V = float(_arg("--max-step", "0.5"))   # escalón de cada escritura (hvmon: ≤ 0.25 V sobre el nominal)
 TRIGGER_DIAG = "--trigger-diag" in sys.argv
 VMON_TOL_V = 0.05          # DAQ2-17: |VMon − V0Set − desvío del último escalón verificado| tras estabilizar
+OFFSET_DRIFT_MAX_V = 0.15  # DAQ2-17: |VMon − V0Set − desvío al nominal| máximo (si no: aborto y restauración)
+IMON_POLL_S = 5.0          # período del hilo de vigilancia de corriente
 IMON_WARN_A, IMON_STOP_A, IMON_WARN_S = 12e-6, 14e-6, 30.0  # guarda de corriente (80 % y 93 % de I0Set = 15 µA)
 # Límite: las 10:00Z siguientes al arranque (07:00 Chile, antes de la luz de la mañana), o --deadline "AAAA-MM-DD HH:MM:SS" (UTC).
 _now = time.gmtime()
@@ -117,14 +122,18 @@ HAZARD_BITS = (1 << 3) | (1 << 6) | (1 << 9)  # sobrecorriente, trip externo, tr
 RAMP_BITS = (1 << 1) | (1 << 2)
 
 
+LOG_LOCK = threading.Lock()
+
+
 def log(msg, **k):
     t = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     os.makedirs(LOGD, exist_ok=True)
-    with open(LOG, "a") as f:
-        f.write(f"{t} {msg}\n")
     k.update(t_utc=t, msg=msg)
-    with open(JL, "a") as f:
-        f.write(json.dumps(k, ensure_ascii=False) + "\n")
+    with LOG_LOCK:  # también escribe el hilo de vigilancia de corriente
+        with open(LOG, "a") as f:
+            f.write(f"{t} {msg}\n")
+        with open(JL, "a") as f:
+            f.write(json.dumps(k, ensure_ascii=False) + "\n")
 
 
 def sh(cmd, timeout=3600, check=True, heavy=False):
@@ -145,6 +154,15 @@ def hvctl(*args, timeout=3700):
         res = {"ok": False, "detail": r.stdout + r.stderr}
     if r.returncode != 0 and res.get("ok", True):
         res["ok"] = False
+    if not res.get("ok") and "result" not in res:
+        # DAQ2-17: con ok = false hvctl no imprime el JSON; el resultado ("hazard", "rejected", ...) va en stderr como
+        # "comando N: <resultado> (<detalle>)". Sin esto un riesgo de hvmon se trataba como un fallo cualquiera.
+        import re
+        m = re.search(r"comando \d+: (\w+) \((.*)\)\s*$", (r.stderr or "").strip(), re.S)
+        if m:
+            res.update(result=m.group(1), detail=m.group(2))
+        elif r.stderr:
+            res.setdefault("detail", r.stderr.strip()[-400:])
     return res
 
 
@@ -177,10 +195,41 @@ def check_hv(where):
     return st
 
 
-GUARD = {"over_since": {}, "stop_after_step": None, "imon_max_A": {}, "imon_max_step_A": {}}
+GUARD = {"over_since": {}, "stop_after_step": None, "imon_max_A": {}, "imon_max_step_A": {}, "finishing": False, "abort_reason": None}
+GUARD_LOCK = threading.Lock()
 
 
 def imon_guard(st, where):
+    with GUARD_LOCK:
+        _imon_guard(st, where)
+
+
+def _imon_monitor(stop):
+    """Hilo de vigilancia de corriente (DAQ2-17): cada IMON_POLL_S lee el estado de hvmon y aplica la guarda; ante
+    IMon ≥ 14 µA manda SIGUSR1 al proceso (el hilo principal levanta Abort y restaura) y termina."""
+    while not stop.wait(IMON_POLL_S):
+        if GUARD["finishing"]:
+            return
+        try:
+            st = {c["ch"]: c["values"] for c in hvstate_full()["channels"]}
+        except Exception:  # noqa: BLE001 — estado ilegible un instante: lo trata check_hv en el hilo principal
+            continue
+        try:
+            imon_guard(st, "vigilancia de corriente (hilo)")
+        except Abort as e:
+            GUARD["abort_reason"] = str(e)
+            log(f"  {e}: aviso al hilo principal")
+            os.kill(os.getpid(), signal.SIGUSR1)
+            return
+
+
+def _sigusr1(signum, frame):
+    if GUARD["finishing"]:
+        return  # ya se está restaurando
+    raise Abort(GUARD["abort_reason"] or "guarda de corriente (hilo)")
+
+
+def _imon_guard(st, where):
     """DAQ2-17: IMon ≥ 14 µA -> Abort (restauración inmediata); > 12 µA sostenido 30 s -> no se pasa al escalón siguiente
     (el escalón actual sigue mientras IMon < 14 µA). Registra el máximo por grupo."""
     now = time.time()
@@ -247,12 +296,25 @@ def set_bias(delta):
                 if res.get("result") == "hazard":
                     raise Abort(f"V0Set CH{ch:02d} = {v:.3f} V: {res.get('detail')}")
                 check_hv(f"tras el fallo de V0Set CH{ch:02d}")  # un riesgo detectado aquí también aborta
+                check_offset_drift(f"tras el fallo de V0Set CH{ch:02d}")  # DAQ2-17: un salto del desvío > 0.15 V aborta
                 if attempt == RETRIES:
                     raise Recoverable(f"V0Set CH{ch:02d} = {v:.3f} V sin verificar tras {RETRIES} intentos: {res.get('result')}: {res.get('detail')}")
                 time.sleep(RETRY_WAIT_S)
             cur[ch] = v
     st = wait_stable("después de cambiar V0Set")
     return {ch: {"V0Set_V": st[ch]["V0Set_V"], "VMon_V": st[ch]["VMon_V"], "IMon_A": st[ch]["IMon_A"]} for ch in range(8)}
+
+
+def check_offset_drift(where, st=None):
+    """DAQ2-17 (René): Abort si |VMon − V0Set − desvío al nominal| > OFFSET_DRIFT_MAX_V en algún canal de CH00-07."""
+    sess = hvctl("bias", "status").get("session", {})
+    off0 = {int(c): v for c, v in (sess.get("vmon_offset_nominal_V") or sess.get("vmon_offset_V") or {}).items()}
+    st = st or check_hv(where)
+    drift = {ch: round(st[ch]["VMon_V"] - st[ch]["V0Set_V"] - off0.get(ch, 0.0), 3) for ch in range(8)}
+    far = {ch: d for ch, d in drift.items() if abs(d) > OFFSET_DRIFT_MAX_V}
+    if far:
+        raise Abort(f"{where}: desvío VMon − V0Set a más de {OFFSET_DRIFT_MAX_V} V del desvío al nominal en {far}")
+    return drift
 
 
 def check_vmon(where, tries=3):
@@ -262,6 +324,7 @@ def check_vmon(where, tries=3):
         sess = hvctl("bias", "status").get("session", {})
         off = {int(c): v for c, v in (sess.get("vmon_offset_V") or {}).items()}
         st = check_hv(where)
+        check_offset_drift(where, st)  # DAQ2-17 (René): riesgo, no recuperable
         dev = {ch: st[ch]["VMon_V"] - st[ch]["V0Set_V"] - off.get(ch, 0.0) for ch in range(8)}
         bad = {ch: round(d, 3) for ch, d in dev.items() if abs(d) > VMON_TOL_V}
         if not bad:
@@ -343,20 +406,31 @@ def _daqrun_once(cfg, seconds):
     with open(logf, "w") as lf:
         p = subprocess.Popen([DAQRUN, "--config", cfg, "--max-duration", str(seconds), "--no-http"], stdout=lf, stderr=subprocess.STDOUT, env=ENV)
         hv_err = None
-        while p.poll() is None:
-            time.sleep(5)
-            try:
-                check_hv("durante el run")
-            except Abort as e:
-                hv_err = str(e)
+        try:
+            while p.poll() is None:
+                time.sleep(5)
+                try:
+                    check_hv("durante el run")
+                except Abort as e:
+                    hv_err = str(e)
+                    p.terminate()
+                    p.wait(timeout=300)
+                    break
+                if time.time() - t0 > seconds + 600:
+                    p.terminate()
+                    p.wait(timeout=300)
+                    _last_close[0] = time.time()
+                    raise RunFailed(f"daqrun {os.path.basename(cfg)} no terminó a tiempo")
+        except BaseException:  # DAQ2-17: Abort por señal (hilo de corriente, SIGTERM) con el run abierto: cierre limpio del run
+            if p.poll() is None:
                 p.terminate()
-                p.wait(timeout=300)
-                break
-            if time.time() - t0 > seconds + 600:
-                p.terminate()
-                p.wait(timeout=300)
-                _last_close[0] = time.time()
-                raise RunFailed(f"daqrun {os.path.basename(cfg)} no terminó a tiempo")
+                try:
+                    p.wait(timeout=300)
+                except subprocess.TimeoutExpired:
+                    p.kill()
+                    p.wait()
+            _last_close[0] = time.time()
+            raise
     _last_close[0] = time.time()
     txt = open(logf).read()
     if p.returncode != 0 and "digitizador abierto" not in txt and any(k in txt for k in OPEN_FAIL):
@@ -679,6 +753,11 @@ def main():
         log(f"bias begin: {res.get('result')} ({res.get('detail')})", res=res)
         if not res.get("ok"):
             raise Abort("bias begin: " + str(res.get("detail")))
+        signal.signal(signal.SIGUSR1, _sigusr1)
+        monitor = threading.Thread(target=_imon_monitor, args=(MONITOR_STOP,), name="imon", daemon=True)
+        monitor.start()
+        log(f"vigilancia de corriente en un hilo cada {IMON_POLL_S:g} s (> {IMON_WARN_A * 1e6:.0f} µA {IMON_WARN_S:g} s: no se sigue; "
+            f"≥ {IMON_STOP_A * 1e6:.0f} µA: restauración inmediata)")
         prevCal = C1
         for i, dv in enumerate(STEPS):
             if time.time() + STEP_EST_S > DEADLINE:
@@ -881,9 +960,14 @@ def trigger_registers(run, i, tag="check"):
     return out
 
 
+MONITOR_STOP = threading.Event()
+
+
 def finish(results):
     """Siempre: nominal restaurado, run de física rearrancado (verificado) y correo con escalones hechos,
     omitidos (con motivo) y abortados."""
+    GUARD["finishing"] = True  # el hilo de corriente ya no interrumpe la restauración
+    MONITOR_STOP.set()
     res = hvctl("bias", "restore", "--authorize", AUTH + ": restauración del nominal")
     log(f"bias restore: {res.get('result')} ({res.get('detail')})", res=res)
     for k in range(2, 5):  # DAQ2-17: ningún canal puede quedar fuera del nominal; se reintenta

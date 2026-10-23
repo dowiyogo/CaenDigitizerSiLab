@@ -391,3 +391,42 @@ TEST(BiasScanPoller, HvmonStartingWithActiveUpwardSessionRestoresDownByItself) {
   EXPECT_FALSE(r2.poller.bias().active());
   EXPECT_EQ(r2.backend.v0setWrites(), 16u);  // dos escalones de 0.25 V por canal
 }
+
+// DAQ2-17 (René): el desvío de referencia es el del último escalón verificado, pero un desvío que se aleja más de 0.15 V
+// del desvío al nominal es un riesgo (aborto); la restauración no tiene ese límite.
+TEST(BiasSession, OffsetDriftFromNominalIsBounded) {
+  BiasSession s;
+  std::map<int, double> vm;
+  for (const auto& [ch, v] : kNominal) vm[ch] = v - 0.30;
+  ASSERT_TRUE(s.begin(kNominal, kNominal, vm, "t", 1, 1.0, 0.25));
+  EXPECT_TRUE(s.offsetDriftOk(0, 66.00, 66.00 - 0.30 + 0.15));   // justo 0.15 V
+  EXPECT_FALSE(s.offsetDriftOk(0, 66.00, 66.00 - 0.30 + 0.16));
+  EXPECT_FALSE(s.offsetDriftOk(0, 66.00, 66.00 - 0.30 - 0.16));
+  s.updateOffset(0, -0.20);  // el de referencia cambia; el del nominal no
+  EXPECT_NEAR(s.nominalOffset(0), -0.30, 1e-9);
+  BiasSession t;
+  ASSERT_TRUE(t.restore(s.toJson(2)));
+  EXPECT_NEAR(t.nominalOffset(0), -0.30, 1e-9);
+  EXPECT_NEAR(t.offset(0), -0.20, 1e-9);
+}
+
+TEST(BiasScanPoller, OffsetDriftOverPointFifteenFromNominalIsAHazardAndRestoreStillWorks) {
+  MemoryFileSystem fs;
+  auto sc = scenario(nlohmann::json::array({{{"t_s", 100.0}, {"type", "vmon_offset"}, {"slot", 3}, {"ch", 0}, {"shift_V", 0.08}},
+                                            {{"t_s", 200.0}, {"type", "vmon_offset"}, {"slot", 3}, {"ch", 0}, {"shift_V", 0.08}}}));
+  Rig r(sc, fs);
+  r.run(5s);
+  ASSERT_TRUE(r.begin(kNominal, 1.0, 0.25).value("ok", false));
+  ASSERT_EQ(r.v0set(0, 66.00).value("result", ""), "verified");
+  r.run(110s);  // corrimiento de +0.08 V: 0.08 V del nominal, dentro de 0.10 V del escalón anterior
+  const auto a = r.v0set(0, 66.25);
+  ASSERT_EQ(a.value("result", ""), "verified") << a.dump();
+  r.run(100s);  // otro +0.08 V: 0.16 V del nominal
+  const auto b = r.v0set(0, 66.50);
+  EXPECT_EQ(b.value("result", ""), "hazard") << b.dump();
+  EXPECT_NE(b.value("detail", "").find("desvío al nominal"), std::string::npos) << b.dump();
+  const auto res = r.restore();
+  ASSERT_TRUE(res.value("ok", false)) << res.dump();
+  EXPECT_NEAR(r.v0(0), 65.75, 1e-6);
+  EXPECT_FALSE(r.poller.bias().active());
+}

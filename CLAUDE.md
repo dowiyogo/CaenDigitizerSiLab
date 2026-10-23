@@ -174,8 +174,9 @@ Writes: the only writes in the code base are `HVBackend::setChannelPw()`, `clear
 `allow_commands: true`, which needs explicit authorization in the task prompt. V0Set is a bounded write
 available only inside a `hvmon` scan session (`daq/hvmon/include/daq/hvmon/bias_scan.h`;
 `hvctl bias begin|set|restore|status`): the session starts only if the V0Set read back matches the
-expected nominal; each write is <= nominal, >= nominal − 2.0 V, a step <= 0.5 V, on a channel that is on
-and stable; the ramp is verified (V0Set read back, VMon − V0Set within 0.10 V of the offset at the previous
+expected nominal; each write is <= nominal (default), >= nominal − 2.0 V, a step <= 0.5 V, on a channel that is on
+and stable; V0Set above nominal is allowed only inside a session opened with `--max-above` (hard cap nominal + 1.0 V
+in code, steps <= 0.25 V above nominal) and only when the task explicitly authorizes it; the ramp is verified (V0Set read back, VMon − V0Set within 0.10 V of the offset at the previous
 verified step, VMon moved with the step by at least half of it; any Status bit other than on/ramp aborts);
 `bias restore` returns every channel to nominal in <= 0.5 V steps and Pw = 1; an active session is
 persisted (`~/.local/state/daqv2/hvmon_bias_state.json`) and restored automatically when `hvmon` starts.

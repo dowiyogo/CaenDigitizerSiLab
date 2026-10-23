@@ -459,6 +459,7 @@ void Poller::handleV0Set(PollRequest& r, SteadyTime now) {
   ActiveCommand a{rec.id, r.ch, true, now + secondsToNs(timeoutS), r.reason, r.requester, r.reply, 0};
   a.v0set = true;
   a.offWrite = offWrite;
+  a.internal = r.internal;
   a.target = r.value;
   a.v0setBefore = v0->si;
   if (const auto* vm = pre.value().get("VMon", r.ch)) a.vmonBefore = vm->si;
@@ -722,6 +723,14 @@ void Poller::verifyCommand(const hv::ChannelReading& rd, SteadyTime now) {
     // apagado con Status = 0x1 por su VMon de 1.5 V de offset.
     done = pw->raw == 0u && !cfg_.statusBits.has(st->raw, "on");
   if (done) {
+    if (active_->v0set && !active_->offWrite && !active_->internal && !bias_.offsetDriftOk(ch, v0->si, vmon->si)) {
+      // DAQ2-17 (René): el desvío verificado se fue más de 0.15 V del desvío al nominal: riesgo (aborto y restauración)
+      char b[192];
+      std::snprintf(b, sizeof b, "riesgo: desvío VMon − V0Set %+.3f V difiere del desvío al nominal %+.3f V en más de %.2f V", vmon->si - v0->si,
+                    bias_.nominalOffset(ch), bias_.limits().maxOffsetDriftV);
+      finishCommand("hazard", b, false, now);
+      return;
+    }
     if (active_->v0set && !active_->offWrite) {
       bias_.updateOffset(ch, vmon->si - v0->si);
       persistBias();

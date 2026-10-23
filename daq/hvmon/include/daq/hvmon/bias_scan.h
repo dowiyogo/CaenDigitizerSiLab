@@ -14,6 +14,9 @@
 //    escribir, con el signo de V0Set pedido − V0Set antes). El desvío de referencia es el del último
 //    escalón verificado (updateOffset): el desvío de la placa cambia ~±0.045 V en un día y ≤ 0.02 V/µA
 //    con la corriente (2026-10-20). Criterio aceptado por René (2026-10-21).
+//  - DAQ2-17 (René): el desvío de referencia sigue siendo el del último escalón verificado, pero si el desvío verificado
+//    difiere del desvío al nominal (begin) en más de max_offset_drift_V (0.15 V), la escritura es un riesgo (aborto y
+//    restauración); offsetDriftOk() lo comprueba. No se aplica a las escrituras de la restauración.
 //  - restorePlan(): escalones de ≤ max_step_V hacia el nominal, canal por canal, desde abajo o desde arriba
 //    (sobre el nominal, ≤ kMaxStepAboveV).
 //  - El estado se persiste (JSON) para que un hvmon que arranca con una sesión activa restaure el
@@ -49,6 +52,7 @@ struct BiasLimits {
   double rampTauS = 115.0;
   double oppositeV = 0.10;
   double matchTolV = 0.005;
+  double maxOffsetDriftV = 0.15;  // DAQ2-17: |desvío − desvío al nominal| máximo
 };
 
 class BiasSession {
@@ -62,6 +66,8 @@ class BiasSession {
   Status checkStep(int ch, double target, double currentV0Set) const;
   bool reached(int ch, double target, double v0setRead, double vmon, double v0setBefore, double vmonBefore) const;
   bool withinTolerance(int ch, double v0setRead, double vmon) const;  // solo |VMon − V0Set − desvío| ≤ vmon_tol_V
+  bool offsetDriftOk(int ch, double v0setRead, double vmon) const;    // |VMon − V0Set − desvío al nominal| ≤ max_offset_drift_V
+  double nominalOffset(int ch) const { return offsetNominal_.at(ch); }
   std::vector<std::pair<int, double>> restorePlan(const std::map<int, double>& v0set) const;
   void end() { active_ = false; }
   void updateOffset(int ch, double off) {
@@ -79,7 +85,7 @@ class BiasSession {
   BiasLimits lim_;
   double baseMaxStepV_ = lim_.maxStepV;
   bool active_ = false;
-  std::map<int, double> nominal_, offset_;
+  std::map<int, double> nominal_, offset_, offsetNominal_;
   UtcNs startUtc_ = 0;
   std::string reason_;
 };

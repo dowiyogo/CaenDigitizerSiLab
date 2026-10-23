@@ -105,6 +105,7 @@ class Poller {
     double target = 0;
     double v0setBefore = 0, vmonBefore = 0;  // relectura justo antes de escribir V0Set
     int stableReads = 0;                     // lecturas seguidas sin rampa y dentro de tolerancia
+    bool internal = false;                   // DAQ2-17: escritura de hvmon (restauración): sin el límite de deriva del desvío
   };
   struct ActiveOffsets {
     std::vector<int> channels;
