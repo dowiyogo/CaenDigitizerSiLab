@@ -60,6 +60,10 @@ bool BiasSession::reached(int ch, double target, double v0setRead, double vmon, 
   return step * moved > 0 && std::fabs(moved) >= lim_.minMoveFrac * std::fabs(step);
 }
 
+bool BiasSession::withinTolerance(int ch, double v0setRead, double vmon) const {
+  return active_ && inSession(ch) && std::fabs(vmon - v0setRead - offset_.at(ch)) <= lim_.vmonTolV;
+}
+
 std::vector<std::pair<int, double>> BiasSession::restorePlan(const std::map<int, double>& v0set) const {
   std::vector<std::pair<int, double>> plan;
   for (int ch : lim_.channels) {
@@ -83,7 +87,7 @@ nlohmann::json BiasSession::toJson(UtcNs now) const {
           {"start_utc_ns", startUtc_}, {"start_utc", startUtc_ ? formatUtcIso(startUtc_) : ""}, {"reason", reason_},
           {"saved_utc", formatUtcIso(now)},
           {"limits", {{"max_below_V", lim_.maxBelowV}, {"max_step_V", lim_.maxStepV}, {"vmon_tol_V", lim_.vmonTolV}, {"match_tol_V", lim_.matchTolV},
-                      {"min_move_frac", lim_.minMoveFrac}}}};
+                      {"min_move_frac", lim_.minMoveFrac}, {"ramp_tau_s", lim_.rampTauS}, {"opposite_V", lim_.oppositeV}}}};
 }
 
 Status BiasSession::restore(const nlohmann::json& j) {

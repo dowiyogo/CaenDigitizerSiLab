@@ -146,6 +146,7 @@ FakeHVBackend::FakeHVBackend(const nlohmann::json& sc, const Clock& clock)
     maxSlot = std::max(maxSlot, s.info.slot);
     s.imonNoiseUA = js.value("imon_noise_uA", 0.0);
     s.vmonNoiseV = js.value("vmon_noise_V", 0.0);
+    const double tau = js.value("discharge_tau_s", 0.0);
     s.imonStepUA = js.value("imon_step_uA", 0.002);
     s.vmonStepV = js.value("vmon_step_V", 0.01);
     for (const auto& p : boardParams_) s.board[p.name] = 0.0;
@@ -166,6 +167,7 @@ FakeHVBackend::FakeHVBackend(const nlohmann::json& sc, const Clock& clock)
       if (js.contains("load_uA")) k.loadUA = pick(js["load_uA"], ch, "load_uA");
       if (js.contains("imon_offset_uA")) k.imonOffsetUA = pick(js["imon_offset_uA"], ch, "imon_offset_uA");
       if (js.contains("vmon_offset_V")) k.vmonOffsetV = pick(js["vmon_offset_V"], ch, "vmon_offset_V");
+      k.dischargeTauS = tau;
       if (js.contains("initial_v_true")) k.vTrue = pick(js["initial_v_true"], ch, "initial_v_true");
       else if (k.ints["Pw"] == 1) k.vTrue = k.num["V0Set"];  // encendido y estable al inicio
       s.channels.push_back(k);
@@ -278,6 +280,8 @@ void FakeHVBackend::integrate(double dt) {
         // PDwn = 1 (Ramp): baja a RDWn; PDwn = 0 (Kill): cae de inmediato al apagar [I].
         if (!pw && c.ints["PDwn"] == 0u)
           c.vTrue = target;
+        else if (pw && c.dischargeTauS > 0)
+          c.vTrue = target + (c.vTrue - target) * std::exp(-dt / c.dischargeTauS);
         else
           c.vTrue = std::max(target, c.vTrue - c.num["RDWn"] * dt);
       }
@@ -365,7 +369,7 @@ std::uint32_t FakeHVBackend::statusWord(const Channel& c) const {
   const double target = pw ? c.num.at("V0Set") : 0.0;
   if (pw) w |= kOn;
   if (pw && c.vTrue < target - kEps) w |= kRampUp;
-  if (c.vTrue > target + kEps) w |= kRampDown;
+  if (c.vTrue > target + (pw && c.dischargeTauS > 0 ? 0.01 : kEps)) w |= kRampDown;
   if (c.overcurrent) w |= kOvercurrent;
   if (c.tripped) w |= kInternalTrip;
   return w;

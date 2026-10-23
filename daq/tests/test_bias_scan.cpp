@@ -72,12 +72,12 @@ struct Rig {
     r.expected = std::move(exp);
     return send(std::move(r));
   }
-  nlohmann::json v0set(int ch, double v) {
+  nlohmann::json v0set(int ch, double v, std::chrono::milliseconds maxWait = 900s) {
     PollRequest r;
     r.kind = PollRequest::Kind::V0Set;
     r.ch = ch;
     r.value = v;
-    return send(std::move(r));
+    return send(std::move(r), maxWait);
   }
   nlohmann::json restore() {
     PollRequest r;
@@ -210,8 +210,53 @@ TEST(BiasScanPoller, OvercurrentDuringRampFailsVerification) {
   ASSERT_TRUE(r.begin().value("ok", false));
   const auto res = r.v0set(2, 65.40);
   EXPECT_FALSE(res.value("ok", true)) << res.dump();
-  EXPECT_EQ(res.value("result", ""), "verify_failed");
-  EXPECT_NE(res.value("detail", "").find("Status inesperado"), std::string::npos) << res.dump();
+  EXPECT_EQ(res.value("result", ""), "hazard");
+  EXPECT_NE(res.value("detail", "").find("riesgo"), std::string::npos) << res.dump();
+}
+
+// DAQ2-14 (2026-10-23): bajada con la descarga del PCB (τ = 115 s): Status on + ramp_down durante
+// minutos es un estado esperado; se espera hasta que la rampa termina (timeout 6τ) y se verifica.
+TEST(BiasScanPoller, SlowDischargeWithTau115IsWaitedNotAborted) {
+  MemoryFileSystem fs;
+  auto sc = scenario();
+  sc["slots"][0]["discharge_tau_s"] = 115.0;
+  Rig r(sc, fs);
+  r.run(5s);
+  ASSERT_TRUE(r.begin().value("ok", false));
+  const auto t0 = r.clock.now_steady();
+  const auto st0 = r.backend.readChannels(3, {0}, {"Status"});
+  const auto res = r.v0set(0, 65.25);
+  const double waited = std::chrono::duration<double>(r.clock.now_steady() - t0).count();
+  ASSERT_TRUE(res.value("ok", false)) << res.dump();
+  EXPECT_EQ(res.value("result", ""), "verified");
+  // V − V0Set baja de 0.5 a 0.01 V en τ·ln(50) ≈ 450 s: el bit ramp_down estuvo puesto todo ese tiempo
+  EXPECT_GT(waited, 400.0);
+  EXPECT_LT(waited, 6 * 115.0);
+  (void)st0;
+}
+
+TEST(BiasScanPoller, RampLongerThanSixTauTimesOutAsRecoverable) {
+  MemoryFileSystem fs;
+  auto sc = scenario();
+  sc["slots"][0]["discharge_tau_s"] = 400.0;  // ln(50)·400 s ≫ 6·115 s
+  Rig r(sc, fs);
+  r.run(5s);
+  ASSERT_TRUE(r.begin().value("ok", false));
+  const auto res = r.v0set(0, 65.25);
+  EXPECT_EQ(res.value("result", ""), "verify_failed") << res.dump();  // fallo recuperable, no riesgo
+}
+
+TEST(BiasScanPoller, VMonMovingAgainstTheStepIsAHazard) {
+  MemoryFileSystem fs;
+  // durante la bajada lenta de CH04, alguien (GECO) sube su V0Set a 66.30 V: VMon sube en contra del escalón
+  auto sc = scenario(nlohmann::json::array({{{"t_s", 30.0}, {"type", "set"}, {"slot", 3}, {"ch", 4}, {"param", "V0Set"}, {"value", 66.30}}}));
+  sc["slots"][0]["discharge_tau_s"] = 115.0;
+  Rig r(sc, fs);
+  r.run(5s);
+  ASSERT_TRUE(r.begin().value("ok", false));
+  const auto res = r.v0set(4, 65.25);
+  EXPECT_EQ(res.value("result", ""), "hazard") << res.dump();
+  EXPECT_NE(res.value("detail", "").find("en contra del escalón"), std::string::npos) << res.dump();
 }
 
 TEST(BiasSession, OffsetReferenceFollowsLastVerifiedStep) {

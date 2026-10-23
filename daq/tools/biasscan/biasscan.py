@@ -14,6 +14,13 @@
 # de resumen (hvctl notify-summary). Cualquier fallo de HV (rechazo, timeout, trip, Status inesperado):
 # aborto, restauración del nominal y de Pw = 1, run de física y correo. Si un escalón terminaría después
 # de las 10:00Z, se omiten los que faltan.
+# Política de fallos (René, 2026-10-23), tres clases:
+#   (a) estados esperados (bits de rampa, estabilización): se espera con timeout (6τ, τ = 115 s);
+#   (b) fallos recuperables (VMon un poco fuera de tolerancia, error al abrir el digitizador, un run que
+#       no arranca, análisis que falla): hasta 3 intentos con 90 s entre ellos; si siguen, el escalón se
+#       omite con su motivo, se guarda lo ya tomado y se sigue con el siguiente;
+#   (c) riesgos reales (bits de trip o sobrecorriente, Pw que cae a 0 solo, conexión HV perdida, VMon en
+#       contra del escalón): aborto, nominal restaurado y run de física rearrancado.
 # Escrituras de HV: solo por hvctl (hvmon), cada una con --authorize. Registro: /data/daq/logs/biasscan.log
 # y biasscan.jsonl. Resultados: outputs/daq2-14/.
 # Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS" | --max-hours H]
@@ -63,7 +70,19 @@ ROOTINC = 'gSystem->AddIncludePath("-I%s/daq/core/include")' % REPO
 
 
 class Abort(Exception):
-    pass
+    """Clase (c): riesgo real -> aborto, restauración y run de física."""
+
+
+class Recoverable(Exception):
+    """Clase (b): fallo recuperable agotados los reintentos -> se omite el escalón y se sigue."""
+
+
+RETRIES = 3
+RETRY_WAIT_S = 90 if not SIM else 1
+RAMP_TAU_S = 115.0                      # descarga del PCB del detector (DAQ2-10)
+STABLE_TIMEOUT_S = 6 * RAMP_TAU_S + 60  # clase (a): espera de fin de rampa en todos los canales
+HAZARD_BITS = (1 << 3) | (1 << 6) | (1 << 9)  # sobrecorriente, trip externo, trip interno
+RAMP_BITS = (1 << 1) | (1 << 2)
 
 
 def log(msg, **k):
@@ -97,19 +116,48 @@ def hvctl(*args, timeout=3700):
     return res
 
 
+STATE_PATH = "/dev/shm/daqv2-sim-test/hvmon_state.json" if SIM else "/dev/shm/daqv2/hvmon_state.json"
+
+
+def hvstate_full():
+    return json.load(open(STATE_PATH))
+
+
 def hvstate():
-    path = "/dev/shm/daqv2-sim-test/hvmon_state.json" if SIM else "/dev/shm/daqv2/hvmon_state.json"
-    s = json.load(open(path))
-    return {c["ch"]: c["values"] for c in s["channels"]}
+    return {c["ch"]: c["values"] for c in hvstate_full()["channels"]}
 
 
 def check_hv(where):
-    st = hvstate()
+    """Clase (c) si hay riesgo: conexión HV perdida o estado viejo, Pw = 0, bit on caído, trip o
+    sobrecorriente. Los bits de rampa no son riesgo (clase a). Devuelve el estado por canal."""
+    s = hvstate_full()
+    conn = s.get("connection", {})
+    age = time.time() - s.get("t_utc_ns", 0) / 1e9
+    if not conn.get("connected", False) or conn.get("stale", True) or age > 30:
+        raise Abort(f"{where}: conexión HV perdida (connected {conn.get('connected')}, stale {conn.get('stale')}, estado de hace {age:.0f} s)")
+    st = {c["ch"]: c["values"] for c in s["channels"]}
     for ch in range(8):
         v = st[ch]
-        if v.get("Pw") != 1 or v.get("Status") not in (1,):
-            raise Abort(f"{where}: CH{ch:02d} Pw {v.get('Pw')} Status 0x{v.get('Status', 0):X} (se esperaba encendido y estable)")
+        word = int(v.get("Status", 0))
+        if v.get("Pw") != 1 or not (word & 1) or (word & HAZARD_BITS):
+            raise Abort(f"{where}: riesgo en CH{ch:02d}: Pw {v.get('Pw')} Status 0x{word:X}")
     return st
+
+
+def wait_stable(where, timeout=STABLE_TIMEOUT_S):
+    """Clase (a): espera a que ningún canal de CH00-07 esté en rampa (Status 0x1); riesgos -> Abort;
+    timeout -> Recoverable."""
+    t0 = time.time()
+    while True:
+        st = check_hv(where)
+        ramping = [ch for ch in range(8) if int(st[ch].get("Status", 0)) & RAMP_BITS]
+        if not ramping:
+            if time.time() - t0 > 5:
+                log(f"  {where}: rampas terminadas tras {time.time() - t0:.0f} s")
+            return st
+        if time.time() - t0 > timeout:
+            raise Recoverable(f"{where}: canales {ramping} siguen en rampa tras {timeout:.0f} s")
+        time.sleep(2)
 
 
 def set_bias(delta):
@@ -123,12 +171,20 @@ def set_bias(delta):
                 continue
             step = max(-0.5, min(0.5, target[ch] - cur[ch]))
             v = round(cur[ch] + step, 3)
-            res = hvctl("bias", "set", "--ch", str(ch), "--value", f"{v:.3f}", "--authorize", f"{AUTH}: CH{ch:02d} V0Set {v:.2f} V")
-            log(f"V0Set CH{ch:02d} -> {v:.3f} V: {res.get('result')} ({res.get('detail', '')})", ev="v0set", ch=ch, value=v, res=res)
-            if not res.get("ok") or res.get("result") not in ("verified", "noop"):
-                raise Abort(f"V0Set CH{ch:02d} = {v:.3f} V: {res.get('result')}: {res.get('detail')}")
+            for attempt in range(1, RETRIES + 1):
+                res = hvctl("bias", "set", "--ch", str(ch), "--value", f"{v:.3f}", "--authorize", f"{AUTH}: CH{ch:02d} V0Set {v:.2f} V")
+                log(f"V0Set CH{ch:02d} -> {v:.3f} V (intento {attempt}): {res.get('result')} ({res.get('detail', '')})", ev="v0set", ch=ch,
+                    value=v, res=res)
+                if res.get("ok") and res.get("result") in ("verified", "noop"):
+                    break
+                if res.get("result") == "hazard":
+                    raise Abort(f"V0Set CH{ch:02d} = {v:.3f} V: {res.get('detail')}")
+                check_hv(f"tras el fallo de V0Set CH{ch:02d}")  # un riesgo detectado aquí también aborta
+                if attempt == RETRIES:
+                    raise Recoverable(f"V0Set CH{ch:02d} = {v:.3f} V sin verificar tras {RETRIES} intentos: {res.get('result')}: {res.get('detail')}")
+                time.sleep(RETRY_WAIT_S)
             cur[ch] = v
-    st = check_hv("después de cambiar V0Set")
+    st = wait_stable("después de cambiar V0Set")
     return {ch: {"V0Set_V": st[ch]["V0Set_V"], "VMon_V": st[ch]["VMon_V"], "IMon_A": st[ch]["IMon_A"]} for ch in range(8)}
 
 
@@ -175,14 +231,19 @@ def wait_board_gap(what):
 def daqrun(cfg, seconds):
     """Un run de daqrun; la apertura del digitizador se reintenta OPEN_RETRIES veces si falla por
     comunicación (antes de "digitizador abierto"); siempre BOARD_GAP_S entre cierre y apertura."""
-    for attempt in range(1, OPEN_RETRIES + 1):
+    for attempt in range(1, RETRIES + 1):
         try:
             return _daqrun_once(cfg, seconds)
-        except OpenFailed as e:
-            log(f"  apertura del digitizador falló (intento {attempt} de {OPEN_RETRIES}): {e}")
-            if attempt == OPEN_RETRIES:
-                raise Abort(f"el digitizador no abre tras {OPEN_RETRIES} intentos: {e}")
-            time.sleep(OPEN_RETRY_WAIT_S)
+        except (OpenFailed, RunFailed) as e:  # clase (b)
+            kind = "apertura del digitizador" if isinstance(e, OpenFailed) else "run"
+            log(f"  {kind} falló ({os.path.basename(cfg)}, intento {attempt} de {RETRIES}): {e}")
+            if attempt == RETRIES:
+                raise Recoverable(f"{kind} {os.path.basename(cfg)} falló {RETRIES} veces: {e}")
+            time.sleep(RETRY_WAIT_S)
+
+
+class RunFailed(Exception):
+    pass
 
 
 class OpenFailed(Exception):
@@ -210,7 +271,8 @@ def _daqrun_once(cfg, seconds):
             if time.time() - t0 > seconds + 600:
                 p.terminate()
                 p.wait(timeout=300)
-                raise Abort(f"daqrun {os.path.basename(cfg)} no terminó a tiempo")
+                _last_close[0] = time.time()
+                raise RunFailed(f"daqrun {os.path.basename(cfg)} no terminó a tiempo")
     _last_close[0] = time.time()
     txt = open(logf).read()
     if p.returncode != 0 and "digitizador abierto" not in txt and any(k in txt for k in OPEN_FAIL):
@@ -225,7 +287,7 @@ def _daqrun_once(cfg, seconds):
         if "daqrun termina" in line:
             log("  " + line[line.find("daqrun termina"):][:300])
     if r.returncode != 0 or not base:
-        raise Abort(f"daqrun {os.path.basename(cfg)} falló (rc {r.returncode}): {txt[-500:]}")
+        raise RunFailed(f"rc {r.returncode}: {next((l for l in txt.splitlines() if 'ERROR' in l), txt[-300:])[-300:]}")
     segs = sorted(glob.glob(f"{RAW}/{base}_seg*.root"))
     idx = json.load(open(f"{RAW}/{base}.index.json"))
     return {"base": base, "segments": segs, "events": idx.get("n_events", 0), "wall_s": time.time() - t0,
@@ -377,9 +439,11 @@ def analyse_self(run, step, T, gx, gy, cal, sw):
     for e, ch, a, km in rows:
         if inpair(ch) and lo <= km < hi and ch // 8 == gx and {gx, gy} <= inw[e]:
             amps.append(a)
+    # Muones/h = exceso sobre los accidentales previstos, acotado a ≥ 0; con N = 0, límite superior al 90 % (2.30 cuentas).
     return {"pair": f"G{gx}G{gy}", "events": n, "rate_Hz": n / dur, "window": [lo, hi], "N_XY_in_time": nxy, "acc_pred": acc_pred,
             "acc_offtime": acc_ctl, "ratio_pred": nxy / acc_pred if acc_pred > 0 else float("inf"),
-            "muons_per_h": (nxy - acc_pred) / dur * 3600, "trigger_signature": run["trigger_signature"],
+            "muons_per_h": max(0.0, nxy - acc_pred) / dur * 3600, "muons_per_h_raw": (nxy - acc_pred) / dur * 3600,
+            "muons_per_h_ul90": (max(nxy, 0) + 2.30) / dur * 3600 if nxy <= 3 else None, "trigger_signature": run["trigger_signature"],
             "amp_X_quartiles_pe": statistics.quantiles(sorted(amps), n=4) if len(amps) >= 4 else sorted(amps)}
 
 
@@ -488,7 +552,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     log("=== DAQ2-14 barrido de tensión" + (" (SIMULACIÓN)" if SIM else "") + f"; campaña {CAMPAIGN}; límite "
         + time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(DEADLINE)))
-    results = {"steps": [], "aborted": None, "skipped": []}
+    results = {"steps": [], "aborted": None, "skipped": [], "skipped_steps": [], "current_step": None}
     phys_stopped = False
     try:
         st = hvstate()
@@ -521,96 +585,136 @@ def main():
                 break
             step = {"delta_V": dv, "t_start_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
             log(f"--- escalón ΔV = {dv:+.1f} V")
-            step["hv_after_set"] = set_bias(dv)
-            time.sleep(DUR["stab"])
-            step["hv_before_sw"] = {ch: v for ch, v in check_hv("antes del run SW").items() if ch < 8}
-            sw = daqrun(swcfg, DUR["sw"])
-            step["sw_run"] = sw
-            step["sw"] = analyse_sw(sw, i, prevCal)
-            prevCal = step["sw"]["calibration"]
-            log(f"  SW: {sw['events']} eventos; G mediana {step['sw']['G_median_mV']:.3f} mV ({step['sw']['n_G_ok']} canales con G)")
-            check_hv("antes del run externo")
-            ext = daqrun(write_cfg(f"ext_step{i}", extcfg, lambda c, cal=prevCal: c["calibration"].__setitem__("file", cal)), DUR["ext"])
-            step["ext_run"] = ext
-            step["ext"] = analyse_ext(ext, i, prevCal)
-            e10 = step["ext"]["all"].get(10, {})
-            log(f"  externo: {ext['events']} eventos; ε_XY(10 p.e.) ctl {e10.get('eff_ctl', 0):.3f}, mezclados {e10.get('eff_mix', 0):.3f}")
-            table, T, why = predict(step["sw"], step["ext"])
-            step["prediction"] = table
-            step["T_chosen_pe"] = T
-            step["T_choice"] = why
-            log(f"  umbral elegido {T} p.e. ({why})")
-            step["self"] = []
-            for gx, gy in PAIRS:
-                check_hv(f"antes del auto-trigger G{gx}∧G{gy}")
-                def mut(c, gx=gx, gy=gy, cal=prevCal):
-                    c["calibration"]["file"] = cal
-                    c["digitizer"]["trigger"] = {"mode": "self_hod2018", "self": {"groups": [gx, gy], "threshold_pe": T, "masked_channels": MASKED,
-                                                                                  "majority_groups": 2, "window_clk": 1, "include_external": False,
-                                                                                  "target_rate_Hz": 50}}
-                run = daqrun(write_cfg(f"self_step{i}_G{gx}G{gy}", extcfg, mut), DUR["self"])
-                a = analyse_self(run, i, T, gx, gy, prevCal, step["sw"])
-                step["self"].append(a)
-                log(f"  auto-trigger G{gx}∧G{gy} T={T}: {run['events']} eventos ({a['rate_Hz']:.2f} Hz), X·Y en tiempo {a['N_XY_in_time']}, "
-                    f"accidentales previstos {a['acc_pred']:.1f}, razón {a['ratio_pred']:.2f}, muones/h {a['muons_per_h']:.1f}")
-            step["self_muons_per_h_sum"] = sum(a["muons_per_h"] for a in step["self"])
-            step["t_end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            results["current_step"] = dv
+            try:
+                prevCal = run_step(step, i, dv, prevCal, swcfg, extcfg)
+            except Recoverable as e:  # clase (b): se omite el escalón, se guarda lo tomado y se sigue
+                step["skipped_reason"] = str(e)
+                step["t_end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+                results["skipped_steps"].append({"delta_V": dv, "reason": str(e), "partial": step})
+                log(f"ESCALÓN {dv:+.1f} V OMITIDO (recuperable): {e}")
+                json.dump(results, open(f"{OUT}/biasscan_results.json", "w"), indent=1, ensure_ascii=False, default=str)
+                continue
             results["steps"].append(step)
             json.dump(results, open(f"{OUT}/biasscan_results.json", "w"), indent=1, ensure_ascii=False, default=str)
-    except Exception as e:  # noqa: BLE001 — cualquier fallo: aborto con restauración
+        results["current_step"] = None
+    except Exception as e:  # noqa: BLE001 — clase (c) o error inesperado: aborto con restauración
         results["aborted"] = str(e)
+        results["aborted_step"] = results.get("current_step")
         log(f"ABORTO: {e}")
     finally:
-        res = hvctl("bias", "restore", "--authorize", AUTH + ": restauración del nominal")
-        log(f"bias restore: {res.get('result')} ({res.get('detail')})", res=res)
-        results["restore"] = res
-        try:
-            time.sleep(5)  # el archivo de estado de hvmon se publica en el ciclo siguiente
-            st = hvstate()
-            results["hv_final"] = {ch: {"V0Set_V": st[ch]["V0Set_V"], "VMon_V": st[ch]["VMon_V"], "Pw": st[ch]["Pw"], "Status": st[ch]["Status"]} for ch in range(8)}
-            bad = [ch for ch in range(8) if abs(st[ch]["V0Set_V"] - NOMINAL[ch]) > 0.005 or st[ch]["Pw"] != 1]
-            log(f"HV final: {'nominal y Pw = 1 en CH00-07' if not bad else 'NO nominal en ' + str(bad)}", hv=results["hv_final"])
-        except Exception as e:  # noqa: BLE001
-            log(f"no se pudo leer el estado final de HV: {e}")
-        # Siempre: el run de física vuelve con trigger externo (también si no corría antes o si se abortó).
-        try:
-            results["physics"] = physics_start()
-        except Exception as e:  # noqa: BLE001
-            results["physics"] = f"NO ARRANCÓ: {e}"
-        log(f"run de física al final: {results['physics']}")
-        results["physics_ok"] = bool(results["physics"]) and not str(results["physics"]).startswith("NO")
-        json.dump(results, open(f"{OUT}/biasscan_results.json", "w"), indent=1, ensure_ascii=False, default=str)
-        lines = [f"DAQ2-14 barrido de tensión de hod2018{' (SIMULACIÓN)' if SIM else ''}: " + ("ABORTADO: " + results["aborted"] if results["aborted"] else "completo"),
-                 "REARRANQUE DEL RUN DE FÍSICA: " + ("OK" if results.get("physics_ok") else "FALLÓ") + f" ({results.get('physics')})",
-                 f"Escalones hechos: {[s['delta_V'] for s in results['steps']]}; omitidos: {results['skipped']}",
-                 f"Restauración: {results['restore'].get('result')} {results['restore'].get('detail', '')}",
-                 f"Comprobación previa del run de física: {results.get('physics_check', {}).get('detail', '–')}",
-                 f"Run de física antes del barrido: {'activo' if results.get('physics_before', {}).get('was_active') else 'NO activo'}"
-                 f" (última línea del log: {results.get('physics_before', {}).get('before_last', '–')})",
-                 f"Run de física al final: {results.get('physics')}"]
-        for s in results["steps"]:
-            e = s["ext"]["all"]
-            lines.append(f"ΔV {s['delta_V']:+.1f} V: G mediana {s['sw']['G_median_mV']:.3f} mV; ε_XY ctl 5/8/10/12 p.e. "
-                         + "/".join(f"{e[T]['eff_ctl']:.3f}" for T in (5, 8, 10, 12) if T in e)
-                         + f"; umbral {s['T_chosen_pe']} p.e. ({s['T_choice']}); muones/h auto-trigger (suma de pares) {s['self_muons_per_h_sum']:.1f}")
-            for a in s["self"]:
-                lines.append(f"   {a['pair']}: {a['rate_Hz']:.2f} Hz, X·Y {a['N_XY_in_time']}, accidentales previstos {a['acc_pred']:.1f}, razón {a['ratio_pred']:.2f}")
-        try:
-            sh(["python3", "-I", REPO + "/daq/tools/biasscan/biasscan_report.py", OUT, JL], timeout=600)
-            ana = json.load(open(f"{OUT}/biasscan_analysis.json"))
-            vbd = [(ch, r["V_bd"], r["sigma_V_bd"], r["overvoltage_nominal"]) for ch, r in ana["channels"].items() if "V_bd" in r]
-            if vbd:
-                lines.append(f"V_bd (estimada) en {len(vbd)} canales: mediana {statistics.median(v[1] for v in vbd):.2f} V; sobretensión al nominal "
-                             f"mediana {statistics.median(v[3] for v in vbd):.2f} V")
-            lines.append(f"Informe: {OUT}/report_es.md")
-        except Exception as e:  # noqa: BLE001
-            lines.append(f"informe automático falló: {e}")
-        lines.append(f"Registro: {LOG}; resultados: {OUT}/biasscan_results.json")
-        try:
-            summary_mail("\n".join(lines))
-        except Exception as e:  # noqa: BLE001
-            log(f"correo de resumen falló: {e}")
-        log("=== fin")
+        finish(results)
+
+
+def guarded(fn, what):
+    """Análisis: un fallo es recuperable (clase b): se omite el resto del escalón con su motivo."""
+    try:
+        return fn()
+    except (Abort, Recoverable):
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise Recoverable(f"{what} falló: {e}")
+
+
+def run_step(step, i, dv, prevCal, swcfg, extcfg):
+    """Un escalón completo; devuelve la calibración del escalón. Recoverable / Abort según la política."""
+    step["hv_after_set"] = set_bias(dv)
+    time.sleep(DUR["stab"])
+    step["hv_before_sw"] = {ch: v for ch, v in wait_stable("antes del run SW").items() if ch < 8}
+    sw = daqrun(swcfg, DUR["sw"])
+    step["sw_run"] = sw
+    check_hv("después del run SW")
+    step["sw"] = guarded(lambda: analyse_sw(sw, i, prevCal), "análisis SW")
+    prevCal = step["sw"]["calibration"]
+    log(f"  SW: {sw['events']} eventos; G mediana {step['sw']['G_median_mV']:.3f} mV ({step['sw']['n_G_ok']} canales con G)")
+    check_hv("antes del run externo")
+    ext = daqrun(write_cfg(f"ext_step{i}", extcfg, lambda c, cal=prevCal: c["calibration"].__setitem__("file", cal)), DUR["ext"])
+    step["ext_run"] = ext
+    step["ext"] = guarded(lambda: analyse_ext(ext, i, prevCal), "análisis externo")
+    e10 = step["ext"]["all"].get(10, {})
+    log(f"  externo: {ext['events']} eventos; ε_XY(10 p.e.) ctl {e10.get('eff_ctl', 0):.3f}, mezclados {e10.get('eff_mix', 0):.3f}")
+    table, T, why = guarded(lambda: predict(step["sw"], step["ext"]), "predicción")
+    step["prediction"] = table
+    step["T_chosen_pe"] = T
+    step["T_choice"] = why
+    log(f"  umbral elegido {T} p.e. ({why})")
+    step["self"] = []
+    for gx, gy in PAIRS:
+        check_hv(f"antes del auto-trigger G{gx}∧G{gy}")
+        def mut(c, gx=gx, gy=gy, cal=prevCal):
+            c["calibration"]["file"] = cal
+            c["digitizer"]["trigger"] = {"mode": "self_hod2018", "self": {"groups": [gx, gy], "threshold_pe": T, "masked_channels": MASKED,
+                                                                          "majority_groups": 2, "window_clk": 1, "include_external": False,
+                                                                          "target_rate_Hz": 50}}
+        run = daqrun(write_cfg(f"self_step{i}_G{gx}G{gy}", extcfg, mut), DUR["self"])
+        a = guarded(lambda: analyse_self(run, i, T, gx, gy, prevCal, step["sw"]), f"análisis G{gx}∧G{gy}")
+        step["self"].append(a)
+        log(f"  auto-trigger G{gx}∧G{gy} T={T}: {run['events']} eventos ({a['rate_Hz']:.2f} Hz), X·Y en tiempo {a['N_XY_in_time']}, "
+            f"accidentales previstos {a['acc_pred']:.1f}, razón {a['ratio_pred']:.2f}, muones/h {a['muons_per_h']:.1f}"
+            + (f" (límite 90 % {a['muons_per_h_ul90']:.1f})" if a.get("muons_per_h_ul90") is not None else ""))
+    step["self_muons_per_h_sum"] = sum(a["muons_per_h"] for a in step["self"])
+    step["t_end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    return prevCal
+
+
+def finish(results):
+    """Siempre: nominal restaurado, run de física rearrancado (verificado) y correo con escalones hechos,
+    omitidos (con motivo) y abortados."""
+    res = hvctl("bias", "restore", "--authorize", AUTH + ": restauración del nominal")
+    log(f"bias restore: {res.get('result')} ({res.get('detail')})", res=res)
+    results["restore"] = res
+    try:
+        time.sleep(5)  # el archivo de estado de hvmon se publica en el ciclo siguiente
+        st = hvstate()
+        results["hv_final"] = {ch: {"V0Set_V": st[ch]["V0Set_V"], "VMon_V": st[ch]["VMon_V"], "Pw": st[ch]["Pw"], "Status": st[ch]["Status"]} for ch in range(8)}
+        bad = [ch for ch in range(8) if abs(st[ch]["V0Set_V"] - NOMINAL[ch]) > 0.005 or st[ch]["Pw"] != 1]
+        log(f"HV final: {'nominal y Pw = 1 en CH00-07' if not bad else 'NO nominal en ' + str(bad)}", hv=results["hv_final"])
+    except Exception as e:  # noqa: BLE001
+        log(f"no se pudo leer el estado final de HV: {e}")
+    try:
+        results["physics"] = physics_start()
+    except Exception as e:  # noqa: BLE001
+        results["physics"] = f"NO ARRANCÓ: {e}"
+    log(f"run de física al final: {results['physics']}")
+    results["physics_ok"] = bool(results["physics"]) and not str(results["physics"]).startswith("NO")
+    json.dump(results, open(f"{OUT}/biasscan_results.json", "w"), indent=1, ensure_ascii=False, default=str)
+    lines = [f"DAQ2-14 barrido de tensión de hod2018{' (SIMULACIÓN)' if SIM else ''}: " + ("ABORTADO" if results["aborted"] else "terminado"),
+             "REARRANQUE DEL RUN DE FÍSICA: " + ("OK" if results.get("physics_ok") else "FALLÓ") + f" ({results.get('physics')})",
+             f"Escalones completos: {[s['delta_V'] for s in results['steps']]}"]
+    for k in results["skipped_steps"]:
+        lines.append(f"Escalón OMITIDO {k['delta_V']:+.1f} V: {k['reason']}")
+    if results["skipped"]:
+        lines.append(f"Escalones no empezados por el límite de tiempo: {results['skipped']}")
+    if results["aborted"]:
+        lines.append(f"Escalón ABORTADO: {results.get('aborted_step')}: {results['aborted']}")
+    lines += [f"Restauración: {results['restore'].get('result')} {results['restore'].get('detail', '')}",
+              f"Comprobación previa del run de física: {results.get('physics_check', {}).get('detail', '–')}",
+              f"Run de física antes del barrido: {'activo' if results.get('physics_before', {}).get('was_active') else 'NO activo'}"
+              f" (última línea del log: {results.get('physics_before', {}).get('before_last', '–')})"]
+    for s in results["steps"]:
+        e = s["ext"]["all"]
+        lines.append(f"ΔV {s['delta_V']:+.1f} V: G mediana {s['sw']['G_median_mV']:.3f} mV; ε_XY ctl 5/8/10/12 p.e. "
+                     + "/".join(f"{e[T]['eff_ctl']:.3f}" for T in (5, 8, 10, 12) if T in e)
+                     + f"; umbral {s['T_chosen_pe']} p.e. ({s['T_choice']}); muones/h auto-trigger (suma de pares) {s['self_muons_per_h_sum']:.1f}")
+        for a in s["self"]:
+            lines.append(f"   {a['pair']}: {a['rate_Hz']:.2f} Hz, X·Y {a['N_XY_in_time']}, accidentales previstos {a['acc_pred']:.1f}, razón {a['ratio_pred']:.2f}")
+    try:
+        sh(["python3", "-I", REPO + "/daq/tools/biasscan/biasscan_report.py", OUT, JL], timeout=600)
+        ana = json.load(open(f"{OUT}/biasscan_analysis.json"))
+        vbd = [(ch, r["V_bd"], r["sigma_V_bd"], r["overvoltage_nominal"]) for ch, r in ana["channels"].items() if "V_bd" in r]
+        if vbd:
+            lines.append(f"V_bd (estimada) en {len(vbd)} canales: mediana {statistics.median(v[1] for v in vbd):.2f} V; sobretensión al nominal "
+                         f"mediana {statistics.median(v[3] for v in vbd):.2f} V")
+        lines.append(f"Informe: {OUT}/report_es.md")
+    except Exception as e:  # noqa: BLE001
+        lines.append(f"informe automático falló: {e}")
+    lines.append(f"Registro: {LOG}; resultados: {OUT}/biasscan_results.json")
+    results["summary_lines"] = lines
+    try:
+        summary_mail("\n".join(lines))
+    except Exception as e:  # noqa: BLE001
+        log(f"correo de resumen falló: {e}")
+    log("=== fin")
 
 
 def _sigterm(signum, frame):

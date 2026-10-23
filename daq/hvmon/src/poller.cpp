@@ -304,6 +304,13 @@ void Poller::handleRequest(PollRequest& r, SteadyTime now) {
 
 // ---- Barrido de tensión (DAQ2-14) ----------------------------------------------------------------
 
+namespace {
+// Bits de riesgo durante un escalón (DAQ2-14, 2026-10-23): sobrecorriente, trip externo, trip interno.
+// on + ramp_up/ramp_down (y OV/UV mientras la tensión se asienta) son estados esperados.
+constexpr std::uint32_t kHazardBits = (1u << 3) | (1u << 6) | (1u << 9);
+constexpr std::uint32_t kRampBits = (1u << 1) | (1u << 2);
+}  // namespace
+
 void Poller::persistBias() {
   if (!fs_ || biasPath_.empty()) return;
   fs_->makeDirectories(parentDirectory(biasPath_), 0700);
@@ -418,17 +425,27 @@ void Poller::handleV0Set(PollRequest& r, SteadyTime now) {
   // encender, la placa sube de 0 al V0Set a RUp como siempre).
   const bool offWrite = pw->raw == 0u && r.internal && restoring_ && bias_.active() && bias_.inSession(r.ch) &&
                         std::fabs(r.value - bias_.nominal(r.ch)) <= 1e-6;
-  if (!offWrite && (pw->raw != 1u || st->raw != 1u)) {
+  // Con el canal encendido se admiten on + rampa (estado esperado); no se escribe con bits de riesgo o apagado.
+  if (!offWrite && (pw->raw != 1u || !(st->raw & 1u) || (st->raw & kHazardBits))) {
     char b[96];
-    std::snprintf(b, sizeof b, "el canal no está encendido y estable (Pw %u, Status 0x%X)", pw->raw, st->raw);
-    return finish("rejected", b, false);
+    std::snprintf(b, sizeof b, "el canal no está encendido o tiene bits de riesgo (Pw %u, Status 0x%X)", pw->raw, st->raw);
+    return finish((st->raw & kHazardBits) || pw->raw != 1u ? "hazard" : "rejected", b, false);
   }
   if (!offWrite)
     if (auto ck = bias_.checkStep(r.ch, r.value, v0->si); !ck) return finish("rejected", ck.error().message, false);
-  if (std::fabs(r.value - v0->si) <= bias_.limits().matchTolV) return finish("noop", "V0Set ya es el pedido", true);
+  if (std::fabs(r.value - v0->si) <= bias_.limits().matchTolV) {
+    // Ya en el valor pedido (p. ej. reintento tras un fallo de tolerancia): se verifica la tolerancia ahora.
+    const auto* vm = pre.value().get("VMon", r.ch);
+    if (offWrite || (vm && !(st->raw & kRampBits) && bias_.withinTolerance(r.ch, v0->si, vm->si)))
+      return finish("noop", "V0Set ya es el pedido (tolerancia de VMon verificada)", true);
+    char b[128];
+    std::snprintf(b, sizeof b, "V0Set ya es el pedido pero VMon %.2f V fuera de tolerancia o en rampa (Status 0x%X)", vm ? vm->si : NAN, st->raw);
+    return finish("verify_failed", b, false);
+  }
   const hv::ParamValue* rate = lastValue(r.ch, r.value > v0->si ? "RUp" : "RDWn");
   const double rateVps = (rate && rate->si > 0) ? rate->si : 1.0;
-  const double timeoutS = std::fabs(r.value - v0->si) / rateVps + cfg_.verifyMarginS + 30.0;
+  // La rampa (y la descarga del PCB en una bajada) se espera hasta 6τ.
+  const double timeoutS = std::max(std::fabs(r.value - v0->si) / rateVps + cfg_.verifyMarginS + 30.0, 6.0 * bias_.limits().rampTauS);
   detector_.addPending({rec.id, r.ch, now, now + secondsToNs(timeoutS + cfg_.commandWindowExtraS)});
   if (auto w = backend_.setChannelV0Set(cfg_.slot, r.ch, r.value); !w) {
     detector_.setPendingEnd(rec.id, now);
@@ -676,16 +693,26 @@ void Poller::verifyCommand(const hv::ChannelReading& rd, SteadyTime now) {
   if (active_->v0set && active_->offWrite) {
     done = pw->raw == 0u && std::fabs(v0->si - active_->target) <= bias_.limits().matchTolV;
   } else if (active_->v0set) {
-    // Cualquier bit fuera de on / ramp_up / ramp_down durante la rampa: abortar (trip, sobrecorriente, ...).
-    const std::uint32_t okMask = (1u << 0) | (1u << 1) | (1u << 2);
-    if (pw->raw != 1u || (st->raw & ~okMask) != 0u || !cfg_.statusBits.has(st->raw, "on")) {
+    // Riesgos (aborto): Pw = 0, bit on caído, sobrecorriente o trip, VMon en contra del escalón.
+    const double step = active_->target - active_->v0setBefore, moved = vmon->si - active_->vmonBefore;
+    std::string hazard;
+    if (pw->raw != 1u || !(st->raw & 1u) || (st->raw & kHazardBits)) {
       std::ostringstream os;
-      os << "Status inesperado durante la rampa de V0Set: Pw " << pw->raw << ", Status 0x" << std::hex << st->raw;
-      finishCommand("verify_failed", os.str(), false, now);
+      os << "riesgo durante la rampa de V0Set: Pw " << pw->raw << ", Status 0x" << std::hex << st->raw;
+      hazard = os.str();
+    } else if (step * moved < 0 && std::fabs(moved) > bias_.limits().oppositeV) {
+      char b[128];
+      std::snprintf(b, sizeof b, "riesgo: VMon se movió %+.2f V en contra del escalón de %+.2f V", moved, step);
+      hazard = b;
+    }
+    if (!hazard.empty()) {
+      finishCommand("hazard", hazard, false, now);
       return;
     }
-    done = !cfg_.statusBits.has(st->raw, "ramp_up") && !cfg_.statusBits.has(st->raw, "ramp_down") &&
-           bias_.reached(ch, active_->target, v0->si, vmon->si, active_->v0setBefore, active_->vmonBefore);
+    // Esperado: on + rampa mientras se asienta; listo con dos lecturas seguidas sin rampa y dentro de tolerancia.
+    const bool ok = !(st->raw & kRampBits) && bias_.reached(ch, active_->target, v0->si, vmon->si, active_->v0setBefore, active_->vmonBefore);
+    active_->stableReads = ok ? active_->stableReads + 1 : 0;
+    done = active_->stableReads >= 2;
   } else if (active_->on)
     done = pw->raw == 1u && cfg_.statusBits.has(st->raw, "on") && !cfg_.statusBits.has(st->raw, "ramp_up") &&
            std::fabs(vmon->si - v0->si) <= cfg_.vmonOnToleranceV;

@@ -12,6 +12,9 @@
 //   Trip segundos seguidos el canal se apaga (Pw = 0, bit on = 0, bit internal_trip = 1). No
 //   se vuelve a encender solo; internal_trip se borra al poner Pw = 1 (evento "set").
 // - VMon/IMon = verdadero + offset + ruido gaussiano, cuantizados al paso de la placa.
+// - "discharge_tau_s" (slot, DAQ2-14): con Pw = 1, una bajada de V0Set sigue V0Set + (V − V0Set)·e^(−t/τ)
+//   (descarga de la capacidad del PCB del detector) y el bit ramp_down queda puesto mientras V supere
+//   V0Set en más de 0.01 V. 0 (por omisión): bajada lineal a RDWn como antes.
 // - Bits de Status según la convención del manual de la Wrapper (Rev. 13).
 // El comportamiento exacto del A7030DP tras un trip es una inferencia hasta la fase 2.
 //
@@ -88,6 +91,7 @@ class FakeHVBackend final : public HVBackend {
     double extraUA = 0.0;
     double imonOffsetUA = 0.0;
     double vmonOffsetV = 0.0;
+    double dischargeTauS = 0.0;  // DAQ2-14: > 0: bajadas con Pw = 1 exponenciales (capacidad del PCB, τ)
   };
   struct Slot {
     SlotInfo info;

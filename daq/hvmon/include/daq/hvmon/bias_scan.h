@@ -35,6 +35,10 @@ struct BiasLimits {
   double maxStepV = 0.5;
   double vmonTolV = 0.10;
   double minMoveFrac = 0.5;  // VMon debe moverse al menos esta fracción del escalón, en su sentido
+  // DAQ2-14 (2026-10-23): la rampa se espera hasta 6τ (τ ≈ 115 s, descarga del PCB medida en DAQ2-10);
+  // VMon moviéndose en contra del escalón más de opposite_V es un riesgo (aborto).
+  double rampTauS = 115.0;
+  double oppositeV = 0.10;
   double matchTolV = 0.005;
 };
 
@@ -46,6 +50,7 @@ class BiasSession {
                const std::string& reason, UtcNs now);
   Status checkStep(int ch, double target, double currentV0Set) const;
   bool reached(int ch, double target, double v0setRead, double vmon, double v0setBefore, double vmonBefore) const;
+  bool withinTolerance(int ch, double v0setRead, double vmon) const;  // solo |VMon − V0Set − desvío| ≤ vmon_tol_V
   std::vector<std::pair<int, double>> restorePlan(const std::map<int, double>& v0set) const;
   void end() { active_ = false; }
   void updateOffset(int ch, double off) {
