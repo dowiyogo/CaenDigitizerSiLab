@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-# biasscan_report.py — DAQ2-14: análisis del barrido de tensión a partir de biasscan_results.json.
+# biasscan_report.py — DAQ2-14/15: análisis del barrido de tensión a partir de biasscan_results.json.
 #  - por canal de hod2018: G (mV/p.e., medida) contra la tensión del canal (VMon en el run SW, que sigue
 #    al V0Set con el desvío del canal), ajuste lineal G = k·(V − V_bd), V_bd (estimada, extrapolación) con
 #    su error del ajuste y la sobretensión al nominal; canales con menos de tres puntos válidos, marcados;
@@ -35,9 +35,20 @@ def fit(xs, ys):
 
 
 ana = {"channels": {}, "steps": []}
-lines = ["# DAQ2-14: barrido de tensión de hod2018 y auto-trigger con pares de grupos X·Y", ""]
+lines = [f"# Barrido de tensión de hod2018 y auto-trigger con pares de grupos X·Y ({out.rstrip('/').split('/')[-1]})", ""]
 lines.append(f"Escalones medidos: {[s['delta_V'] for s in steps]}; omitidos: {R.get('skipped')}; aborto: {R.get('aborted')}.")
 lines.append(f"Restauración: {R.get('restore', {}).get('result')}; run de física al final: {R.get('physics')}.")
+lines.append("")
+lines.append("## Hora y temperatura de la placa A7030DP por escalón (única referencia de temperatura; sigue la del rack)")
+lines.append("")
+lines.append("| ΔV | inicio (UTC) | inicio (Chile) | placa (°C), lecturas | control del auto-trigger |")
+lines.append("|---|---|---|---|---|")
+for s in steps:
+    t = [b["degC"] for b in s.get("board_temp", [])]
+    c = s.get("selftrigger_check", {})
+    cs = (f"{c['pair']} a {c['T_pe']} p.e.: {c['rate_Hz']:.3f} Hz contra {c['pred_acc_Hz']:.3f} Hz previstos ({c['frac_of_pred']:.3g}); "
+          if "rate_Hz" in c else "") + ("funciona" if c.get("working") else f"NO funciona: {c.get('reason')}") if c else "–"
+    lines.append(f"| {s['delta_V']:+.1f} | {s.get('t_start_utc')} | {s.get('t_start_chile', '–')} | {t} | {cs} |")
 lines.append("")
 lines.append("## G contra tensión y tensión de ruptura (G medida; V_bd estimada por extrapolación lineal)")
 lines.append("")
@@ -86,10 +97,11 @@ lines.append("")
 lines.append("| ΔV | T (p.e.) | criterio | par | tasa (Hz) | X·Y en tiempo | accidentales previstos (2W·r_X·r_Y) | fuera de tiempo | razón | muones/h |")
 lines.append("|---|---|---|---|---|---|---|---|---|---|")
 for s in steps:
-    for a in s["self"]:
+    for a in s.get("self", []):
         lines.append(f"| {s['delta_V']:+.1f} | {s['T_chosen_pe']} | {s['T_choice']} | {a['pair']} | {a['rate_Hz']:.3f} | {a['N_XY_in_time']} | {a['acc_pred']:.1f} | "
                      f"{a['acc_offtime']} | {a['ratio_pred']:.2f} | {a['muons_per_h']:.1f} |")
-    lines.append(f"| {s['delta_V']:+.1f} | | | suma | | | | | | {s['self_muons_per_h_sum']:.1f} |")
+    mu = s.get("self_muons_per_h_sum")
+    lines.append(f"| {s['delta_V']:+.1f} | | | suma | | | | | | {f'{mu:.1f}' if mu is not None else 'runs omitidos'} |")
 lines.append("")
 lines.append("Referencia, trigger externo: fracción X·Y con accidentales restados 0.0167 (noche del 2026-10-19, eventos mezclados) × tasa del trigger "
              "externo (0.7299 Hz) = 43.9 muones/h en el cuadrado dentro de la aceptancia de las placas.")

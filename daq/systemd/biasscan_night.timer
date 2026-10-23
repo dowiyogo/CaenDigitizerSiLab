@@ -1,0 +1,10 @@
+# biasscan_night.timer — DAQ2-15: arranca biasscan_night.service una vez, el 2026-10-24 a las 02:00Z (23:00 Chile).
+# Se activa con systemctl --user start (no enable): no sobrevive a un reinicio del host.
+[Unit]
+Description=DAQ2-15 barrido de noche a las 02:00Z
+
+[Timer]
+OnCalendar=2026-10-24 02:00:00 UTC
+AccuracySec=1s
+Persistent=false
+Unit=biasscan_night.service

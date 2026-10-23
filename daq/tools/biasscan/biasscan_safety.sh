@@ -1,11 +1,11 @@
 #!/bin/bash
-# biasscan_safety.sh — DAQ2-14: ExecStopPost de la unidad del barrido. Pase lo que pase con el
+# biasscan_safety.sh — DAQ2-14/15: ExecStopPost de la unidad del barrido. Pase lo que pase con el
 # orquestador (fin normal, aborto, señal, RuntimeMaxSec), restaura el V0Set nominal (noop si la sesión
 # ya está cerrada) y deja corriendo el run de física con trigger externo.
 BIN=$HOME/.local/opt/daqv2/bin
 LOG=/data/daq/logs/biasscan.log
 echo "$(date -u +%FT%TZ) safety: bias restore" >> $LOG
-$BIN/hvctl bias restore --authorize "DAQ2-14 bias scan and self-trigger experiment, authorized by René: restauración de seguridad" >> $LOG 2>&1
+$BIN/hvctl bias restore --authorize "DAQ2-15 day/night bias scans (bounded V0Set and Pw as in DAQ2-14), authorized by René: restauración de seguridad" >> $LOG 2>&1
 $BIN/hvctl bias status >> $LOG 2>&1
 if ! systemctl --user is-active --quiet daq-physics; then
   echo "$(date -u +%FT%TZ) safety: run de física no activo: se arranca" >> $LOG

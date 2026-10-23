@@ -21,8 +21,12 @@
 #       omite con su motivo, se guarda lo ya tomado y se sigue con el siguiente;
 #   (c) riesgos reales (bits de trip o sobrecorriente, Pw que cae a 0 solo, conexión HV perdida, VMon en
 #       contra del escalón): aborto, nominal restaurado y run de física rearrancado.
-# Escrituras de HV: solo por hvctl (hvmon), cada una con --authorize. Registro: /data/daq/logs/biasscan.log
-# y biasscan.jsonl. Resultados: outputs/daq2-14/.
+# DAQ2-15 (2026-10-23): barridos de día y de noche. Antes de los runs de auto-trigger de cada escalón, un run
+# de control de 2 min con un par a 8 p.e.: si la tasa medida es < 10 % de la tasa accidental prevista, la
+# configuración del auto-trigger se marca como que no funciona y se omiten los runs de auto-trigger de ese
+# escalón (se sigue con el siguiente). Temperatura de la placa A7030DP y hora del día en cada escalón.
+# Escrituras de HV: solo por hvctl (hvmon), cada una con --authorize. Registro: /data/daq/logs/biasscan_<campaña>.log
+# y .jsonl. Resultados: outputs/daq2-15/<campaña>/.
 # Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS" | --max-hours H]
 #   --sim: hvmon de prueba con FakeHVBackend, daqrun fake, duraciones cortas
 import calendar, glob, itertools, json, math, os, statistics, subprocess, sys, time
@@ -37,7 +41,7 @@ def _arg(name, default):
 
 
 CAMPAIGN = _arg("--campaign", "biasscan_sim_2026_10_22" if SIM else "biasscan_2026_10_22")
-AUTH = "DAQ2-14 bias scan and self-trigger experiment, authorized by René"
+AUTH = "DAQ2-15 day/night bias scans (bounded V0Set and Pw as in DAQ2-14), authorized by René"
 NOMINAL = [65.75, 65.75, 65.90, 65.85, 65.75, 65.70, 66.15, 65.90]
 STEPS = [0.0, -0.5, -1.0, -1.5]
 # Límite: las 10:00Z siguientes al arranque (07:00 Chile, antes de la luz de la mañana), o --deadline "AAAA-MM-DD HH:MM:SS" (UTC).
@@ -49,17 +53,19 @@ elif "--deadline" in sys.argv:
     DEADLINE = calendar.timegm(time.strptime(_arg("--deadline", ""), "%Y-%m-%d %H:%M:%S"))
 else:
     DEADLINE = _next10 if time.time() < _next10 else _next10 + 86400
-STEP_EST_S = 70 * 60 if not SIM else 60  # duración estimada de un escalón completo
-DUR = {"stab": 120, "sw": 120, "ext": 900, "self": 600} if not SIM else {"stab": 5, "sw": 15, "ext": 20, "self": 15}
+STEP_EST_S = 75 * 60 if not SIM else 60  # duración estimada de un escalón completo
+DUR = {"stab": 120, "sw": 120, "ext": 900, "check": 120, "self": 600} if not SIM else {"stab": 5, "sw": 15, "ext": 20, "check": 10, "self": 15}
+CHECK_T_PE = 8        # run de control del auto-trigger: un par a 8 p.e.
+CHECK_MIN_FRAC = 0.10  # tasa medida < 10 % de la accidental prevista -> configuración que no funciona
 MASKED = [2, 9, 15]
 PAIRS = [(0, 2), (0, 3), (1, 2), (1, 3)]
 THRESHOLDS = [4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30]
 W_S = 8e-9          # ventana de la mayoría: 1 reloj (0x810C[23:20] = 1)
 FLUX_SQ_HZ = 10.89 / 60.0  # modelo: 1 cm^-2 min^-1 (PDG) × cuadrado activo de 10.89 cm²
 ACC_GEOM = 0.0360   # fracción de triggers externos que cruza el cuadrado (MC del handoff)
-OUT = REPO + "/outputs/daq2-14" + ("-sim" if SIM else "")
+OUT = REPO + "/outputs/daq2-15" + ("-sim" if SIM else "") + "/" + CAMPAIGN
 LOGD = "/data/daq/sim/logs" if SIM else "/data/daq/logs"
-LOG, JL = LOGD + "/biasscan.log", LOGD + "/biasscan.jsonl"
+LOG, JL = f"{LOGD}/biasscan_{CAMPAIGN}.log", f"{LOGD}/biasscan_{CAMPAIGN}.jsonl"
 CFGD = ("/data/daq/sim/config/" if SIM else "/data/daq/config/") + CAMPAIGN
 RAW = ("/data/daq/sim/raw/" if SIM else "/data/daq/raw/") + CAMPAIGN
 PHYS_CFG = "/data/daq/config/hodoscope_2026_10/physics_ext_B.json"
@@ -144,6 +150,16 @@ def check_hv(where):
     return st
 
 
+def board_temp(step, where):
+    """Temperatura de la placa A7030DP (única referencia de temperatura; sigue la del rack, 1 °C de resolución)."""
+    try:
+        t = hvstate_full().get("board_temperature_degC")
+    except Exception:  # noqa: BLE001
+        t = None
+    step["board_temp"].append({"t_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "where": where, "degC": t})
+    return t
+
+
 def wait_stable(where, timeout=STABLE_TIMEOUT_S):
     """Clase (a): espera a que ningún canal de CH00-07 esté en rampa (Status 0x1); riesgos -> Abort;
     timeout -> Recoverable."""
@@ -191,7 +207,7 @@ def set_bias(delta):
 def write_cfg(name, base, mutate):
     c = json.load(open(base))
     c["campaign"]["name"] = CAMPAIGN
-    c["campaign"]["operator"] = "claude (DAQ2-14, barrido de tensión y auto-trigger, autorizado por René)"
+    c["campaign"]["operator"] = "claude (DAQ2-15, barridos de tensión de día y de noche, autorizado por René)"
     c["notifier"]["enabled"] = False  # avisos de HV: hvmon; resumen: un correo al final
     c["mapping"]["file"] = MAP
     c["notifier"]["mapping_file"] = MAP
@@ -550,7 +566,7 @@ def summary_mail(text):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    log("=== DAQ2-14 barrido de tensión" + (" (SIMULACIÓN)" if SIM else "") + f"; campaña {CAMPAIGN}; límite "
+    log("=== DAQ2-15 barrido de tensión" + (" (SIMULACIÓN)" if SIM else "") + f"; campaña {CAMPAIGN}; límite "
         + time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(DEADLINE)))
     results = {"steps": [], "aborted": None, "skipped": [], "skipped_steps": [], "current_step": None}
     phys_stopped = False
@@ -581,9 +597,10 @@ def main():
         for i, dv in enumerate(STEPS):
             if time.time() + STEP_EST_S > DEADLINE:
                 results["skipped"] = STEPS[i:]
-                log(f"escalones {STEPS[i:]} omitidos: terminarían después de las 10:00Z")
+                log(f"escalones {STEPS[i:]} omitidos: terminarían después del límite")
                 break
-            step = {"delta_V": dv, "t_start_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+            step = {"delta_V": dv, "t_start_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "t_start_chile": time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime()), "board_temp": []}
             log(f"--- escalón ΔV = {dv:+.1f} V")
             results["current_step"] = dv
             try:
@@ -621,6 +638,7 @@ def run_step(step, i, dv, prevCal, swcfg, extcfg):
     step["hv_after_set"] = set_bias(dv)
     time.sleep(DUR["stab"])
     step["hv_before_sw"] = {ch: v for ch, v in wait_stable("antes del run SW").items() if ch < 8}
+    log(f"  temperatura de la placa: {board_temp(step, 'antes del run SW')} °C")
     sw = daqrun(swcfg, DUR["sw"])
     step["sw_run"] = sw
     check_hv("después del run SW")
@@ -628,6 +646,7 @@ def run_step(step, i, dv, prevCal, swcfg, extcfg):
     prevCal = step["sw"]["calibration"]
     log(f"  SW: {sw['events']} eventos; G mediana {step['sw']['G_median_mV']:.3f} mV ({step['sw']['n_G_ok']} canales con G)")
     check_hv("antes del run externo")
+    board_temp(step, "antes del run externo")
     ext = daqrun(write_cfg(f"ext_step{i}", extcfg, lambda c, cal=prevCal: c["calibration"].__setitem__("file", cal)), DUR["ext"])
     step["ext_run"] = ext
     step["ext"] = guarded(lambda: analyse_ext(ext, i, prevCal), "análisis externo")
@@ -639,6 +658,13 @@ def run_step(step, i, dv, prevCal, swcfg, extcfg):
     step["T_choice"] = why
     log(f"  umbral elegido {T} p.e. ({why})")
     step["self"] = []
+    board_temp(step, "antes del auto-trigger")
+    chk = step["selftrigger_check"] = selftrigger_check(step, i, prevCal, extcfg)
+    if not chk.get("working"):
+        log(f"  AUTO-TRIGGER NO FUNCIONA en este escalón ({chk.get('reason')}): se omiten sus runs de auto-trigger")
+        step["self_muons_per_h_sum"] = None
+        step["t_end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        return prevCal
     for gx, gy in PAIRS:
         check_hv(f"antes del auto-trigger G{gx}∧G{gy}")
         def mut(c, gx=gx, gy=gy, cal=prevCal):
@@ -655,6 +681,36 @@ def run_step(step, i, dv, prevCal, swcfg, extcfg):
     step["self_muons_per_h_sum"] = sum(a["muons_per_h"] for a in step["self"])
     step["t_end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     return prevCal
+
+
+def selftrigger_check(step, i, cal, extcfg):
+    """Run de control (DUR["check"]) con el par de mayor tasa accidental prevista a CHECK_T_PE p.e.: tasa medida
+    contra la prevista 2W·r_X·r_Y (tasas de ruido del run SW del escalón, ch2/9/15 fuera). Un fallo del run
+    (recuperable) también marca el auto-trigger como no comprobado, sin perder el resto del escalón."""
+    r = step["sw"]["group_rates_masked_Hz"][CHECK_T_PE]
+    gx, gy = max(PAIRS, key=lambda p: r[p[0]] * r[p[1]])
+    pred = 2 * W_S * r[gx] * r[gy]
+    def mut(c):
+        c["calibration"]["file"] = cal
+        c["digitizer"]["trigger"] = {"mode": "self_hod2018", "self": {"groups": [gx, gy], "threshold_pe": CHECK_T_PE, "masked_channels": MASKED,
+                                                                      "majority_groups": 2, "window_clk": 1, "include_external": False,
+                                                                      "target_rate_Hz": max(50.0, 2 * pred)}}
+    out = {"pair": f"G{gx}G{gy}", "T_pe": CHECK_T_PE, "pred_acc_Hz": pred, "duration_s": DUR["check"]}
+    check_hv("antes del run de control del auto-trigger")
+    try:
+        run = daqrun(write_cfg(f"check_step{i}_G{gx}G{gy}", extcfg, mut), DUR["check"])
+    except Recoverable as e:
+        out.update(working=False, reason=f"run de control falló: {e}")
+        return out
+    rate = run["events"] / DUR["check"]
+    frac = rate / pred if pred > 0 else float("inf")
+    out.update(events=run["events"], rate_Hz=rate, frac_of_pred=frac, base=run["base"], trigger_signature=run["trigger_signature"],
+               working=frac >= CHECK_MIN_FRAC)
+    if not out["working"]:
+        out["reason"] = f"tasa medida {rate:.3f} Hz = {frac:.3g} de la prevista {pred:.3f} Hz (< {CHECK_MIN_FRAC:.0%})"
+    log(f"  control del auto-trigger G{gx}∧G{gy} a {CHECK_T_PE} p.e.: {run['events']} eventos en {DUR['check']} s = {rate:.3f} Hz; "
+        f"accidentales previstos {pred:.3f} Hz; fracción {frac:.3g}: {'FUNCIONA' if out['working'] else 'NO FUNCIONA'}")
+    return out
 
 
 def finish(results):
@@ -678,7 +734,7 @@ def finish(results):
     log(f"run de física al final: {results['physics']}")
     results["physics_ok"] = bool(results["physics"]) and not str(results["physics"]).startswith("NO")
     json.dump(results, open(f"{OUT}/biasscan_results.json", "w"), indent=1, ensure_ascii=False, default=str)
-    lines = [f"DAQ2-14 barrido de tensión de hod2018{' (SIMULACIÓN)' if SIM else ''}: " + ("ABORTADO" if results["aborted"] else "terminado"),
+    lines = [f"DAQ2-15 barrido de tensión de hod2018, campaña {CAMPAIGN}{' (SIMULACIÓN)' if SIM else ''}: " + ("ABORTADO" if results["aborted"] else "terminado"),
              "REARRANQUE DEL RUN DE FÍSICA: " + ("OK" if results.get("physics_ok") else "FALLÓ") + f" ({results.get('physics')})",
              f"Escalones completos: {[s['delta_V'] for s in results['steps']]}"]
     for k in results["skipped_steps"]:
@@ -693,9 +749,16 @@ def finish(results):
               f" (última línea del log: {results.get('physics_before', {}).get('before_last', '–')})"]
     for s in results["steps"]:
         e = s["ext"]["all"]
-        lines.append(f"ΔV {s['delta_V']:+.1f} V: G mediana {s['sw']['G_median_mV']:.3f} mV; ε_XY ctl 5/8/10/12 p.e. "
+        temps = [b["degC"] for b in s.get("board_temp", []) if b["degC"] is not None]
+        mu = s.get("self_muons_per_h_sum")
+        lines.append(f"ΔV {s['delta_V']:+.1f} V ({s['t_start_chile']}, placa {min(temps) if temps else '–'}-{max(temps) if temps else '–'} °C): "
+                     f"G mediana {s['sw']['G_median_mV']:.3f} mV; ε_XY ctl 5/8/10/12 p.e. "
                      + "/".join(f"{e[T]['eff_ctl']:.3f}" for T in (5, 8, 10, 12) if T in e)
-                     + f"; umbral {s['T_chosen_pe']} p.e. ({s['T_choice']}); muones/h auto-trigger (suma de pares) {s['self_muons_per_h_sum']:.1f}")
+                     + f"; umbral {s['T_chosen_pe']} p.e. ({s['T_choice']}); muones/h auto-trigger (suma de pares) "
+                     + (f"{mu:.1f}" if mu is not None else "– (runs omitidos)"))
+        c = s.get("selftrigger_check", {})
+        lines.append(f"   control {c.get('pair')} a {c.get('T_pe')} p.e.: " + (f"{c.get('rate_Hz', 0):.3f} Hz contra {c.get('pred_acc_Hz', 0):.3f} Hz previstos "
+                     f"({c.get('frac_of_pred', 0):.3g}): " if "rate_Hz" in c else "") + ("FUNCIONA" if c.get("working") else f"NO FUNCIONA ({c.get('reason')})"))
         for a in s["self"]:
             lines.append(f"   {a['pair']}: {a['rate_Hz']:.2f} Hz, X·Y {a['N_XY_in_time']}, accidentales previstos {a['acc_pred']:.1f}, razón {a['ratio_pred']:.2f}")
     try:
