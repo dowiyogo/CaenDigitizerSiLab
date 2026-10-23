@@ -1,0 +1,152 @@
+#!/usr/bin/python3 -I
+# hitdef_analyse.py — DAQ2-15: fracción X·Y de hod2018 por trigger (accidentales restados por eventos mezclados y por
+# ventana fuera de tiempo) y ε(X|Y), ε(Y|X) contra umbral 3-12 p.e., con el mismo código para mayo v8, la noche del
+# 2026-10-19 y el run 8, desde work/hd_<dataset>_hits.bin (hitdef_extract.C).
+# Umbral: amplitud > T·G (G de la calibración de cada campaña: mayo outputs/pe_calibration_v8.txt, octubre c1); con el
+# pedestal común los picos de 1 p.e. caen en múltiplos enteros de G (p0 medido ≈ 0, ver *_peaks.csv).
+# Definiciones: "pulso" (nueva) = pulso del buscador con mínimo en la ventana; "DAQ2-13" = mínimo de todo el tramo de 144
+# muestras dentro de [m−4, m+5), control [m+46, m+55), con m = moda de la muestra del mínimo de los impactos > 10 p.e.
+# "mayo" = definición del análisis de mayo (hod2018_good_time_step2.C): mínimo de la ventana de 10 muestras con pedestal
+# local [k−12, k−4], mismo umbral T·G; además el punto publicado "5 p.e." de mayo = p0 + 3.5·G (p0 de pe_calibration_v8.txt).
+# Mayo: solo tiempo bueno de runs/good_intervals_2026.csv (fuera EXCLUDE y HV_OFF; hora local UTC−4).
+# Uso: hitdef_analyse.py <work> <salida.json>
+import calendar, csv, json, math, sys, time
+
+import numpy as np
+
+W, OUTF = sys.argv[1], sys.argv[2]
+REPO = "/home/xplus/digitizer/CaenDigitizerSiLab-jai"
+DT = np.dtype([("t", "<f8"), ("aS", "<f4", 32), ("aC", "<f4", 32), ("aG", "<f4", 32), ("kG", "u1", 32), ("aM", "<f4", 32), ("aMc", "<f4", 32)])
+TS = list(range(3, 13))
+X, Y = list(range(16)), list(range(16, 32))  # mayo (kCfg_2026_05) y octubre (r4): mismos conjuntos de canales por plano
+EXCL = {"sin_ch3": [3], "sin_2_3_9_15": [2, 3, 9, 15]}
+
+
+def g_may():
+    g = np.full(32, np.nan)
+    for l in open(REPO + "/outputs/pe_calibration_v8.txt"):
+        if l.startswith("#"):
+            continue
+        f = l.split()
+        if int(f[0]) < 32:
+            g[int(f[0])] = float(f[3])
+    return g
+
+
+def p0_may():
+    g = np.zeros(32)
+    for l in open(REPO + "/outputs/pe_calibration_v8.txt"):
+        if l.startswith("#"):
+            continue
+        f = l.split()
+        if int(f[0]) < 32:
+            g[int(f[0])] = float(f[2])
+    return g
+
+
+def g_c1():
+    c = json.load(open("/home/xplus/.local/opt/daqv2/share/calibration/pe_calibration_2026_10_c1.json"))
+    g = np.full(32, np.nan)
+    for e in c["channels"]:
+        if e["ch"] < 32 and isinstance(e.get("G_mV"), (int, float)):
+            g[e["ch"]] = e["G_mV"]
+    return g
+
+
+def good_may(t):
+    keep = np.ones(len(t), bool)
+    loc = t - 4 * 3600
+    for r in csv.DictReader(open(REPO + "/runs/good_intervals_2026.csv")):
+        if r["run"] != "v8" or r["status"] not in ("EXCLUDE", "HV_OFF"):
+            continue
+        a = calendar.timegm(time.strptime(r["start_local"], "%Y-%m-%d %H:%M"))
+        b = calendar.timegm(time.strptime(r["end_local"], "%Y-%m-%d %H:%M")) + 60  # el minuto final incluido
+        keep &= ~((loc >= a) & (loc < b))
+    return keep
+
+
+DS = {"may8": ("mayo v8 (tiempo bueno)", g_may()), "night": ("noche 2026-10-19", g_c1()), "run008": ("run 8 (2026-10-22/23)", g_c1())}
+
+
+def frac(Xs, Ys, Xc, Yc):
+    """Fracción de triggers con muón en X y en Y (q). Con ruido independiente de probabilidad aX, aY por ventana
+    (medida en la ventana fuera de tiempo) y rX, rY = probabilidades verdaderas por plano:
+      mismo evento − mezclados = (q − rX·rY)(1 − aX)(1 − aY)       -> q = (N_XY − acc_mix) / (N(1−aX)(1−aY)) + rX·rY
+      mismo evento − fuera de tiempo = q (1 − aX)(1 − aY)          -> q = (N_XY − acc_ctl) / (N(1−aX)(1−aY))
+    (la primera es la fórmula del análisis de mayo, hod2018_good_time_step2.C). ε(X|Y) = q / rY, ε(Y|X) = q / rX."""
+    N = len(Xs)
+    nxy = int((Xs & Ys).sum())
+    a1, a2, a3 = int((Xs & Yc).sum()), int((Xc & Ys).sum()), int((Xc & Yc).sum())
+    m1, m2 = int((Xs[:-1] & Ys[1:]).sum()), int((Ys[:-1] & Xs[1:]).sum())
+    out = {"N": N, "N_XY": nxy, "acc_ctl": a1 + a2 - a3, "acc_mix": 0.5 * (m1 + m2) * N / (N - 1), "N_X": int(Xs.sum()), "N_Y": int(Ys.sum()),
+           "N_Xc": int(Xc.sum()), "N_Yc": int(Yc.sum())}
+    aX, aY = out["N_Xc"] / N, out["N_Yc"] / N
+    rX, rY = (out["N_X"] / N - aX) / (1 - aX), (out["N_Y"] / N - aY) / (1 - aY)
+    den = (1 - aX) * (1 - aY)
+    out.update(aX=aX, aY=aY, rX=rX, rY=rY)
+    for tag, acc, v, add in (("mix", out["acc_mix"], (m1 + m2) / 4, rX * rY), ("ctl", out["acc_ctl"], a1 + a2 + a3, 0.0)):
+        q = (nxy - acc) / (N * den) + add
+        eq = math.sqrt(nxy + v) / (N * den)
+        out[f"f_{tag}"] = q
+        out[f"f_{tag}_err"] = eq
+        for a, r in (("X|Y", rY), ("Y|X", rX)):
+            e = q / r if r > 0 else float("nan")
+            out[f"e_{a}_{tag}"] = e
+            out[f"e_{a}_{tag}_err"] = math.sqrt((eq / r) ** 2 + max(e * (1 - e), 0) / (r * N)) if r > 0 else float("nan")
+    return out
+
+
+res = {"definition": {"pedestal": "media recortada (±2 mV de la mediana) de las 40 muestras [s0−49, s0−9)",
+                      "signal": "[s0, s0+9) (144 ns); octubre s0 = 49, mayo s0 = 258 (4128 ns)",
+                      "off_time": "[s0+50, s0+59) (800 ns después)",
+                      "hit": "pulso del buscador del DAQ (mínimo local, separación 4 muestras) con su mínimo dentro de la ventana; "
+                             "amplitud = pedestal − mínimo > T·G",
+                      "daq2_13": "mínimo de todo el tramo de 144 muestras dentro de [m−4, m+5), amplitud > T·G; control [m+46, m+55)"},
+       "datasets": {}}
+for k, (lab, G) in DS.items():
+    e = np.fromfile(f"{W}/hd_{k}_hits.bin", dtype=DT)
+    e = e[np.argsort(e["t"], kind="stable")]
+    if k == "may8":
+        n_all = len(e)
+        e = e[good_may(e["t"])]
+    Gf = np.where(np.isfinite(G), G, np.nanmedian(G))
+    # moda de la muestra del mínimo (impactos > 10 p.e.) para la definición de DAQ2-13
+    big = e["aG"] / Gf > 10
+    kk = e["kG"][big].astype(int)
+    hk = np.bincount(kk, minlength=144)
+    m = 20 + int(hk[20:124].argmax())  # sin los bordes del tramo (colas de pulsos anteriores en la muestra 0)
+    d = {"label": lab, "events": int(len(e)), "mode_sample_daq2_13": m, "first_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(e["t"][0])),
+         "last_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(e["t"][-1]))}
+    if k == "may8":
+        d["events_before_good_time"] = n_all
+    for ex, chs in EXCL.items():
+        xs = [c for c in X if c not in chs]
+        ys = [c for c in Y if c not in chs]
+        for T in TS:
+            thr = T * Gf
+            hS, hC = e["aS"] > thr, e["aC"] > thr
+            new = frac(hS[:, xs].any(1), hS[:, ys].any(1), hC[:, xs].any(1), hC[:, ys].any(1))
+            inw = (e["kG"] >= m - 4) & (e["kG"] < m + 5) & (e["aG"] > thr)
+            ctw = (e["kG"] >= m + 46) & (e["kG"] < m + 55) & (e["aG"] > thr)
+            old = frac(inw[:, xs].any(1), inw[:, ys].any(1), ctw[:, xs].any(1), ctw[:, ys].any(1))
+            hM, hMc = e["aM"] > thr, e["aMc"] > thr
+            mayd = frac(hM[:, xs].any(1), hM[:, ys].any(1), hMc[:, xs].any(1), hMc[:, ys].any(1))
+            d.setdefault(ex, {})[T] = {"pulso": new, "daq2_13": old, "mayo": mayd}
+        if k == "may8":
+            thr = p0_may() + 3.5 * Gf
+            hM, hMc = e["aM"] > thr, e["aMc"] > thr
+            d[ex]["mayo_publicado_5pe"] = frac(hM[:, xs].any(1), hM[:, ys].any(1), hMc[:, xs].any(1), hMc[:, ys].any(1))
+    res["datasets"][k] = d
+json.dump(res, open(OUTF, "w"), ensure_ascii=False, indent=1)
+for k, d in res["datasets"].items():
+    print(k, d["label"], d["events"], "moda", d["mode_sample_daq2_13"], d["first_utc"], d["last_utc"])
+    for ex in EXCL:
+        if "mayo_publicado_5pe" in d[ex]:
+            c = d[ex]["mayo_publicado_5pe"]
+            print(f"  {ex} mayo p0+3.5G: NXY {c['N_XY']} mix {c['f_mix']:.4f}±{c['f_mix_err']:.4f} ctl {c['f_ctl']:.4f}±{c['f_ctl_err']:.4f} /0.0360 = {c['f_mix'] / 0.036:.3f}")
+        for T in TS:
+            a, b, c = d[ex][T]["pulso"], d[ex][T]["daq2_13"], d[ex][T]["mayo"]
+            print(f"  {ex} T{T:2d} pulso mix {a['f_mix']:.4f}±{a['f_mix_err']:.4f} ctl {a['f_ctl']:.4f}±{a['f_ctl_err']:.4f} "
+                  f"X|Y {a['e_X|Y_mix']:.3f}±{a['e_X|Y_mix_err']:.3f} Y|X {a['e_Y|X_mix']:.3f}±{a['e_Y|X_mix_err']:.3f} NXY {a['N_XY']} accmix {a['acc_mix']:.1f} | "
+                  f"DAQ2-13 mix {b['f_mix']:.4f}±{b['f_mix_err']:.4f} ctl {b['f_ctl']:.4f} X|Y {b['e_X|Y_mix']:.3f} Y|X {b['e_Y|X_mix']:.3f} | "
+                  f"mayo mix {c['f_mix']:.4f}±{c['f_mix_err']:.4f} ctl {c['f_ctl']:.4f} X|Y {c['e_X|Y_mix']:.3f} Y|X {c['e_Y|X_mix']:.3f}")

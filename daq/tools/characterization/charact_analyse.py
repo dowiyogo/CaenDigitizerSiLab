@@ -385,20 +385,24 @@ def eff(e, T, excl=()):
     acc_mix = 0.5 * (m1 + m2) * N / (N - 1)
     out = {"T": T, "N": N, "N_XY": nxy, "acc_ctl": acc_ctl, "acc_mix": acc_mix, "N_X": int(X.sum()), "N_Y": int(Y.sum()),
            "N_Xc": int(Xc.sum()), "N_Yc": int(Yc.sum())}
-    for tag, acc, vacc in (("mix", acc_mix, (m1 + m2) / 4), ("ctl", acc_ctl, a1 + a2 + a3)):
-        f = (nxy - acc) / N
-        ef = math.sqrt(nxy + vacc) / N
+    # Con ruido independiente (aX, aY de la ventana fuera de tiempo; rX, rY verdaderas por plano):
+    #   mismo − mezclados = (q − rX·rY)(1−aX)(1−aY); mismo − fuera de tiempo = q(1−aX)(1−aY)  (fórmula de mayo,
+    #   hod2018_good_time_step2.C; corregido en DAQ2-15: antes faltaban rX·rY y el factor (1−aX)(1−aY)).
+    aX, aY = out["N_Xc"] / N, out["N_Yc"] / N
+    rX, rY = (out["N_X"] / N - aX) / (1 - aX), (out["N_Y"] / N - aY) / (1 - aY)
+    den = (1 - aX) * (1 - aY)
+    out.update(aX=aX, aY=aY, rX=rX, rY=rY)
+    for tag, acc, vacc, add in (("mix", acc_mix, (m1 + m2) / 4, rX * rY), ("ctl", acc_ctl, a1 + a2 + a3, 0.0)):
+        f = (nxy - acc) / (N * den) + add
+        ef = math.sqrt(nxy + vacc) / (N * den)
         out[f"frac_{tag}"] = f
         out[f"frac_{tag}_err"] = ef
         out[f"eps_geo_{tag}"] = f / ACC_GEOM
         out[f"eps_geo_{tag}_err"] = ef / ACC_GEOM
-        # condicionadas: impactos verdaderos del plano de referencia = sus impactos menos los de ruido (ventana de control)
-        for a, b, nb_, nbc in (("X|Y", "Y", out["N_Y"], out["N_Yc"]), ("Y|X", "X", out["N_X"], out["N_Xc"])):
-            den = nb_ - nbc
-            num = nxy - acc
-            v = num / den if den > 0 else float("nan")
-            out[f"cond_{a}_{tag}"] = v
-            out[f"cond_{a}_{tag}_err"] = math.sqrt(max(v * (1 - v), 0) / den + (nxy + vacc) / den ** 2) if den > 0 else float("nan")
+        for a_, r_ in (("X|Y", rY), ("Y|X", rX)):
+            v = f / r_ if r_ > 0 else float("nan")
+            out[f"cond_{a_}_{tag}"] = v
+            out[f"cond_{a_}_{tag}_err"] = math.sqrt((ef / r_) ** 2 + max(v * (1 - v), 0) / (r_ * N)) if r_ > 0 else float("nan")
     out["frac_raw"] = nxy / N
     return out
 
@@ -439,7 +443,8 @@ prov.append({"claim": "eficiencia X·Y de hod2018 y eficiencias condicionadas co
              "method": "measured: X = alguna tira X sobre T en tiempo, Y igual; accidentales: (a) X del evento i con Y del i+1 y al revés (promedio), "
                        "(b) X en tiempo·Y en control + X en control·Y en tiempo − ambos en control",
              "plots": ["eff_xy_vs_threshold.png", "eff_cond_vs_threshold.png"], "status": "measured (fracción); estimated (÷ aceptancia del MC, condicionadas)",
-             "assumptions": [ACC_GEOM_SRC, "ε(X|Y) = (N_XY − acc) / (N_Y − N_Y en control): sin corrección por geometría (muones que cruzan Y fuera del área de X)",
+             "assumptions": [ACC_GEOM_SRC, "ruido independiente por plano; q = (N_XY − acc_mix)/(N(1−aX)(1−aY)) + rX·rY (mezclados) o (N_XY − acc_ctl)/(N(1−aX)(1−aY)) (fuera de tiempo)",
+                             "ε(X|Y) = q / rY, ε(Y|X) = q / rX: sin corrección por geometría (muones que cruzan Y fuera del área de X)",
                              "ch3 (X, coordenada 12) muerto en todo el análisis; ch2, ch9, ch15 ruidosos: se dan los dos casos"]})
 
 # ---------------------------------------------------------------- 4. mapas, impactos por tira, vecinas, multiplicidad
@@ -732,7 +737,7 @@ res("hod2019_flags", "hod2019: estados por canal (run 8)", None, None, "", "meas
 d5n = EF["night"]["all"][2]
 res("hod2018_frac_xy_5pe_night", "hod2018: fracción X·Y por trigger con accidentales restados (mezclados), 5 p.e., noche 2026-10-19", d5n["frac_mix"],
     {"stat": r6(d5n["frac_mix_err"]), "syst": r6(abs(d5n["frac_mix"] - d5n["frac_ctl"]))}, "", "measured", RAW["night"] + "_seg*.root",
-    "DAQ2-13 dio 0.0167 con otra definición de impacto (pico de pulso dentro de la ventana, selftrig_check.C)")
+    "estimador corregido (DAQ2-15: + rX·rY y ÷ (1−aX)(1−aY)); DAQ2-13 dio 0.0167 sin esa corrección")
 for a_ in ("X|Y", "Y|X"):
     res(f"hod2018_cond_{a_.replace('|', '_given_')}_5pe_run8", f"hod2018: ε({a_}) a 5 p.e., run 8 (sin corrección geométrica)", d5[f"cond_{a_}_mix"],
         d5[f"cond_{a_}_mix_err"], "", "estimated", RAW["run008"] + "_seg*.root", "accidentales por eventos mezclados")
@@ -746,6 +751,52 @@ g_ = dnn["gain_ratio_run7day_over_run8night"]
 if g_.get("n", 0) >= 2:
     res("daynight_gain_ratio", "Día (run 7) / noche (run 8): G de hod2018 (mediana sobre canales con G aceptada en ambas ventanas)", g_["median"], g_["err_mean"], "",
         "measured", "charact_gain.C (gain_fit.h)", f"{g_['n']} canales; error = desviación estándar de la media de las razones")
+
+
+# ---------------------------------------------------------------- comparación con mayo (hitdef_analyse.py) y geometría (geom_sensitivity.py)
+if os.path.exists(f"{W}/hitdef.json"):
+    HD = json.load(open(f"{W}/hitdef.json"))
+    TT = [str(T) for T in range(3, 13)]
+    for ex, exlab in (("sin_ch3", "sin ch3"), ("sin_2_3_9_15", "sin ch2, ch3, ch9, ch15")):
+        for dfn, dlab in (("pulso", "definición única (pulso en la ventana)"), ("daq2_13", "definición de DAQ2-13"), ("mayo", "definición del análisis de mayo")):
+            for qty, qlab in (("f_mix", "fracción X·Y (mezclados)"), ("f_ctl", "fracción X·Y (fuera de tiempo)"), ("e_X|Y_mix", "ε(X|Y)"), ("e_Y|X_mix", "ε(Y|X)")):
+                ser(f"may_cmp_{ex}_{dfn}_{qty.replace('|', '_')}", f"hod2018: {qlab} contra umbral, {dlab}, {exlab}: mayo v8, noche 2026-10-19, run 8",
+                    "umbral", qlab, "p.e.", "", "points", "measured" if qty.startswith("f_") else "estimated",
+                    "work/hitdef.json (hitdef_extract.C + hitdef_analyse.py)",
+                    [{"name": HD["datasets"][k]["label"], "x": list(range(3, 13)), "y": [HD["datasets"][k][ex][T][dfn][qty] for T in TT],
+                      "yerr": [HD["datasets"][k][ex][T][dfn][qty + "_err"] for T in TT]} for k in ("may8", "night", "run008")])
+    pm = HD["datasets"]["may8"]["sin_ch3"]["mayo_publicado_5pe"]
+    res("may8_published_threshold_repro", "mayo v8: fracción X·Y con la definición y el umbral publicado de mayo (p0 + 3.5 G), dividida por 0.0360",
+        pm["f_mix"] / ACC_GEOM, {"stat": r6(pm["f_mix_err"] / ACC_GEOM), "syst": r6(abs(pm["f_mix"] - pm["f_ctl"]) / ACC_GEOM)}, "", "estimated",
+        "work/hitdef.json; handoff 2026-10-18:125 da 0.88 ± 0.04 ± 0.11 (v7-v10)", "solo v8, tiempo bueno; syst = diferencia entre estimadores")
+    for k in ("may8", "night", "run008"):
+        d_ = HD["datasets"][k]["sin_ch3"]["5"]["pulso"]
+        res(f"frac_xy_5pe_pulse_{k}", f"hod2018: fracción X·Y a 5 p.e., definición única, sin ch3: {HD['datasets'][k]['label']}", d_["f_mix"],
+            {"stat": r6(d_["f_mix_err"]), "syst": r6(abs(d_["f_mix"] - d_["f_ctl"]))}, "", "measured", "work/hitdef.json")
+    prov.append({"claim": "comparación con mayo: definición única de impacto, la de DAQ2-13 y la de mayo, mismo código para mayo v8, noche 2026-10-19 y run 8",
+                 "source_file": "/data/daq/raw/hodoscope_extnim_2026/lectura_vx1740_ext_nim_1M_v8.root; " + RAW["night"] + "_seg*.root; " + RAW["run008"] + "_seg*.root",
+                 "commit": git_head, "code": "daq/tools/characterization/hitdef_extract.C, hitdef_analyse.py", "inputs": "mayo: outputs/pe_calibration_v8.txt, "
+                 "kCfg_2026_05 (X = ch0-15, Y = ch16-31), runs/good_intervals_2026.csv; octubre: c1, r4",
+                 "method": HD["definition"]["hit"] + "; pedestal " + HD["definition"]["pedestal"] + "; signal " + HD["definition"]["signal"] + "; fuera de tiempo " + HD["definition"]["off_time"],
+                 "plots": [], "status": "measured (fracciones); estimated (÷ aceptancia, condicionadas)",
+                 "assumptions": ["umbral T·G: con este pedestal los picos de pulsos oscuros caen en múltiplos de G (p0 medido: mayo −0.150 mV, noche −0.212 mV, run 8 −0.190 mV, medianas)",
+                                 "el p0 ≈ G de pe_calibration_v8.txt corresponde a la convención de mayo (pedestal local, primer pico visible numerado 1 p.e.)",
+                                 "ruido independiente por plano (fórmula de mayo)"]})
+if os.path.exists(f"{W}/geom_sensitivity.json"):
+    GS = json.load(open(f"{W}/geom_sensitivity.json"))
+    nom = GS["cos3"]["nominal"]
+    res("mc_f2018_cos3", "MC: fracción de triggers que cruza el área activa de hod2018 (cos²θ con factor de proyección)", nom["f"], nom["f_err"], "", "estimated",
+        "daq/tools/characterization/geom_sensitivity.py; geometría de analysis/python/geom_acceptance.py", "handoff: 0.0360; sin proyección (geom_acceptance.py): "
+        f"{GS['cos2']['nominal']['f']:.5f}")
+    keys = [k for k in GS["cos3"] if k != "nominal"]
+    ser("mc_geom_sensitivity", "MC: cambio relativo de f_2018 al desplazar o rotar la estación o las placas", "variación", "cambio relativo", "", "%", "scatter",
+        "estimated", "work/geom_sensitivity.json", [{"name": m_, "x": keys, "y": [100 * GS[m_][k]["rel_change"] for k in keys],
+                                                    "yerr": [100 * GS[m_][k]["rel_change_err"] for k in keys]} for m_ in ("cos3", "cos2")])
+    prov.append({"claim": "sensibilidad geométrica de f_2018", "source_file": "analysis/python/geom_acceptance.py (constantes)", "commit": git_head,
+                 "code": "daq/tools/characterization/geom_sensitivity.py", "inputs": json.dumps(GS["geometry"], ensure_ascii=False),
+                 "method": "rayos rectos, 20 000 000 por modelo, semilla 42, mismos rayos en todas las variaciones", "plots": [], "status": "estimated",
+                 "assumptions": ["placas y estación planas y horizontales; sin material ni eficiencia de las placas",
+                                 "rotación alrededor del eje vertical"]})
 
 
 # ---------------------------------------------------------------- salida
