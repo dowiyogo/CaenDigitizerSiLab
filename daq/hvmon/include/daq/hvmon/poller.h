@@ -63,6 +63,8 @@ struct PollRequest {
   bool clearAlarmFirst = false;   // ClrAlarm de la placa antes de Pw = 1 (clear_alarm_before_retry)
   double value = 0;               // V0Set pedido (V)
   std::map<int, double> expected; // bias-begin: V0Set nominal esperado por canal
+  double maxAboveV = 0.0;         // bias-begin (DAQ2-17): V0Set máximo sobre el nominal (0 a 1.0 V)
+  double maxStepV = -1.0;         // bias-begin (DAQ2-17): escalón de la sesión (≤ 0.5 V; ≤ 0: el de siempre)
   std::shared_ptr<std::promise<nlohmann::json>> reply = std::make_shared<std::promise<nlohmann::json>>();
 };
 

@@ -363,7 +363,7 @@ void Poller::handleBiasBegin(PollRequest& r) {
     v0[ch] = a->si;
     vm[ch] = b->si;
   }
-  if (auto st = bias_.begin(r.expected, v0, vm, r.reason, clock_.now_utc_ns()); !st) return reply(false, st.error().message);
+  if (auto st = bias_.begin(r.expected, v0, vm, r.reason, clock_.now_utc_ns(), r.maxAboveV, r.maxStepV); !st) return reply(false, st.error().message);
   persistBias();
   CommandRecord rec;
   rec.id = nextCommandId_++;

@@ -59,7 +59,7 @@ for s in steps:
             f"distintos de lo escrito: {rg.get('mismatch') or 'ninguno'}") if rg.get("read") else ""
     cs = ((f"{c['pair']} a {c['T_pe']} p.e.: {c['rate_Hz']:.3f} Hz contra {c['pred_acc_Hz']:.3f} Hz previstos ({c['frac_of_pred']:.3g}); "
            if "rate_Hz" in c else "") + verdict + regs) if c else "–"
-    lines.append(f"| {s['delta_V']:+.1f} | {s.get('t_start_utc')} | {s.get('t_start_chile', '–')} | {t} | {cs} |")
+    lines.append(f"| {s['delta_V']:+.2f} | {s.get('t_start_utc')} | {s.get('t_start_chile', '–')} | {t} | {cs} |")
 lines.append("")
 lines.append("## G contra tensión y tensión de ruptura (G medida; V_bd estimada por extrapolación lineal)")
 lines.append("")
@@ -103,7 +103,7 @@ for s in steps:
     h19 = [get(ch)["rate_1mV_Hz"] for ch in range(32, 64) if get(ch).get("rate_1mV_Hz") is not None]
     e = s["ext"]["all"]
     gete = lambda T, k: e.get(T, e.get(int(T), {})).get(k, float("nan"))
-    lines.append(f"| {s['delta_V']:+.1f} | {s['sw']['G_median_mV']:.3f} | {med(xt):.3f} | " + " / ".join(f"{nz[T]:.4g}" for T in TH)
+    lines.append(f"| {s['delta_V']:+.2f} | {s['sw']['G_median_mV']:.3f} | {med(xt):.3f} | " + " / ".join(f"{nz[T]:.4g}" for T in TH)
                  + " | " + "/".join(f"{gete(T, 'eff_ctl'):.3f}" for T in TH) + " | " + "/".join(f"{gete(T, 'eff_mix'):.3f}" for T in TH)
                  + f" | {med(h19):.4g} |")
     ana["steps"].append({"delta_V": s["delta_V"], "crosstalk_median": med(xt), "noise_median_Hz": nz, "hod2019_1mV_median_Hz": med(h19)})
@@ -114,10 +114,10 @@ lines.append("| ΔV | T (p.e.) | criterio | par | tasa (Hz) | X·Y en tiempo | a
 lines.append("|---|---|---|---|---|---|---|---|---|---|")
 for s in steps:
     for a in s.get("self", []):
-        lines.append(f"| {s['delta_V']:+.1f} | {s['T_chosen_pe']} | {s['T_choice']} | {a['pair']} | {a['rate_Hz']:.3f} | {a['N_XY_in_time']} | {a['acc_pred']:.1f} | "
+        lines.append(f"| {s['delta_V']:+.2f} | {s['T_chosen_pe']} | {s['T_choice']} | {a['pair']} | {a['rate_Hz']:.3f} | {a['N_XY_in_time']} | {a['acc_pred']:.1f} | "
                      f"{a['acc_offtime']} | {a['ratio_pred']:.2f} | {a['muons_per_h']:.1f} |")
     mu = s.get("self_muons_per_h_sum")
-    lines.append(f"| {s['delta_V']:+.1f} | | | suma | | | | | | {f'{mu:.1f}' if mu is not None else 'runs omitidos'} |")
+    lines.append(f"| {s['delta_V']:+.2f} | | | suma | | | | | | {f'{mu:.1f}' if mu is not None else 'runs omitidos'} |")
 lines.append("")
 lines.append("Referencia, trigger externo: fracción X·Y con accidentales restados 0.0167 (noche del 2026-10-19, eventos mezclados) × tasa del trigger "
              "externo (0.7299 Hz) = 43.9 muones/h en el cuadrado dentro de la aceptancia de las placas.")

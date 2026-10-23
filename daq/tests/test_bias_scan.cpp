@@ -66,10 +66,12 @@ struct Rig {
     }
     return f.wait_for(0s) == std::future_status::ready ? f.get() : nlohmann::json{{"ok", false}, {"result", "test_timeout"}};
   }
-  nlohmann::json begin(std::map<int, double> exp = kNominal) {
+  nlohmann::json begin(std::map<int, double> exp = kNominal, double maxAboveV = 0.0, double maxStepV = -1.0) {
     PollRequest r;
     r.kind = PollRequest::Kind::BiasBegin;
     r.expected = std::move(exp);
+    r.maxAboveV = maxAboveV;
+    r.maxStepV = maxStepV;
     return send(std::move(r));
   }
   nlohmann::json v0set(int ch, double v, std::chrono::milliseconds maxWait = 900s) {
@@ -283,4 +285,109 @@ TEST(BiasSession, VMonMustMoveWithTheStep) {
   // subida (restauración) 64.75 -> 65.25 V
   EXPECT_TRUE(s.reached(0, 65.25, 65.25, 64.95, 64.75, 64.45));
   EXPECT_FALSE(s.reached(0, 65.25, 65.25, 64.95, 64.75, 65.05));  // VMon bajó en un escalón de subida
+}
+
+// DAQ2-17 (2026-10-23): barrido hacia arriba autorizado por René: hasta nominal + 1.0 V (tope en el código), escalones de
+// 0.25 V; por omisión una sesión sigue sin poder pasar el nominal; la restauración baja desde arriba en escalones ≤ 0.25 V.
+TEST(BiasSession, UpwardBoundIsPerSessionWithHardCapAndSmallSteps) {
+  std::map<int, double> vm;
+  for (const auto& [ch, v] : kNominal) vm[ch] = v - 0.3;
+  BiasSession d;
+  ASSERT_TRUE(d.begin(kNominal, kNominal, vm, "t", 1));  // sin max_above: como antes
+  EXPECT_FALSE(d.checkStep(0, 66.00, 65.75));
+  BiasSession bad;
+  EXPECT_FALSE(bad.begin(kNominal, kNominal, vm, "t", 1, 1.5));        // más que el tope de 1.0 V
+  EXPECT_FALSE(bad.begin(kNominal, kNominal, vm, "t", 1, 1.0, 0.75));  // escalón de sesión > 0.5 V
+  BiasSession s;
+  ASSERT_TRUE(s.begin(kNominal, kNominal, vm, "t", 1, 1.0, 0.25));
+  EXPECT_TRUE(s.checkStep(0, 66.00, 65.75));   // +0.25 V
+  EXPECT_FALSE(s.checkStep(0, 66.10, 65.75));  // escalón de 0.35 V
+  EXPECT_TRUE(s.checkStep(0, 66.75, 66.50));   // justo nominal + 1.0 V
+  EXPECT_FALSE(s.checkStep(0, 66.80, 66.75));  // sobre nominal + 1.0 V
+  EXPECT_TRUE(s.checkStep(0, 65.50, 65.75));   // bajo el nominal, escalón de la sesión
+  EXPECT_FALSE(s.checkStep(0, 65.25, 65.75));  // 0.5 V > escalón de la sesión (0.25 V)
+  BiasSession w;  // escalón de sesión de 0.5 V: bajo el nominal vale, sobre el nominal sigue el tope de 0.25 V
+  ASSERT_TRUE(w.begin(kNominal, kNominal, vm, "t", 1, 1.0, 0.5));
+  EXPECT_TRUE(w.checkStep(0, 65.25, 65.75));
+  EXPECT_FALSE(w.checkStep(0, 66.25, 65.75));
+  EXPECT_FALSE(w.checkStep(0, 65.75, 66.25));  // también al bajar desde arriba
+  auto cur = kNominal;
+  cur[0] = 66.75;
+  const auto plan = s.restorePlan(cur);
+  ASSERT_EQ(plan.size(), 4u);
+  EXPECT_DOUBLE_EQ(plan[0].second, 66.50);
+  EXPECT_DOUBLE_EQ(plan[3].second, 65.75);
+  const auto planW = w.restorePlan(cur);  // con escalón de sesión 0.5 V, desde arriba igual 0.25 V
+  EXPECT_EQ(planW.size(), 4u);
+  BiasSession t;  // la sesión persistida conserva sus límites
+  ASSERT_TRUE(t.restore(s.toJson(2)));
+  EXPECT_DOUBLE_EQ(t.limits().maxAboveV, 1.0);
+  EXPECT_DOUBLE_EQ(t.limits().maxStepV, 0.25);
+  EXPECT_TRUE(t.checkStep(0, 66.50, 66.75));
+}
+
+TEST(BiasScanPoller, UpwardScanToPlusOneVoltAndRestoreDownToNominal) {
+  MemoryFileSystem fs;
+  Rig r(scenario(), fs);
+  r.run(5s);
+  ASSERT_TRUE(r.begin(kNominal, 1.0, 0.25).value("ok", false));
+  EXPECT_FALSE(r.v0set(0, 66.25).value("ok", true));  // escalón de 0.5 V sobre el nominal
+  EXPECT_EQ(r.backend.v0setWrites(), 0u);
+  for (double v : {66.00, 66.25, 66.50, 66.75}) {
+    const auto res = r.v0set(0, v);
+    ASSERT_TRUE(res.value("ok", false)) << res.dump();
+    EXPECT_EQ(res.value("result", ""), "verified");
+    EXPECT_NEAR(r.v0(0), v, 1e-6);
+  }
+  EXPECT_FALSE(r.v0set(0, 67.00).value("ok", true));  // sobre nominal + 1.0 V
+  EXPECT_EQ(r.backend.v0setWrites(), 4u);
+  const auto res = r.restore();
+  ASSERT_TRUE(res.value("ok", false)) << res.dump();
+  EXPECT_NEAR(r.v0(0), 65.75, 1e-6);
+  EXPECT_EQ(r.backend.v0setWrites(), 8u);  // cuatro escalones de 0.25 V de vuelta
+  EXPECT_FALSE(r.poller.bias().active());
+}
+
+TEST(BiasScanPoller, DefaultSessionStillRefusesAboveNominal) {
+  MemoryFileSystem fs;
+  Rig r(scenario(), fs);
+  r.run(5s);
+  ASSERT_TRUE(r.begin().value("ok", false));
+  EXPECT_FALSE(r.v0set(0, 66.00).value("ok", true));
+  EXPECT_EQ(r.backend.v0setWrites(), 0u);
+}
+
+TEST(BiasScanPoller, TripAboveNominalRestoresNominalAndSwitchesOn) {
+  MemoryFileSystem fs;
+  Rig r(scenario(nlohmann::json::array({{{"t_s", 60.0}, {"type", "current"}, {"slot", 3}, {"ch", 1}, {"extra_uA", 30.0}, {"duration_s", 20.0}}})), fs);
+  r.run(5s);
+  ASSERT_TRUE(r.begin(kNominal, 1.0, 0.25).value("ok", false));
+  for (double v : {66.00, 66.25}) ASSERT_TRUE(r.v0set(1, v).value("ok", false));
+  r.run(60s);  // CH01 se dispara a nominal + 0.5 V
+  EXPECT_EQ(r.backend.readChannels(3, {1}, {"Pw"}).value().get("Pw", 1)->raw, 0u);
+  r.run(30s);
+  const auto res = r.restore();
+  ASSERT_TRUE(res.value("ok", false)) << res.dump();
+  EXPECT_NEAR(r.v0(1), 65.75, 1e-6);
+  EXPECT_EQ(r.backend.readChannels(3, {1}, {"Pw"}).value().get("Pw", 1)->raw, 1u);
+  EXPECT_FALSE(r.poller.bias().active());
+}
+
+TEST(BiasScanPoller, HvmonStartingWithActiveUpwardSessionRestoresDownByItself) {
+  MemoryFileSystem fs;
+  {
+    Rig r(scenario(), fs);
+    r.run(5s);
+    ASSERT_TRUE(r.begin(kNominal, 1.0, 0.25).value("ok", false));
+    for (int ch = 0; ch < 8; ++ch)
+      for (double d : {0.25, 0.50}) ASSERT_TRUE(r.v0set(ch, kNominal.at(ch) + d).value("ok", false));
+  }
+  auto sc = scenario();
+  for (int ch = 0; ch < 8; ++ch) sc["slots"][0]["set"]["V0Set"][ch] = kNominal.at(ch) + 0.5;
+  Rig r2(sc, fs);
+  EXPECT_TRUE(r2.poller.bias().active());
+  r2.run(600s);
+  for (int ch = 0; ch < 8; ++ch) EXPECT_NEAR(r2.v0(ch), kNominal.at(ch), 1e-6);
+  EXPECT_FALSE(r2.poller.bias().active());
+  EXPECT_EQ(r2.backend.v0setWrites(), 16u);  // dos escalones de 0.25 V por canal
 }

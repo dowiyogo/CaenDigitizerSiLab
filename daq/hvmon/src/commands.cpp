@@ -159,6 +159,15 @@ nlohmann::json CommandHandler::dispatch(const nlohmann::json& req, const PeerCre
       r.kind = PollRequest::Kind::BiasBegin;
       if (!req.contains("expected") || !req["expected"].is_object()) return error("bias-begin: falta \"expected\" {canal: V0Set}");
       for (const auto& [k, v] : req["expected"].items()) r.expected[std::stoi(k)] = v.get<double>();
+      // DAQ2-17: límite sobre el nominal y escalón de la sesión (los topes los aplica BiasSession::begin)
+      if (req.contains("max_above_V")) {
+        if (!req["max_above_V"].is_number()) return error("bias-begin: \"max_above_V\" debe ser un número (V)");
+        r.maxAboveV = req["max_above_V"].get<double>();
+      }
+      if (req.contains("max_step_V")) {
+        if (!req["max_step_V"].is_number()) return error("bias-begin: \"max_step_V\" debe ser un número (V)");
+        r.maxStepV = req["max_step_V"].get<double>();
+      }
     } else if (cmd == "v0set") {
       r.kind = PollRequest::Kind::V0Set;
       if (!req.contains("ch") || !req["ch"].is_number_integer()) return error("v0set: falta \"ch\"");

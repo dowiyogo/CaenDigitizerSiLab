@@ -18,8 +18,12 @@ std::string fmt(double v) {
 bool BiasSession::inSession(int ch) const { return std::find(lim_.channels.begin(), lim_.channels.end(), ch) != lim_.channels.end(); }
 
 Status BiasSession::begin(const std::map<int, double>& expected, const std::map<int, double>& v0set, const std::map<int, double>& vmon,
-                          const std::string& reason, UtcNs now) {
+                          const std::string& reason, UtcNs now, double maxAboveV, double maxStepV) {
   if (active_) return Status::failure(-1, "ya hay una sesión de barrido activa (restaurar primero)");
+  if (!std::isfinite(maxAboveV) || maxAboveV < 0 || maxAboveV > kMaxAboveCapV + 1e-9)
+    return Status::failure(-1, "max_above_V " + fmt(maxAboveV) + " V fuera de 0-" + fmt(kMaxAboveCapV) + " V");
+  if (maxStepV > 0 && maxStepV > kMaxStepCapV + 1e-9)
+    return Status::failure(-1, "max_step_V " + fmt(maxStepV) + " V mayor que " + fmt(kMaxStepCapV) + " V");
   std::map<int, double> nom, off;
   for (int ch : lim_.channels) {
     auto e = expected.find(ch), v = v0set.find(ch), m = vmon.find(ch);
@@ -33,6 +37,8 @@ Status BiasSession::begin(const std::map<int, double>& expected, const std::map<
   }
   nominal_ = nom;
   offset_ = off;
+  lim_.maxAboveV = maxAboveV;
+  lim_.maxStepV = maxStepV > 0 ? maxStepV : baseMaxStepV_;
   startUtc_ = now;
   reason_ = reason;
   active_ = true;
@@ -44,11 +50,14 @@ Status BiasSession::checkStep(int ch, double target, double currentV0Set) const 
   if (!inSession(ch)) return Status::failure(-1, "CH" + std::to_string(ch) + " no es parte de la sesión de barrido");
   if (!std::isfinite(target)) return Status::failure(-1, "V0Set pedido inválido");
   const double nom = nominal_.at(ch);
-  if (target > nom + 1e-6) return Status::failure(-1, "V0Set " + fmt(target) + " V sobre el nominal " + fmt(nom) + " V");
+  if (target > nom + lim_.maxAboveV + 1e-6)
+    return Status::failure(-1, "V0Set " + fmt(target) + " V sobre el nominal " + fmt(nom) + " V + " + fmt(lim_.maxAboveV) + " V (límite de la sesión)");
   if (target < nom - lim_.maxBelowV - 1e-6)
     return Status::failure(-1, "V0Set " + fmt(target) + " V más de " + fmt(lim_.maxBelowV) + " V bajo el nominal " + fmt(nom) + " V");
   if (std::fabs(target - currentV0Set) > lim_.maxStepV + 1e-6)
     return Status::failure(-1, "escalón " + fmt(target - currentV0Set) + " V mayor que " + fmt(lim_.maxStepV) + " V");
+  if (std::max(target, currentV0Set) > nom + 1e-6 && std::fabs(target - currentV0Set) > kMaxStepAboveV + 1e-6)
+    return Status::failure(-1, "escalón " + fmt(target - currentV0Set) + " V sobre el nominal mayor que " + fmt(kMaxStepAboveV) + " V");
   return okStatus();
 }
 
@@ -71,8 +80,12 @@ std::vector<std::pair<int, double>> BiasSession::restorePlan(const std::map<int,
     if (it == v0set.end() || !nominal_.count(ch)) continue;
     double v = it->second;
     const double nom = nominal_.at(ch);
-    while (nom - v > lim_.matchTolV) {
+    while (nom - v > lim_.matchTolV) {  // desde abajo
       v = std::min(nom, v + lim_.maxStepV);
+      plan.push_back({ch, v});
+    }
+    while (v - nom > lim_.matchTolV) {  // desde arriba (DAQ2-17): escalones ≤ kMaxStepAboveV
+      v = std::max(nom, v - std::min(lim_.maxStepV, kMaxStepAboveV));
       plan.push_back({ch, v});
     }
   }
@@ -86,7 +99,8 @@ nlohmann::json BiasSession::toJson(UtcNs now) const {
   return {{"schema", "daqv2.hvmon_bias_session/1"}, {"active", active_}, {"nominal_V0Set_V", nom}, {"vmon_offset_V", off},
           {"start_utc_ns", startUtc_}, {"start_utc", startUtc_ ? formatUtcIso(startUtc_) : ""}, {"reason", reason_},
           {"saved_utc", formatUtcIso(now)},
-          {"limits", {{"max_below_V", lim_.maxBelowV}, {"max_step_V", lim_.maxStepV}, {"vmon_tol_V", lim_.vmonTolV}, {"match_tol_V", lim_.matchTolV},
+          {"limits", {{"max_below_V", lim_.maxBelowV}, {"max_step_V", lim_.maxStepV}, {"max_above_V", lim_.maxAboveV}, {"vmon_tol_V", lim_.vmonTolV},
+                      {"match_tol_V", lim_.matchTolV},
                       {"min_move_frac", lim_.minMoveFrac}, {"ramp_tau_s", lim_.rampTauS}, {"opposite_V", lim_.oppositeV}}}};
 }
 
@@ -100,6 +114,10 @@ Status BiasSession::restore(const nlohmann::json& j) {
     startUtc_ = j.value("start_utc_ns", static_cast<UtcNs>(0));
     reason_ = j.value("reason", "");
     active_ = j.value("active", false);
+    // DAQ2-17: límites de la sesión persistida (una sesión sobre el nominal se restaura con su escalón), con los topes fijos.
+    const auto lim = j.value("limits", nlohmann::json::object());
+    lim_.maxAboveV = std::clamp(lim.value("max_above_V", 0.0), 0.0, kMaxAboveCapV);
+    lim_.maxStepV = std::clamp(lim.value("max_step_V", baseMaxStepV_), 0.01, kMaxStepCapV);
     for (int ch : lim_.channels)
       if (active_ && (!nominal_.count(ch) || !offset_.count(ch))) return Status::failure(-1, "estado de barrido incompleto");
   } catch (const std::exception& e) {

@@ -85,9 +85,9 @@ L = ["", "## Recálculo offline (DAQ2-16)", "",
 for s in steps:
     o = [f"{s['eff_old'][str(T)]['eff_mix']:.3f} ({s['eff_old'][str(T)]['eff_ctl']:.3f})" if s["eff_old"][str(T)]["eff_mix"] is not None else "–" for T in TT]
     nw = [f"{s['eff_new'][str(T)]['eff_mix']:.3f} ± {s['eff_new'][str(T)]['f_mix_err'] / bs.ACC_GEOM:.3f} ({s['eff_new'][str(T)]['eff_ctl']:.3f})" for T in TT]
-    L.append(f"| {s['delta_V']:+.1f} | " + " | ".join(o) + " | " + " | ".join(nw) + " |")
+    L.append(f"| {s['delta_V']:+.2f} | " + " | ".join(o) + " | " + " | ".join(nw) + " |")
 L += ["", "### G por canal (mV/p.e.; \"–\" = sin G aceptada; * = changed, a revisar)", "",
-      "| canal | " + " | ".join(f"{s['delta_V']:+.1f} V barrido | {s['delta_V']:+.1f} V nuevo" for s in steps) + " | V_bd (V, estimada) | sobretensión al nominal (V) |",
+      "| canal | " + " | ".join(f"{s['delta_V']:+.2f} V barrido | {s['delta_V']:+.2f} V nuevo" for s in steps) + " | V_bd (V, estimada) | sobretensión al nominal (V) |",
       "|---|" + "---|" * (2 * len(steps) + 2)]
 for ch in range(32):
     cells = []
@@ -99,7 +99,7 @@ for ch in range(32):
     vb = (f"{v['V_bd_V']:.2f}" + (f" ± {v['sigma_V_bd_V']:.2f}" if v.get("sigma_V_bd_V") else " (2 puntos)")) if "V_bd_V" in v else "–"
     ov = f"{v['overvoltage_nominal_V']:.2f}" if "V_bd_V" in v else "–"
     L.append(f"| {ch} | " + " | ".join(cells) + f" | {vb} | {ov} |")
-L += ["", "Mediana de G nueva por escalón: " + ", ".join(f"{s['delta_V']:+.1f} V: " + (f"{s['G_new_median_mV']:.3f} mV ({s['n_G_new']} canales)" if s["n_G_new"]
+L += ["", "Mediana de G nueva por escalón: " + ", ".join(f"{s['delta_V']:+.2f} V: " + (f"{s['G_new_median_mV']:.3f} mV ({s['n_G_new']} canales)" if s["n_G_new"]
                                                       else "sin G (ningún canal con picos)") for s in steps) + ".",
       "V_bd es estimada: recta G contra VMon con los escalones con G medida; con 2 puntos no hay error del ajuste."]
 vb_all = [V[ch]["V_bd_V"] for ch in range(32) if "V_bd_V" in V[ch]]

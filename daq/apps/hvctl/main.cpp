@@ -63,8 +63,9 @@ const char* kUsage =
     "  measure-offsets --seconds N [--ch 0-11] [--json]   offsets con Pw = 0\n"
     "  pw --ch N on|off --authorize \"<motivo>\"          escritura de Pw (requiere allow_commands)\n"
     "  notify-test [--ch N]                  correo de PRUEBA por el notificador de hvmon\n"
-    "  bias begin --expected V0,V1,...,V7 --authorize \"<motivo>\"   sesión de barrido de V0Set (DAQ2-14)\n"
-    "  bias set --ch N --value V --authorize \"<motivo>\"   V0Set con límites (≤ nominal, ≥ nominal − 2 V, escalón ≤ 0.5 V)\n"
+    "  bias begin --expected V0,V1,...,V7 [--max-above V] [--max-step V] --authorize \"<motivo>\"   sesión de barrido de V0Set\n"
+    "      (DAQ2-14; DAQ2-17: --max-above hasta 1.0 V sobre el nominal, --max-step hasta 0.5 V; sobre el nominal escalón ≤ 0.25 V)\n"
+    "  bias set --ch N --value V --authorize \"<motivo>\"   V0Set con límites (≤ nominal + max-above, ≥ nominal − 2 V, escalón ≤ max-step)\n"
     "  bias restore --authorize \"<motivo>\" | bias status   nominal en todos los canales y cierre / estado\n"
     "  notify-summary --text-file F [--kind K]   correo de resumen por el notificador de hvmon\n"
     "Sin hvmon (modo directo, solo lectura):\n"
@@ -81,7 +82,7 @@ struct Options {
   std::string configPath;
   std::optional<std::string> host, credentials, fake, chSpec, paramSpec, authorize, socket, expected, textFile, kind;
   std::optional<int> slot, ch, n;
-  std::optional<double> seconds, value;
+  std::optional<double> seconds, value, maxAbove, maxStep;
   bool json = false;
   bool decode = false;
 };
@@ -208,6 +209,15 @@ std::optional<Options> parseArgs(int argc, char** argv, std::string& err) {
         o.value = std::stod(*v);
       } catch (...) {
         err = "valor no numérico para --value: " + *v;
+        return std::nullopt;
+      }
+    } else if (a == "--max-above" || a == "--max-step") {
+      auto v = need(i);
+      if (!v) return std::nullopt;
+      try {
+        (a == "--max-above" ? o.maxAbove : o.maxStep) = std::stod(*v);
+      } catch (...) {
+        err = "valor no numérico para " + a + ": " + *v;
         return std::nullopt;
       }
     } else if (a == "--expected") {
@@ -744,6 +754,8 @@ int cmdBias(const std::string& sock, const Options& o) {
     int ch = 0;
     while (std::getline(ss, tok, ',')) e[std::to_string(ch++)] = std::stod(tok);
     req = {{"cmd", "bias-begin"}, {"expected", e}, {"authorize", *o.authorize}};
+    if (o.maxAbove) req["max_above_V"] = *o.maxAbove;
+    if (o.maxStep) req["max_step_V"] = *o.maxStep;
   } else if (sub == "set") {
     auto ch = o.chSpec ? toInt(*o.chSpec) : std::nullopt;
     if (!ch || !o.value) {

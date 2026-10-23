@@ -32,7 +32,14 @@
 # predicción da < 3 eventos; --self-check-only: solo el run de control, sin los runs de auto-trigger.
 # Escrituras de HV: solo por hvctl (hvmon), cada una con --authorize. Registro: /data/daq/logs/biasscan_<campaña>.log
 # y .jsonl. Resultados: outputs/daq2-15/<campaña>/.
+# DAQ2-17 (2026-10-23, barrido hacia arriba autorizado por René): --steps "0,0.25,0.5,0.75,1.0", --max-above 1.0 y
+# --max-step 0.25 (pasados a hvctl bias begin; el tope de 1.0 V y el escalón de 0.25 V sobre el nominal están en hvmon),
+# --authorize "<texto>", --ext-s 2700 (run externo de 45 min), --trigger-diag (en ΔV = 0: runs de 30 s de cada grupo
+# solo y de pares con ventanas 1-8 relojes). Siempre: tras cada cambio, |VMon − V0Set − desvío| ≤ 0.05 V; guarda de
+# corriente: IMon > 12 µA (80 % de I0Set) en algún grupo durante 30 s -> no se pasa al escalón siguiente; IMon ≥ 14 µA
+# -> aborto con restauración inmediata. Al final la restauración se reintenta hasta dejar todo en el nominal.
 # Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS" | --max-hours H] [--self-check-only]
+#        [--steps L] [--max-above V] [--max-step V] [--authorize T] [--ext-s S] [--trigger-diag]
 #   --sim: hvmon de prueba con FakeHVBackend, daqrun fake, duraciones cortas
 import calendar, glob, itertools, json, math, os, statistics, subprocess, sys, time
 
@@ -49,9 +56,14 @@ def _arg(name, default):
 
 
 CAMPAIGN = _arg("--campaign", "biasscan_sim_2026_10_22" if SIM else "biasscan_2026_10_22")
-AUTH = "DAQ2-15 day/night bias scans (bounded V0Set and Pw as in DAQ2-14), authorized by René"
+AUTH = _arg("--authorize", "DAQ2-15 day/night bias scans (bounded V0Set and Pw as in DAQ2-14), authorized by René")
 NOMINAL = [65.75, 65.75, 65.90, 65.85, 65.75, 65.70, 66.15, 65.90]
-STEPS = [0.0, -0.5, -1.0, -1.5]
+STEPS = [float(x) for x in _arg("--steps", "0,-0.5,-1.0,-1.5").split(",")]
+MAX_ABOVE_V = float(_arg("--max-above", "0"))   # DAQ2-17: V0Set máximo sobre el nominal en la sesión (hvmon: tope 1.0 V)
+MAX_STEP_V = float(_arg("--max-step", "0.5"))   # escalón de cada escritura (hvmon: ≤ 0.25 V sobre el nominal)
+TRIGGER_DIAG = "--trigger-diag" in sys.argv
+VMON_TOL_V = 0.05          # DAQ2-17: |VMon − V0Set − desvío del último escalón verificado| tras estabilizar
+IMON_WARN_A, IMON_STOP_A, IMON_WARN_S = 12e-6, 14e-6, 30.0  # guarda de corriente (80 % y 93 % de I0Set = 15 µA)
 # Límite: las 10:00Z siguientes al arranque (07:00 Chile, antes de la luz de la mañana), o --deadline "AAAA-MM-DD HH:MM:SS" (UTC).
 _now = time.gmtime()
 _next10 = calendar.timegm((_now.tm_year, _now.tm_mon, _now.tm_mday, 10, 0, 0, 0, 0, 0))
@@ -61,9 +73,12 @@ elif "--deadline" in sys.argv:
     DEADLINE = calendar.timegm(time.strptime(_arg("--deadline", ""), "%Y-%m-%d %H:%M:%S"))
 else:
     DEADLINE = _next10 if time.time() < _next10 else _next10 + 86400
-STEP_EST_S = (35 if SELF_CHECK_ONLY else 75) * 60 if not SIM else 60  # duración estimada de un escalón completo
-DUR = {"stab": 120, "sw": 120, "ext": 900, "check": 120, "self": 600} if not SIM else {"stab": 5, "sw": 15, "ext": 20, "check": 10, "self": 15}
+DUR = {"stab": 120, "sw": 120, "ext": float(_arg("--ext-s", "900")), "check": 120, "self": 600, "diag": 30} if not SIM else \
+    {"stab": 5, "sw": 15, "ext": 20, "check": 10, "self": 15, "diag": 5}
+# duración estimada de un escalón completo: runs + análisis + rampas
+STEP_EST_S = (DUR["stab"] + DUR["sw"] + DUR["ext"] + DUR["check"] + (0 if SELF_CHECK_ONLY else 4 * DUR["self"]) + 900) if not SIM else 60
 CHECK_T_PE = 8        # run de control del auto-trigger: un par a 8 p.e.
+DIAG_SINGLE_PE = 20   # diagnóstico, grupo solo: 20 p.e. (a 8 p.e. un grupo solo dispararía a ~1e5 Hz)
 CHECK_MIN_FRAC = 0.10  # tasa medida < 10 % de la accidental prevista -> configuración que no funciona
 CHECK_MIN_EXPECTED = 3.0  # menos eventos previstos en el run de control: no comprobable (DAQ2-16: antes 0/0 = "funciona")
 GAIN_WINDOW = (0.5, 6.0)  # ventana de picos del ajuste de G en múltiplos de la G esperada (DAQ2-16)
@@ -73,7 +88,7 @@ PAIRS = [(0, 2), (0, 3), (1, 2), (1, 3)]
 THRESHOLDS = [4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30]
 W_S = 8e-9          # ventana de la mayoría: 1 reloj (0x810C[23:20] = 1)
 FLUX_SQ_HZ = 10.89 / 60.0  # modelo: 1 cm^-2 min^-1 (PDG) × cuadrado activo de 10.89 cm²
-ACC_GEOM = 0.0360   # fracción de triggers externos que cruza el cuadrado (MC del handoff)
+ACC_GEOM = 0.03646  # fracción de triggers externos que cruza el área activa de hod2018 (MC cos²θ con proyección, DAQ2-15)
 OUT = REPO + "/outputs/daq2-15" + ("-sim" if SIM else "") + "/" + CAMPAIGN
 LOGD = "/data/daq/sim/logs" if SIM else "/data/daq/logs"
 LOG, JL = f"{LOGD}/biasscan_{CAMPAIGN}.log", f"{LOGD}/biasscan_{CAMPAIGN}.jsonl"
@@ -158,7 +173,32 @@ def check_hv(where):
         word = int(v.get("Status", 0))
         if v.get("Pw") != 1 or not (word & 1) or (word & HAZARD_BITS):
             raise Abort(f"{where}: riesgo en CH{ch:02d}: Pw {v.get('Pw')} Status 0x{word:X}")
+    imon_guard(st, where)
     return st
+
+
+GUARD = {"over_since": {}, "stop_after_step": None, "imon_max_A": {}, "imon_max_step_A": {}}
+
+
+def imon_guard(st, where):
+    """DAQ2-17: IMon ≥ 14 µA -> Abort (restauración inmediata); > 12 µA sostenido 30 s -> no se pasa al escalón siguiente
+    (el escalón actual sigue mientras IMon < 14 µA). Registra el máximo por grupo."""
+    now = time.time()
+    for ch in range(8):
+        i = st[ch].get("IMon_A")
+        if i is None:
+            continue
+        GUARD["imon_max_A"][ch] = max(GUARD["imon_max_A"].get(ch, 0.0), i)
+        GUARD["imon_max_step_A"][ch] = max(GUARD["imon_max_step_A"].get(ch, 0.0), i)
+        if i >= IMON_STOP_A:
+            raise Abort(f"{where}: IMon CH{ch:02d} = {i * 1e6:.2f} µA ≥ {IMON_STOP_A * 1e6:.0f} µA: restauración inmediata")
+        if i > IMON_WARN_A:
+            t0 = GUARD["over_since"].setdefault(ch, now)
+            if now - t0 >= IMON_WARN_S and not GUARD["stop_after_step"]:
+                GUARD["stop_after_step"] = f"IMon CH{ch:02d} = {i * 1e6:.2f} µA > {IMON_WARN_A * 1e6:.0f} µA durante {now - t0:.0f} s"
+                log(f"  GUARDA DE CORRIENTE: {GUARD['stop_after_step']}: se termina este escalón y no se sigue")
+        else:
+            GUARD["over_since"].pop(ch, None)
 
 
 def board_temp(step, where):
@@ -188,7 +228,7 @@ def wait_stable(where, timeout=STABLE_TIMEOUT_S):
 
 
 def set_bias(delta):
-    """Lleva CH00-07 a nominal + delta en escalones de ≤ 0.5 V (todos los canales por escalón)."""
+    """Lleva CH00-07 a nominal + delta en escalones de ≤ MAX_STEP_V (todos los canales por escalón)."""
     st = check_hv("antes de cambiar V0Set")
     cur = [st[ch]["V0Set_V"] for ch in range(8)]
     target = [round(NOMINAL[ch] + delta, 3) for ch in range(8)]
@@ -196,7 +236,7 @@ def set_bias(delta):
         for ch in range(8):
             if abs(cur[ch] - target[ch]) <= 0.004:
                 continue
-            step = max(-0.5, min(0.5, target[ch] - cur[ch]))
+            step = max(-MAX_STEP_V, min(MAX_STEP_V, target[ch] - cur[ch]))
             v = round(cur[ch] + step, 3)
             for attempt in range(1, RETRIES + 1):
                 res = hvctl("bias", "set", "--ch", str(ch), "--value", f"{v:.3f}", "--authorize", f"{AUTH}: CH{ch:02d} V0Set {v:.2f} V")
@@ -213,6 +253,23 @@ def set_bias(delta):
             cur[ch] = v
     st = wait_stable("después de cambiar V0Set")
     return {ch: {"V0Set_V": st[ch]["V0Set_V"], "VMon_V": st[ch]["VMon_V"], "IMon_A": st[ch]["IMon_A"]} for ch in range(8)}
+
+
+def check_vmon(where, tries=3):
+    """DAQ2-17: |VMon − V0Set − desvío| ≤ VMON_TOL_V en CH00-07, con el desvío del último escalón verificado por hvmon
+    (hvctl bias status). Hasta `tries` lecturas separadas por 60 s; si no, recuperable (se omite el escalón)."""
+    for k in range(tries):
+        sess = hvctl("bias", "status").get("session", {})
+        off = {int(c): v for c, v in (sess.get("vmon_offset_V") or {}).items()}
+        st = check_hv(where)
+        dev = {ch: st[ch]["VMon_V"] - st[ch]["V0Set_V"] - off.get(ch, 0.0) for ch in range(8)}
+        bad = {ch: round(d, 3) for ch, d in dev.items() if abs(d) > VMON_TOL_V}
+        if not bad:
+            return {ch: round(d, 4) for ch, d in dev.items()}
+        log(f"  {where}: VMon fuera de {VMON_TOL_V} V en {bad} (lectura {k + 1} de {tries})")
+        if k + 1 < tries:
+            time.sleep(60 if not SIM else 1)
+    raise Recoverable(f"{where}: VMon fuera de {VMON_TOL_V} V del V0Set + desvío en {bad}")
 
 
 def write_cfg(name, base, mutate):
@@ -375,7 +432,7 @@ def analyse_sw(run, step, seedsCal):
         row = {"pedestal_mV": c["channels"][ch].get("pedestal_mV"), "status": c["channels"][ch].get("status"), "G_mV": g,
                "G_measured": ch < 32 and c["channels"][ch].get("status") in ("ok", "changed") and "G_mV_fallback" not in c["channels"][ch]}
         if ch < 32 and g:
-            for T in [0.5, 1.5] + THRESHOLDS:
+            for T in [0.5, 1.5, 3] + THRESHOLDS:
                 row[f"rate_{T}pe_Hz"] = rate(ch, T * g)
         if ch >= 32:
             row["rate_1mV_Hz"] = rate(ch, 1.0)
@@ -594,7 +651,7 @@ def summary_mail(text):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    log("=== DAQ2-15 barrido de tensión" + (" (SIMULACIÓN)" if SIM else "") + f"; campaña {CAMPAIGN}; límite "
+    log("=== DAQ2-15/17 barrido de tensión" + (" (SIMULACIÓN)" if SIM else "") + f"; campaña {CAMPAIGN}; límite "
         + time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(DEADLINE)))
     results = {"steps": [], "aborted": None, "skipped": [], "skipped_steps": [], "current_step": None}
     phys_stopped = False
@@ -617,7 +674,8 @@ def main():
         extcfg = write_cfg("ext", PHYS_CFG, lambda c: c["run"].__setitem__("max_duration_s", 0))
         results["physics_before"] = physics_stop()
         phys_stopped = True
-        res = hvctl("bias", "begin", "--expected", ",".join(f"{v:.2f}" for v in NOMINAL), "--authorize", AUTH)
+        res = hvctl("bias", "begin", "--expected", ",".join(f"{v:.2f}" for v in NOMINAL), "--max-above", f"{MAX_ABOVE_V:g}",
+                    "--max-step", f"{MAX_STEP_V:g}", "--authorize", AUTH)
         log(f"bias begin: {res.get('result')} ({res.get('detail')})", res=res)
         if not res.get("ok"):
             raise Abort("bias begin: " + str(res.get("detail")))
@@ -629,7 +687,7 @@ def main():
                 break
             step = {"delta_V": dv, "t_start_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     "t_start_chile": time.strftime("%Y-%m-%d %H:%M:%S %z", time.localtime()), "board_temp": []}
-            log(f"--- escalón ΔV = {dv:+.1f} V")
+            log(f"--- escalón ΔV = {dv:+.2f} V")
             results["current_step"] = dv
             try:
                 prevCal = run_step(step, i, dv, prevCal, swcfg, extcfg)
@@ -637,11 +695,16 @@ def main():
                 step["skipped_reason"] = str(e)
                 step["t_end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 results["skipped_steps"].append({"delta_V": dv, "reason": str(e), "partial": step})
-                log(f"ESCALÓN {dv:+.1f} V OMITIDO (recuperable): {e}")
+                log(f"ESCALÓN {dv:+.2f} V OMITIDO (recuperable): {e}")
                 json.dump(results, open(f"{OUT}/biasscan_results.json", "w"), indent=1, ensure_ascii=False, default=str)
                 continue
             results["steps"].append(step)
             json.dump(results, open(f"{OUT}/biasscan_results.json", "w"), indent=1, ensure_ascii=False, default=str)
+            if GUARD["stop_after_step"]:
+                results["skipped"] = STEPS[i + 1:]
+                results["current_guard"] = GUARD["stop_after_step"]
+                log(f"escalones {STEPS[i + 1:]} no empezados por la guarda de corriente: {GUARD['stop_after_step']}")
+                break
         results["current_step"] = None
     except Exception as e:  # noqa: BLE001 — clase (c) o error inesperado: aborto con restauración
         results["aborted"] = str(e)
@@ -663,9 +726,11 @@ def guarded(fn, what):
 
 def run_step(step, i, dv, prevCal, swcfg, extcfg):
     """Un escalón completo; devuelve la calibración del escalón. Recoverable / Abort según la política."""
+    GUARD["imon_max_step_A"] = {}
     step["hv_after_set"] = set_bias(dv)
     time.sleep(DUR["stab"])
     step["hv_before_sw"] = {ch: v for ch, v in wait_stable("antes del run SW").items() if ch < 8}
+    step["vmon_deviation_V"] = check_vmon("antes del run SW")
     log(f"  temperatura de la placa: {board_temp(step, 'antes del run SW')} °C")
     sw = daqrun(swcfg, DUR["sw"])
     step["sw_run"] = sw
@@ -688,6 +753,9 @@ def run_step(step, i, dv, prevCal, swcfg, extcfg):
     step["self"] = []
     board_temp(step, "antes del auto-trigger")
     chk = step["selftrigger_check"] = selftrigger_check(step, i, prevCal, extcfg)
+    if TRIGGER_DIAG and dv == 0:
+        step["trigger_diag"] = trigger_diag(step, i, prevCal, extcfg)
+    step["imon_max_A"] = dict(GUARD["imon_max_step_A"])
     if SELF_CHECK_ONLY or not chk.get("working"):
         log(f"  runs de auto-trigger omitidos: " + ("--self-check-only (DAQ2-16)" if SELF_CHECK_ONLY else
             f"{'NO COMPROBABLE' if chk.get('working') is None else 'NO FUNCIONA'} ({chk.get('reason')})"))
@@ -748,16 +816,47 @@ def selftrigger_check(step, i, cal, extcfg):
     return out
 
 
+def trigger_diag(step, i, cal, extcfg):
+    """DAQ2-17: runs de DUR["diag"] s con auto-trigger: cada grupo de hod2018 solo (mayoría 1, a DIAG_SINGLE_PE p.e.) y pares
+    G0∧G1, G2∧G3 (ventana 1 reloj) y G0∧G2 (ventanas 1, 2, 4, 8 relojes) a CHECK_T_PE p.e.; tasa medida, predicción
+    (grupo solo: r_g; par: 2·W·r_X·r_Y) y registros releídos de cada run. Un run que falla se anota y se sigue."""
+    rates = step["sw"]["group_rates_masked_Hz"]
+    plan = [((g,), 1, 1, DIAG_SINGLE_PE) for g in range(4)] + [((0, 1), 2, 1, CHECK_T_PE), ((2, 3), 2, 1, CHECK_T_PE)] + \
+        [((0, 2), 2, w, CHECK_T_PE) for w in (1, 2, 4, 8)]
+    out = []
+    for groups, maj, w, T in plan:
+        r = rates.get(T) or rates.get(str(T))
+        pred = r[groups[0]] if len(groups) == 1 else 2 * w * W_S * r[groups[0]] * r[groups[1]]
+        name = "diag_" + "G".join([""] + [str(g) for g in groups]) + f"_w{w}_T{T:g}"
+        def mut(c, groups=groups, maj=maj, w=w, T=T, pred=pred):
+            c["calibration"]["file"] = cal
+            c["digitizer"]["trigger"] = {"mode": "self_hod2018", "self": {"groups": list(groups), "threshold_pe": T, "masked_channels": MASKED,
+                                                                          "majority_groups": maj, "window_clk": w, "include_external": False,
+                                                                          "target_rate_Hz": max(50.0, 2 * pred)}}
+        d = {"groups": list(groups), "majority_groups": maj, "window_clk": w, "T_pe": T, "pred_Hz": pred, "duration_s": DUR["diag"]}
+        check_hv(f"antes del diagnóstico {name}")
+        try:
+            run = daqrun(write_cfg(f"{name}_step{i}", extcfg, mut), DUR["diag"])
+            d.update(events=run["events"], rate_Hz=run["events"] / DUR["diag"], base=run["base"], trigger_signature=run["trigger_signature"])
+            d["registers"] = guarded(lambda: trigger_registers(run, i, tag=name), f"registros de {name}")
+        except Recoverable as e:
+            d["error"] = str(e)
+        log(f"  diagnóstico {name}: {d.get('events', '–')} eventos en {DUR['diag']:g} s = {d.get('rate_Hz', float('nan')):.3f} Hz; "
+            f"predicción {pred:.3g} Hz" + (f"; ERROR {d['error']}" if "error" in d else ""))
+        out.append(d)
+    return out
+
+
 TRIG_KEYS = ("global_trigger_mask_0x810C", "group_trigger_threshold_adc", "channel_group_mask", "group_self_trigger", "trigger_polarity",
              "majority_level", "majority_window_clk", "group_dc_offset", "group_enable_mask", "ext_trigger", "sw_trigger")
 
 
-def trigger_registers(run, i):
+def trigger_registers(run, i, tag="check"):
     """Registros de trigger escritos y releídos por daqrun (run_info_json del primer segmento) junto a lo pedido en la
     configuración (umbral en p.e., conversión a ADC, DC offset); cada uno al registro."""
     if not run["segments"]:
         return {"error": "sin segmentos"}
-    f = f"{OUT}/check_step{i}_run_info.json"
+    f = f"{OUT}/{tag}_step{i}_run_info.json"
     sh(["root", "-l", "-b", "-q", f"{REPO}/daq/tools/biasscan/run_info_dump.C({json.dumps(run['segments'][0])}, {json.dumps(f)})"], timeout=300)
     d = json.load(open(f))
     dig = (d.get("run_info") or {}).get("digitizer", {})
@@ -787,7 +886,14 @@ def finish(results):
     omitidos (con motivo) y abortados."""
     res = hvctl("bias", "restore", "--authorize", AUTH + ": restauración del nominal")
     log(f"bias restore: {res.get('result')} ({res.get('detail')})", res=res)
+    for k in range(2, 5):  # DAQ2-17: ningún canal puede quedar fuera del nominal; se reintenta
+        if res.get("ok"):
+            break
+        time.sleep(30 if not SIM else 1)
+        res = hvctl("bias", "restore", "--authorize", AUTH + f": restauración del nominal (intento {k})")
+        log(f"bias restore (intento {k}): {res.get('result')} ({res.get('detail')})", res=res)
     results["restore"] = res
+    results["imon_max_A"] = dict(GUARD["imon_max_A"])
     try:
         time.sleep(5)  # el archivo de estado de hvmon se publica en el ciclo siguiente
         st = hvstate()
@@ -807,7 +913,7 @@ def finish(results):
              "REARRANQUE DEL RUN DE FÍSICA: " + ("OK" if results.get("physics_ok") else "FALLÓ") + f" ({results.get('physics')})",
              f"Escalones completos: {[s['delta_V'] for s in results['steps']]}"]
     for k in results["skipped_steps"]:
-        lines.append(f"Escalón OMITIDO {k['delta_V']:+.1f} V: {k['reason']}")
+        lines.append(f"Escalón OMITIDO {k['delta_V']:+.2f} V: {k['reason']}")
     if results["skipped"]:
         lines.append(f"Escalones no empezados por el límite de tiempo: {results['skipped']}")
     if results["aborted"]:
@@ -820,7 +926,7 @@ def finish(results):
         e = s["ext"]["all"]
         temps = [b["degC"] for b in s.get("board_temp", []) if b["degC"] is not None]
         mu = s.get("self_muons_per_h_sum")
-        lines.append(f"ΔV {s['delta_V']:+.1f} V ({s['t_start_chile']}, placa {min(temps) if temps else '–'}-{max(temps) if temps else '–'} °C): "
+        lines.append(f"ΔV {s['delta_V']:+.2f} V ({s['t_start_chile']}, placa {min(temps) if temps else '–'}-{max(temps) if temps else '–'} °C): "
                      f"G mediana {s['sw']['G_median_mV']:.3f} mV; ε_XY ctl 5/8/10/12 p.e. "
                      + "/".join(f"{e[T]['eff_ctl']:.3f}" for T in (5, 8, 10, 12) if T in e)
                      + f"; umbral {s['T_chosen_pe']} p.e. ({s['T_choice']}); muones/h auto-trigger (suma de pares) "
