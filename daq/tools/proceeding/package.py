@@ -235,5 +235,40 @@ if os.path.exists(W + "/stage6.json"):
     R["tables"]["stage6"] = {"geometric_factor": s6["geometric_factor"], "derived": s6["derived"],
                              "sensitivity_cos3": {g: s6["sensitivity"][g]["cos3"] for g in ("OLD", "CAD")},
                              "bench_G2": {k: {q: v[q] for q in v if q.startswith(("G2", "A_eff", "P_trig"))} for k, v in s6["bench"].items()}}
+# ---------------------------------------------------------------- etapa 7
+if os.path.exists(W + "/stage7.json"):
+    s7 = json.load(open(W + "/stage7.json"))
+    c7 = s7["commit"]
+    R["provenance"].append({"stage": 7, "claim": "hod2019: tasas por run en mayo (barrido sin registro de HV), barrido de día de octubre, cambio de nivel de octubre, "
+                                                 "exceso en tiempo con y sin eventos coherentes", "commit": c7,
+                            "code": "daq/tools/proceeding/stage7.py; proc_plot_stage7.C",
+                            "source_file": "work/hd64_may_v1..v10_hits.bin; outputs/daq2-15/biasscan_2026_10_23_day/noise_step{0,1}.csv; "
+                                           "outputs/characterization_2026_10_23/work/<run>_hourly.csv", "status": "measured",
+                            "method": "ventana de control de 144 ns, tasa = −ln(1−P)/144 ns; espectro de pulsos fuera de tiempo con su exposición; coherentes: ≥ 8 "
+                                      "canales de hod2019 > 3 mV"})
+    for run, d in s7["may_runs"].items():
+        for k, v in d["summary"].items():
+            if v is None:
+                continue
+            res(f"may_{run}_{k}", f"mayo {run} ({d['utc_first']}): {k}", v, dataset=run, code="stage7.py", commit=c7,
+                note="sesgo no registrado; umbrales de hod2018 en p.e. con la G de v8")
+    ser("may_runs_rates", "mayo: mediana por canal de la tasa fuera de tiempo contra el índice del run", "índice del run", "Hz", [
+        {"name": n, "x": list(range(1, 11)), "y": [s7["may_runs"][f"v{i}"]["summary"][k] for i in range(1, 11)], "yerr": None}
+        for n, k in (("hod2019 > 1 mV", "h19_median_1mV_Hz"), ("hod2019 > 3 mV", "h19_median_3mV_Hz"), ("hod2018 > 0.5 p.e.", "h18_median_0p5pe_Hz"),
+                     ("hod2018 > 5 p.e.", "h18_median_5pe_Hz"))], source="stage7.py")
+    for c, d in s7["oct_day_scan"]["per_channel"].items():
+        if d.get("ratio") not in (None,) and d.get("ratio_err"):
+            res(f"oct_scan_ratio_ch{c}", f"barrido de día de octubre: tasa > 1 mV de ch{c}, −0.5 V / 0 V", d["ratio"], d["ratio_err"], dataset="biasscan_2026_10_23_day",
+                threshold="1 mV", code="stage7.py", commit=c7, note=f"{d['count_0V']} y {d['count_m0p5V']} cuentas; marca DAQ2-15: {d['flag_daq2_15'] or '-'}")
+    ho = s7["oct_hourly"]
+    ser("oct_h19_hourly", "octubre: tasa > 1 mV de hod2019 por hora (suma de 32 canales)", "hora UTC (inicio, s)", "Hz",
+        [{"name": "suma", "x": [r["t_s"] for r in ho["rows"]], "y": [r["sum_rate_1mV_Hz"] for r in ho["rows"]], "yerr": [r["err_Hz"] for r in ho["rows"]]}],
+        source=ho["source"], note="causa del cambio de nivel: no registrada")
+    res("oct_h19_level_ratio", "octubre: mediana por hora noche 10-19/20 / run 4 (tasa > 1 mV de hod2019, suma)", ho["ratio_night_median_over_run4_median"],
+        dataset="night_2026_10_19 run 1, hodoscope_2026_10 run 4", threshold="1 mV", code="stage7.py", commit=c7, note="causa no registrada")
+    ex = s7["may8_h19_excess"]
+    res("may8_h19_coherent", "mayo v8: eventos coherentes de hod2019 (≥ 8 canales > 3 mV) en tiempo / en control", [ex["coherent_in"], ex["coherent_ctl"]],
+        dataset="v8 completo", threshold="3 mV", code="stage7.py", commit=c7)
+    R["tables"]["stage7"] = {k: s7[k] for k in ("may_strip_set_changes", "may_hv_record", "oct_day_scan", "may8_h19_excess")}
 json.dump(R, open(OUT + "/results.json", "w"), indent=1, ensure_ascii=False, default=float)
 print("results.json", os.path.getsize(OUT + "/results.json"), "bytes;", len(R["results"]), "resultados;", len(R["series"]), "series")
