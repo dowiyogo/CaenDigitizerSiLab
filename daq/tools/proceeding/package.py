@@ -217,5 +217,23 @@ if os.path.exists(W + "/stage5.json"):
             code="stage5.py; bench_mc.py", commit=c5)
     res("f2_mc_normal_incidence", "MC a incidencia normal: fracción con dos barras (|x| ≤ 16.5 mm)", s5["mc"]["normal_incidence"]["f2_definition"],
         status="estimated", code="stage5.py", commit=c5, note="esperado 15/33 = 0.4545")
+# ---------------------------------------------------------------- etapa 6
+if os.path.exists(W + "/stage6.json"):
+    s6 = json.load(open(W + "/stage6.json"))
+    c6 = s6["commit"]
+    R["provenance"].append({"stage": 6, "claim": "factor geométrico del telescopio, MC del banco con placas OLD y CAD, sensibilidad geométrica", "commit": c6,
+                            "code": "daq/tools/proceeding/stage6.py; daq/tools/characterization/geom_sensitivity.py; bench_mc.py", "source_file": "ninguno (cálculo)",
+                            "method": "cuadratura de Gauss-Legendre de la integral de Sullivan; MC de rayos rectos 1e8, semilla 42", "status": "calculated / estimated (MC)"})
+    for D, v in s6["geometric_factor"]["per_D"].items():
+        res(f"G_D{D}", f"factor geométrico isótropo a D = {D} mm", v["G_cm2sr"], unit="cm² sr", status="calculated", code="stage6.py", commit=c6)
+        res(f"G2_D{D}", f"factor geométrico con cos²θ a D = {D} mm", v["G2_cm2sr"], unit="cm² sr", status="calculated", code="stage6.py", commit=c6)
+    for k, v in s6["bench"].items():
+        for q in ("f_2018", "f_2019", "f_both"):
+            res(f"{q}_{k}", f"MC del banco ({k}): {q}", v[q][0], v[q][1], status="estimated", dataset="MC 1e8 rayos, semilla 42", code="stage6.py", commit=c6)
+        res(f"zenith_{k}", f"MC del banco ({k}): ángulo cenital medio de los triggers", v["mean_zenith_trig_deg"], unit="°", status="estimated", code="stage6.py",
+            commit=c6, note=f"de los que cruzan las dos estaciones: {v['mean_zenith_both_deg']:.2f}°")
+    R["tables"]["stage6"] = {"geometric_factor": s6["geometric_factor"], "derived": s6["derived"],
+                             "sensitivity_cos3": {g: s6["sensitivity"][g]["cos3"] for g in ("OLD", "CAD")},
+                             "bench_G2": {k: {q: v[q] for q in v if q.startswith(("G2", "A_eff", "P_trig"))} for k, v in s6["bench"].items()}}
 json.dump(R, open(OUT + "/results.json", "w"), indent=1, ensure_ascii=False, default=float)
 print("results.json", os.path.getsize(OUT + "/results.json"), "bytes;", len(R["results"]), "resultados;", len(R["series"]), "series")
