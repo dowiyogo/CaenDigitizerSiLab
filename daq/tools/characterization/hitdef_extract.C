@@ -12,10 +12,13 @@
 //    ambos extremos) con pedestal local = media de las muestras [k−12, k−4]; amplitud aM; la misma en [99,109) (aMc).
 //  - Comprobación de la calibración con este pedestal: espectro de los pulsos fuera de tiempo ([0,49) y [102,144))
 //    por canal y ajuste de picos con gain_fit.h (semilla = G de la calibración): G' y posiciones de los picos.
-// Salida: <prefijo>_hits.bin, registros {double t_utc_s; float aS[32], aC[32], aG[32]; uint8 kG[32]; float aM[32], aMc[32]} (680 bytes),
+// PROC-1: nch = 64 extrae también hod2019 (ch 32-63, misma ventana: en mayo v8 las dos estaciones tienen el máximo de
+// tiempos en las muestras 256-263); los registros llevan entonces nch canales por campo (32 = formato anterior, idéntico).
+// Salida: <prefijo>_hits.bin, registros {double t_utc_s; float aS[nch], aC[nch], aG[nch]; uint8 kG[nch]; float aM[nch], aMc[nch]}
+// (680 bytes con nch = 32, 1352 con nch = 64),
 //         <prefijo>_peaks.csv (ch,G_seed,G_fit,status,peaks,positions_mV).
 // Uso: root -l -b -q -e 'gSystem->AddIncludePath("-I<repo>/daq/core/include")' \
-//        'daq/tools/characterization/hitdef_extract.C+("<archivo(s)>", "may"|"daqv2", "<G semilla: 32 valores con coma>", "<prefijo>")'
+//        'daq/tools/characterization/hitdef_extract.C+("<archivo(s)>", "may"|"daqv2", "<G semilla: 32 valores con coma>", "<prefijo>"[, nch])'
 #include <TChain.h>
 #include <TLeaf.h>
 
@@ -34,15 +37,16 @@ namespace {
 #pragma pack(push, 1)
 struct Hit {
   double t;
-  float aS[32], aC[32], aG[32];
-  uint8_t kG[32];
-  float aM[32], aMc[32];
+  float aS[64], aC[64], aG[64];
+  uint8_t kG[64];
+  float aM[64], aMc[64];
 };
 #pragma pack(pop)
 constexpr int kSpan = 144;
 }  // namespace
 
-void hitdef_extract(const char* pattern, const char* format, const char* seeds, const char* prefix) {
+void hitdef_extract(const char* pattern, const char* format, const char* seeds, const char* prefix, int nch = 32) {
+  nch = nch == 64 ? 64 : 32;
   std::vector<double> seed;
   {
     std::stringstream ss(seeds);
@@ -56,13 +60,13 @@ void hitdef_extract(const char* pattern, const char* format, const char* seeds, 
   TChain t(may ? "data_dig" : "events");
   t.Add(pattern);
   t.SetBranchStatus("*", 0);
-  std::vector<float>* cw[32] = {};
+  std::vector<float>* cw[64] = {};
   std::vector<UShort_t> adc;
   Long_t ts = 0;
   Long64_t tutc = 0;
   int n = 0;
   if (may) {
-    for (int c = 0; c < 32; ++c) {
+    for (int c = 0; c < nch; ++c) {
       t.SetBranchStatus(Form("Ch%d", c), 1);
       t.SetBranchAddress(Form("Ch%d", c), &cw[c]);
     }
@@ -92,7 +96,7 @@ void hitdef_extract(const char* pattern, const char* format, const char* seeds, 
     Hit h{};
     h.t = may ? bootRefEpoch + static_cast<double>(ts) * 1e-6 : static_cast<double>(tutc) * 1e-9;
     bool okEv = true;
-    for (int c = 0; c < 32; ++c) {
+    for (int c = 0; c < nch; ++c) {
       if (may) {
         if (!cw[c] || static_cast<int>(cw[c]->size()) < off + kSpan) {
           okEv = false;
@@ -123,10 +127,19 @@ void hitdef_extract(const char* pattern, const char* format, const char* seeds, 
       }
       p.clear();
       daq::pulse::findPulses(x.data(), kSpan, bl, 1.0, 0.9, 4, oot, p);
-      for (const auto& u : p) ++spec[static_cast<std::size_t>(c)][static_cast<std::size_t>(std::min(nb, static_cast<int>(u.amplitudeMv / binMv)))];
+      if (c < 32)  // espectro para la comprobación de G: solo hod2018
+        for (const auto& u : p) ++spec[static_cast<std::size_t>(c)][static_cast<std::size_t>(std::min(nb, static_cast<int>(u.amplitudeMv / binMv)))];
     }
     if (!okEv) continue;
-    fwrite(&h, sizeof(Hit), 1, fb);
+    // campo por campo con nch canales (con nch = 32, los mismos bytes que el registro empaquetado de antes)
+    const auto n_ = static_cast<std::size_t>(nch);
+    fwrite(&h.t, sizeof(double), 1, fb);
+    fwrite(h.aS, sizeof(float), n_, fb);
+    fwrite(h.aC, sizeof(float), n_, fb);
+    fwrite(h.aG, sizeof(float), n_, fb);
+    fwrite(h.kG, sizeof(uint8_t), n_, fb);
+    fwrite(h.aM, sizeof(float), n_, fb);
+    fwrite(h.aMc, sizeof(float), n_, fb);
     ++nw;
   }
   fclose(fb);
@@ -140,5 +153,5 @@ void hitdef_extract(const char* pattern, const char* format, const char* seeds, 
     fprintf(f, "%d,%.5f,%.5f,%s,%d,%s\n", c, sd, r.gainMv, r.status.c_str(), r.peaks, pos.c_str());
   }
   fclose(f);
-  printf("eventos %lld, escritos %lld, registro %zu bytes\n", ne, nw, sizeof(Hit));
+  printf("eventos %lld, escritos %lld, registro %d bytes, canales %d\n", ne, nw, 8 + nch * 21, nch);
 }

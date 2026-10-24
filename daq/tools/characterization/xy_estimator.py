@@ -11,13 +11,19 @@ import math
 
 import numpy as np
 
-HITS_DTYPE = np.dtype([("t", "<f8"), ("aS", "<f4", 32), ("aC", "<f4", 32), ("aG", "<f4", 32), ("kG", "u1", 32), ("aM", "<f4", 32),
-                       ("aMc", "<f4", 32)])
+
+def hits_dtype(nch=32):
+    """Registro de hitdef_extract.C con nch canales (32: hod2018; 64: PROC-1, también hod2019)."""
+    return np.dtype([("t", "<f8"), ("aS", "<f4", nch), ("aC", "<f4", nch), ("aG", "<f4", nch), ("kG", "u1", nch), ("aM", "<f4", nch),
+                     ("aMc", "<f4", nch)])
 
 
-def load_hits(path):
+HITS_DTYPE = hits_dtype(32)
+
+
+def load_hits(path, nch=32):
     """Registros de hitdef_extract.C ordenados por tiempo."""
-    e = np.fromfile(path, dtype=HITS_DTYPE)
+    e = np.fromfile(path, dtype=hits_dtype(nch))
     return e[np.argsort(e["t"], kind="stable")]
 
 

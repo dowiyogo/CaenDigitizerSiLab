@@ -16,6 +16,7 @@ import numpy as np
 
 sys.path.insert(0, __import__("os").path.dirname(__import__("os").path.abspath(__file__)))
 import xy_estimator as xy  # noqa: E402
+import may_common as mc  # noqa: E402
 
 W, OUTF = sys.argv[1], sys.argv[2]
 REPO = "/home/xplus/digitizer/CaenDigitizerSiLab-jai"
@@ -25,47 +26,12 @@ X, Y = list(range(16)), list(range(16, 32))  # mayo (kCfg_2026_05) y octubre (r4
 EXCL = {"sin_ch3": [3], "sin_2_3_9_15": [2, 3, 9, 15]}
 
 
-def g_may():
-    g = np.full(32, np.nan)
-    for l in open(REPO + "/outputs/pe_calibration_v8.txt"):
-        if l.startswith("#"):
-            continue
-        f = l.split()
-        if int(f[0]) < 32:
-            g[int(f[0])] = float(f[3])
-    return g
-
-
-def p0_may():
-    g = np.zeros(32)
-    for l in open(REPO + "/outputs/pe_calibration_v8.txt"):
-        if l.startswith("#"):
-            continue
-        f = l.split()
-        if int(f[0]) < 32:
-            g[int(f[0])] = float(f[2])
-    return g
-
-
-def g_c1():
-    c = json.load(open("/home/xplus/.local/opt/daqv2/share/calibration/pe_calibration_2026_10_c1.json"))
-    g = np.full(32, np.nan)
-    for e in c["channels"]:
-        if e["ch"] < 32 and isinstance(e.get("G_mV"), (int, float)):
-            g[e["ch"]] = e["G_mV"]
-    return g
+# lectores de calibración y tiempo bueno: may_common.py (PROC-1; antes estaban aquí)
+g_may, p0_may, g_c1 = mc.g_may, mc.p0_may, mc.g_c1
 
 
 def good_may(t):
-    keep = np.ones(len(t), bool)
-    loc = t - 4 * 3600
-    for r in csv.DictReader(open(REPO + "/runs/good_intervals_2026.csv")):
-        if r["run"] != "v8" or r["status"] not in ("EXCLUDE", "HV_OFF"):
-            continue
-        a = calendar.timegm(time.strptime(r["start_local"], "%Y-%m-%d %H:%M"))
-        b = calendar.timegm(time.strptime(r["end_local"], "%Y-%m-%d %H:%M")) + 60  # el minuto final incluido
-        keep &= ~((loc >= a) & (loc < b))
-    return keep
+    return mc.good_time(t, "v8")
 
 
 DS = {"may8": ("mayo v8 (tiempo bueno)", g_may()), "night": ("noche 2026-10-19", g_c1()), "run008": ("run 8 (2026-10-22/23)", g_c1())}
