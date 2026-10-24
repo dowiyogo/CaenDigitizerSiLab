@@ -61,3 +61,16 @@ def xy_fraction(Xs, Ys, Xc, Yc):
             out[f"e_{a}_{tag}"] = e
             out[f"e_{a}_{tag}_err"] = math.sqrt((eq / r) ** 2 + max(e * (1 - e), 0) / (r * N)) if r > 0 else float("nan")
     return out
+
+
+def xy_map(X, Y):
+    """Mapa X × Y (filas X, columnas Y) con peso 1/(nX·nY) por evento, en tiempo, y el de eventos mezclados (X del evento i
+    con Y del i+1, × N/(N−1)). X, Y: impactos por tira (n_eventos × n_tiras, booleanos, en orden de tiempo)."""
+    X, Y = np.asarray(X, bool), np.asarray(Y, bool)
+    nx, ny = X.sum(1), Y.sum(1)
+    w = np.where((nx > 0) & (ny > 0), 1.0 / np.maximum(nx * ny, 1), 0.0)
+    m_in = (X * w[:, None]).T.astype(float) @ Y.astype(float)
+    nx2, ny2 = nx[:-1], ny[1:]
+    w2 = np.where((nx2 > 0) & (ny2 > 0), 1.0 / np.maximum(nx2 * ny2, 1), 0.0)
+    m_mix = (X[:-1] * w2[:, None]).T.astype(float) @ Y[1:].astype(float) * len(X) / (len(X) - 1)
+    return m_in, m_mix

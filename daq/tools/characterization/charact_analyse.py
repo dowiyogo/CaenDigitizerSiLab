@@ -441,14 +441,7 @@ def planes_hits(e, st, thr, window="s"):
     return Xa > thr, Ya > thr
 
 
-def xy_map(X, Y):
-    nx, ny = X.sum(1), Y.sum(1)
-    w = np.where((nx > 0) & (ny > 0), 1.0 / np.maximum(nx * ny, 1), 0.0)
-    m_in = (X * w[:, None]).T.astype(float) @ Y.astype(float)
-    nx2, ny2 = nx[:-1], ny[1:]
-    w2 = np.where((nx2 > 0) & (ny2 > 0), 1.0 / np.maximum(nx2 * ny2, 1), 0.0)
-    m_mix = (X[:-1] * w2[:, None]).T.astype(float) @ Y[1:].astype(float) * len(X) / (len(X) - 1)
-    return m_in, m_mix
+xy_map = xy.xy_map  # mapa X × Y con peso 1/(nX·nY): implementación compartida (xy_estimator.py, PROC-1)
 
 
 MAPS = {}

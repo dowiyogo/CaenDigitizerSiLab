@@ -9,6 +9,8 @@
 #   f_XY  = P(X ∧ Y)            (fracción de triggers con impacto X e Y geométrico, sin pasar por S).
 # Se dan para el bloque X arriba y el bloque Y arriba (no hay registro de cuál está arriba), con la geometría OLD de las placas
 # (la de f_2018 = 0.03646) y la del CAD.
+# PROC-1 etapa 3: además, cruces por tira (barra ordenada por centro, −15 … 15 mm = coordenada 0 … 15) de hod2018 (bloque X
+# arriba) y hod2019 (z = 98.4 mm), por trigger: la expectativa de impactos por tira con detección perfecta.
 # Uso: bar_mc.py <salida.json> [N] [semilla]
 import json, math, os, sys
 
@@ -27,6 +29,7 @@ def run(geom, model="cos3"):
     g = bm.GEOMS[geom]
     rng = np.random.default_rng(SEED)
     c = {k: 0 for k in ("trig", "S", "XY_S", "X", "Y", "XY", "XY_S_topY", "X_topY", "Y_topY", "XY_topY")}
+    strips = {f"{st}_{co}": np.zeros(16) for st in ("h18", "h19") for co in ("X", "Y")}  # PROC-1 etapa 3: cruces por tira
     for start in range(0, N, CHUNK):
         m = min(CHUNK, N - start)
         r = bm.generate(rng, m, model)
@@ -42,7 +45,16 @@ def run(geom, model="cos3"):
             c["X" + suf] += int(X.sum())
             c["Y" + suf] += int(Y.sum())
             c["XY" + suf] += int((X & Y).sum())
-    out = {"geometry": geom, "model": model, "rays": N, "seed": SEED, "counts": c}
+            if top == "X":
+                strips["h18_X"] += (p["X"] > 0).sum(0)
+                strips["h18_Y"] += (p["Y"] > 0).sum(0)
+        p19 = bm.bar_paths(rt, g["H19"], "X")
+        strips["h19_X"] += (p19["X"] > 0).sum(0)
+        strips["h19_Y"] += (p19["Y"] > 0).sum(0)
+    out = {"geometry": geom, "model": model, "rays": N, "seed": SEED, "counts": c,
+           "strip_crossings": {k: v.tolist() for k, v in strips.items()},
+           "strip_fraction_per_trigger": {k: (v / c["trig"]).tolist() for k, v in strips.items()},
+           "strip_spread": {k: {"max_over_min": float(v.max() / v.min()), "rel_sd": float(v.std() / v.mean())} for k, v in strips.items()}}
     for suf, lab in (("", "X arriba"), ("_topY", "Y arriba")):
         def frac(k, n):
             p = k / n

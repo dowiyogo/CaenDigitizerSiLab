@@ -91,5 +91,52 @@ if os.path.exists(W + "/stage2.json"):
         commit=c2, note=f"N_XY = {m['N_XY']}; accidentales {m['accidental_in_NXY_mix']:.0f} (mezclados) y {m['accidental_in_NXY_ctl']:.0f} (fuera de tiempo)")
     R["tables"]["stage2"] = {k: s2[k] for k in ("geometry_factors", "published_convention", "manuscript_8073", "stability", "exclude_noisy", "G_check",
                                                "mc_fractions_1e8", "counts_table")}
+# ---------------------------------------------------------------- etapa 3
+if os.path.exists(W + "/stage3.json"):
+    s3 = json.load(open(W + "/stage3.json"))
+    c3 = s3["commit"]
+    R["provenance"].append({"stage": 3, "claim": "mapas X × Y, ocupación por tira y multiplicidad de hod2018; ocupación de hod2019", "commit": c3,
+                            "code": "daq/tools/proceeding/stage3.py; proc_plot_stage3.C; xy_estimator.xy_map; bar_mc.py (cruces por tira)",
+                            "source_file": "work/hd64_may_v8_hits.bin, work/hd64_oct8_hits.bin, work/bar_mc_g.json",
+                            "method": SINGLE + "; por tira en tiempo − fuera de tiempo; mapa en tiempo − mezclados + término rX·rY; orden de mayo de la etapa 1, "
+                                               "octubre r4", "status": "measured (cuentas); estimated (banda del MC)"})
+    for key in ("may8_good", "oct8"):
+        d = s3["occupancy_2018"][key]
+        for pl in "XY":
+            for T in (5, 10):
+                r = d[f"{pl}_T{T}"]["ratio"]
+                res(f"occ_maxmin_{key}_{pl}_T{T}", f"{d['label']}: ocupación por tira de hod2018 {pl}, máx/mín (en tiempo − fuera de tiempo)", r["max_over_min"],
+                    r["err"], dataset=d["label"], hitdef=SINGLE, threshold=f"{T} p.e.", code="stage3.py", commit=c3,
+                    note=f"coordenadas {r['max_coord']} / {r['min_coord']}; MC {d[pl + '_mc']['max_over_min']:.3f}; chi2 contra MC "
+                         f"{d[f'{pl}_T{T}']['chi2_vs_mc']:.1f}/{d[f'{pl}_T{T}']['ndf_vs_mc']}")
+        m = s3["maps"][key]
+        res(f"map_qN_{key}", f"{m['label']}: suma del mapa X × Y restado (= q_mix·N)", m["sum_sub_corrected"], dataset=m["label"], hitdef=SINGLE,
+            threshold="5 p.e.", code="stage3.py", commit=c3, note=f"término rX·rY devuelto {m['rXrY_term_total']:.1f}; celdas negativas {m['sub_corrected_cells_negative']}")
+    for k, v in s3["mc_strip_spread"].items():
+        res(f"mc_strip_maxmin_{k}", f"MC de barras: cruces por tira, máx/mín ({k})", v["max_over_min"], status="estimated", dataset="MC 1e8 rayos, cos³θ, OLD",
+            code="bar_mc.py", commit=c3, note=f"desviación relativa {v['rel_sd']:.4f}")
+    hc = s3["hod2019_claims"]
+    res("h19_top4_kCfg", "mayo v8 (run B): las 4 tiras X de hod2019 con más impactos a 35 mV (coordenada kCfg_2026_05)",
+        hc["reading_k_eq_kCfg_coordinate"]["top4"], dataset="v8 completo", hitdef=SINGLE, threshold="35 mV", code="stage3.py", commit=c3,
+        note="cuentas " + str([int(x) for x in hc["reading_k_eq_kCfg_coordinate"]["counts"]]) + "; orden de hod2019 no validado")
+    z = s3["occupancy_2019"]["may8_all"]
+    res("h19_strips_3sigma_35mV", "mayo v8 (run B): tiras de hod2019 con exceso en tiempo > 3σ a 35 mV (X, Y)",
+        [len(z["X_35mV"]["strips_above_3sigma"]), len(z["Y_35mV"]["strips_above_3sigma"])], dataset="v8 completo", hitdef=SINGLE, threshold="35 mV",
+        code="stage3.py", commit=c3, note="fuera de tiempo: 0 cuentas en todas las tiras")
+    for ch, v in s3["oct_ch39_ch47"].items():
+        res(f"oct8_ch{ch}_3mV_net", f"octubre run 8: exceso en tiempo de ch{ch} a 3 mV", v["3mV"]["net"], v["3mV"]["net_err"], dataset="octubre run 8",
+            hitdef=SINGLE, threshold="3 mV", code="stage3.py", commit=c3, note=f"z = {v['3mV']['z']:.2f}; 35 mV: {v['35mV']['in_time']:.0f} en tiempo")
+    for key in ("may8_good", "oct8"):
+        d = s3["occupancy_2018"][key]
+        for pl in "XY":
+            ser(f"occ_{key}_{pl}", f"{d['label']}: impactos por 1000 triggers por tira de hod2018 {pl}", "coordenada", "impactos / 1000 triggers",
+                [{"name": f"{T} p.e.", "x": list(range(16)), "y": d[f"{pl}_T{T}"]["net_per_1000"], "yerr": d[f"{pl}_T{T}"]["net_per_1000_err"]} for T in (5, 10)],
+                source="stage3.py")
+    for pl in "XY":
+        ser(f"occ_h19_may8_{pl}", f"mayo v8 (run B): impactos por 1000 triggers por tira de hod2019 {pl}", "coordenada (kCfg_2026_05)", "impactos / 1000 triggers",
+            [{"name": f"{T} mV", "x": list(range(16)), "y": z[f"{pl}_{T}mV"]["net_per_1000"], "yerr": z[f"{pl}_{T}mV"]["net_per_1000_err"]} for T in (35, 3)],
+            source="stage3.py")
+    R["maps"]["hod2018_xy_stage3"] = {k: {a: s3["maps"][k][a] for a in ("label", "sub_corrected", "mixed", "in_time")} for k in s3["maps"]}
+    R["tables"]["stage3"] = {k: s3[k] for k in ("strip_orders", "multiplicity", "hod2019_claims", "oct_ch39_ch47", "occupancy_2018_50mV_proxy", "mc_strip_spread")}
 json.dump(R, open(OUT + "/results.json", "w"), indent=1, ensure_ascii=False, default=float)
 print("results.json", os.path.getsize(OUT + "/results.json"), "bytes;", len(R["results"]), "resultados;", len(R["series"]), "series")
