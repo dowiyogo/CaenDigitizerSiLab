@@ -270,5 +270,17 @@ if os.path.exists(W + "/stage7.json"):
     res("may8_h19_coherent", "mayo v8: eventos coherentes de hod2019 (≥ 8 canales > 3 mV) en tiempo / en control", [ex["coherent_in"], ex["coherent_ctl"]],
         dataset="v8 completo", threshold="3 mV", code="stage7.py", commit=c7)
     R["tables"]["stage7"] = {k: s7[k] for k in ("may_strip_set_changes", "may_hv_record", "oct_day_scan", "may8_h19_excess")}
+# ---------------------------------------------------------------- etapa 8
+if os.path.exists(W + "/stage8.json"):
+    s8 = json.load(open(W + "/stage8.json"))
+    R["provenance"].append({"stage": 8, "claim": "hod2019: fracción por trigger con impacto por coordenada contra f_2019 (línea 326 del manuscrito)", "commit": s8["commit"],
+                            "code": "daq/tools/proceeding/stage8.py; xy_estimator.py", "source_file": "work/hd64_may_v8_hits.bin; work/stage2.json (f_2019 del MC)",
+                            "method": SINGLE + "; plano = OR de los 16 canales (kCfg_2026_05: X = ch48-63, Y = ch32-47)", "status": "measured (r); estimated (÷ f_2019)"})
+    for thr, d in s8["h19_per_coordinate"].items():
+        for k in ("rX", "rY"):
+            res(f"h19_{k}_{thr}", f"mayo v8 (run B): probabilidad verdadera de impacto en {k[1]} de hod2019 por trigger", d[k], dataset="v8 completo", hitdef=SINGLE,
+                threshold=thr, code="stage8.py", commit=s8["commit"], note=f"/ f_2019 = {d[k + '_over_f2019']:.4f}")
+        res(f"h19_rXrYN_{thr}", "mayo v8: X·Y esperadas en hod2019 si X e Y fueran independientes (rX·rY·N)", d["rXrY_times_N"], status="estimated", dataset="v8 completo",
+            threshold=thr, code="stage8.py", commit=s8["commit"], note=f"observadas N_XY = {d['N_XY']}")
 json.dump(R, open(OUT + "/results.json", "w"), indent=1, ensure_ascii=False, default=float)
 print("results.json", os.path.getsize(OUT + "/results.json"), "bytes;", len(R["results"]), "resultados;", len(R["series"]), "series")
