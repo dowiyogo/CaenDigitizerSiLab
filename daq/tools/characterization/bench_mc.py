@@ -87,7 +87,8 @@ def bar_paths(r, z_module, top="X"):
             du = u_b - u_a
             with np.errstate(divide="ignore", invalid="ignore"):
                 s1 = np.where(np.abs(du) > 1e-12, (lo - u_a) / du, np.where((u_a >= lo) & (u_a <= hi), -np.inf, np.inf))
-                s2 = np.where(np.abs(du) > 1e-12, (hi - u_a) / du, np.where((u_a >= lo) & (u_a <= hi), np.inf, -np.inf))
+                # du = 0 (rayo sin desplazamiento en la coordenada medida): dentro -> [0, 1]; fuera -> s1 = s2 = +inf, fracción 0
+                s2 = np.where(np.abs(du) > 1e-12, (hi - u_a) / du, np.inf)
             smin, smax = np.maximum(0, np.minimum(s1, s2)), np.minimum(1, np.maximum(s1, s2))
             frac = np.clip(smax - smin, 0, 1)
             along = np.abs(0.5 * (w_a + w_b)) <= BAR_L / 2

@@ -193,5 +193,29 @@ if os.path.exists(W + "/stage4.json"):
                              "poisson_analysis_table": s4["trigger"]["poisson_analysis_table"], "poisson_analysis_method": s4["trigger"]["poisson_analysis_method"],
                              "timing": {k: t[k] for k in ("summed_peak_ns", "ch0_flat", "ch0_oot_50mV", "fifty_three_sigma", "edge_3510", "hod2019_outside_35mV",
                                                           "peak_hod2018_high_ns", "peak_hod2019_high_ns")}}
+# ---------------------------------------------------------------- etapa 5
+if os.path.exists(W + "/stage5.json"):
+    s5 = json.load(open(W + "/stage5.json"))
+    c5 = s5["commit"]
+    R["provenance"].append({"stage": 5, "claim": "fracción de doble impacto (pares de tiras vecinas) de hod2018 contra el umbral, medida y del MC", "commit": c5,
+                            "code": "daq/tools/proceeding/stage5.py; proc_plot_stage5.C; daq/tools/characterization/bench_mc.py",
+                            "source_file": "work/hd64_may_v8_hits.bin, work/hd64_oct8_hits.bin", "status": "measured (datos); estimated (MC)",
+                            "method": SINGLE + "; pares en el mismo trigger − pares mezclados, por trigger con impacto verdadero en la sonda; etiqueta: el otro "
+                                               "plano > 10 p.e.; syst = etiqueta a 15 p.e."})
+    for key, d in s5["measured"].items():
+        for probe in "XY":
+            for r in d[probe]:
+                if r["T"] in (5, 10):
+                    res(f"f2_{key}_{probe}_T{r['T']}", f"{d['label']}: pares vecinos por trigger con impacto en {probe} (hod2018)", r["f2"], r["f2_stat"],
+                        r["syst_tag"], dataset=d["label"], hitdef=SINGLE, threshold=f"{r['T']} p.e.", code="stage5.py", commit=c5)
+            ser(f"f2_vs_T_{key}_{probe}", f"{d['label']}: pares vecinos por trigger con impacto en {probe}", "T (p.e.)", "f2",
+                [{"name": "medido", "x": [r["T"] for r in d[probe]], "y": [r["f2"] for r in d[probe]], "yerr": [r["f2_stat"] for r in d[probe]]}],
+                source="stage5.py")
+    for v in s5["mc"]["values"]:
+        res(f"f2_mc_{v['top_block']}top_{v['probe']}_cut{v['path_cut_mm']}", f"MC cos³θ: pares vecinos por trigger con impacto en {v['probe']}, bloque "
+            f"{v['top_block']} arriba, camino > {v['path_cut_mm']} mm", v["f2"], v["f2_err"], status="estimated", dataset="MC 3e7 rayos, OLD, semilla 42",
+            code="stage5.py; bench_mc.py", commit=c5)
+    res("f2_mc_normal_incidence", "MC a incidencia normal: fracción con dos barras (|x| ≤ 16.5 mm)", s5["mc"]["normal_incidence"]["f2_definition"],
+        status="estimated", code="stage5.py", commit=c5, note="esperado 15/33 = 0.4545")
 json.dump(R, open(OUT + "/results.json", "w"), indent=1, ensure_ascii=False, default=float)
 print("results.json", os.path.getsize(OUT + "/results.json"), "bytes;", len(R["results"]), "resultados;", len(R["series"]), "series")
