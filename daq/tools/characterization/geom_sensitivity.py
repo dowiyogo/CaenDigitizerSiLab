@@ -13,7 +13,12 @@
 # Uso: geom_sensitivity.py <salida.json> [N]
 import json, math, sys
 
+import os
+
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import bench_mc  # noqa: E402
 
 Z_START, Z_T2, Z_T1, Z_H18 = 160.0, 134.1, 124.1, 0.0
 HALF = 16.5
@@ -46,18 +51,8 @@ def run(model, seed=42):
     tot = 0
     for start in range(0, N, CHUNK):
         m = min(CHUNK, N - start)
-        U = rng.uniform(0, 1, m)
-        c = U ** (1 / 3) if model == "cos2" else U ** (1 / 4)  # pdf de cosθ ∝ c² o c³
-        th = np.arccos(c)
-        ph = rng.uniform(0, 2 * np.pi, m)
-        dx, dy, dz = np.sin(th) * np.cos(ph), np.sin(th) * np.sin(ph), -np.cos(th)
-        x0, y0 = rng.uniform(-200, 200, m), rng.uniform(-200, 200, m)
-
-        def prop(z):
-            t = (z - Z_START) / dz
-            return x0 + dx * t, y0 + dy * t
-
-        p2, p1, p18 = prop(Z_T2), prop(Z_T1), prop(Z_H18)
+        rays = bench_mc.generate(rng, m, model)  # generador compartido (PROC-1), mismo orden de llamadas que antes
+        p2, p1, p18 = rays.prop(Z_T2), rays.prop(Z_T1), rays.prop(Z_H18)
         nom = None
         for k, v in VARS:
             sx, sy = v.get("pl_x", 0.0), v.get("pl_y", 0.0)

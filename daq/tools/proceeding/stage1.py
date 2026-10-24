@@ -5,6 +5,8 @@
 #  - Calibración: G y p0 de outputs/pe_calibration_v8.txt (convención de mayo), G y p0 reajustados con la definición única
 #    (outputs/characterization_2026_10_23/work/hd_may8_peaks.csv, hitdef_extract.C: posiciones de picos con el pedestal
 #    común; p0 = media de pos_i − (n0 + i)·G, n0 = round(pos_0 / G)), G de c1 y G_mayo / G_c1 -> tables/calibration.tex.
+#    A3 (René): el análisis de mayo usa la G reajustada en todos los canales (work/hd64_may_v8_peaks.csv, semilla de ch9 = su G
+#    de c1, porque la G del archivo de mayo de ch9 es probablemente la mitad de la verdadera).
 #  - Orden de tiras: impactos con la definición única (work/hd64_may8_hits.bin, 64 canales, tiempo bueno), umbral 5 p.e.
 #    (G de mayo) en hod2018 y 3 mV en hod2019; por grupo de 16 canales: coincidencias en tiempo co[i,j], esperadas por
 #    azar con eventos mezclados (i del evento k con j del k+1 y al revés, promedio, × N/(N−1)); exceso E = co − mix,
@@ -53,7 +55,7 @@ open(OUT + "/tables/may_runs.tex", "w").write("\n".join(L) + "\n")
 # ---------------------------------------------------------------- 2. calibración
 Gm, p0m, Gc1 = mc.g_may(), mc.p0_may(), mc.g_c1()
 peaks = {}
-for l in open(REPO + "/outputs/characterization_2026_10_23/work/hd_may8_peaks.csv"):
+for l in open(W + "/hd64_may_v8_peaks.csv"):  # A3: reajuste de v8 con la semilla de ch9 = su G de c1
     if l.startswith("ch,"):
         continue
     f = l.strip().split(",")
@@ -79,14 +81,16 @@ res["calibration_summary"] = {"n_fit": len(fits), "ratio_fit_over_file_median": 
                               "ratio_may_c1_median": statistics.median(c["ratio_may_c1"] for c in cal if c["ratio_may_c1"])}
 T = ["% PROC-1 etapa 1: calibración de hod2018. G_mayo, p0_mayo: outputs/pe_calibration_v8.txt (convención de mayo: pedestal local, primer pico "
      "visible numerado 1 p.e.). G_aj, p0_aj: picos de pulsos oscuros de v8 con el pedestal común de la definición única (hitdef_extract.C, "
-     "gain_fit.h). G_c1: calibración de octubre 2026_10-c1. Se usa G_mayo (umbral T·G) en mayo y G_c1 en octubre.",
+     "gain_fit.h; semilla de ch9 = su G de c1). G_c1: calibración de octubre 2026_10-c1. Se usa G_aj en mayo (A3) y G_c1 en octubre; "
+     "G_mayo y p0_mayo solo para la convención publicada (p0 + 3.5 G). Umbral de 50 mV en p.e.: 50 / G_aj.",
      "\\begin{tabular}{rrrrrrr}", "\\hline", "Canal & $G_\\mathrm{mayo}$ (mV) & $p_0$ mayo (mV) & $G_\\mathrm{aj}$ (mV) & $p_0$ aj (mV) & "
-     "$G_\\mathrm{c1}$ (mV) & $G_\\mathrm{mayo}/G_\\mathrm{c1}$ \\\\", "\\hline"]
+     "$G_\\mathrm{c1}$ (mV) & $G_\\mathrm{mayo}/G_\\mathrm{c1}$ & 50 mV en p.e. \\\\", "\\hline"]
 fmt = lambda v, d=3: "--" if v is None else f"{v:.{d}f}"
 for c in cal:
-    T.append(f"{c['ch']} & {fmt(c['G_may_mV'])} & {fmt(c['p0_may_mV'])} & {fmt(c['G_fit_mV'])} & {fmt(c['p0_fit_mV'])} & {fmt(c['G_c1_mV'])} & "
-             f"{fmt(c['ratio_may_c1'])} \\\\")
-T += ["\\hline", "\\end{tabular}"]
+    note = "$^a$" if c["ch"] == 9 else ""
+    T.append(f"{c['ch']} & {fmt(c['G_may_mV'])}{note} & {fmt(c['p0_may_mV'])} & {fmt(c['G_fit_mV'])} & {fmt(c['p0_fit_mV'])} & {fmt(c['G_c1_mV'])} & "
+             f"{fmt(c['ratio_may_c1'])} & {fmt(50.0 / c['G_fit_mV'] if c['G_fit_mV'] else None, 1)} \\\\")
+T += ["\\hline", "\\end{tabular}", "% $^a$ ch9: la G del archivo de mayo es probablemente la mitad de la ganancia verdadera (G_aj = 5.437 mV, G_c1 = 5.050 mV)."]
 open(OUT + "/tables/calibration.tex", "w").write("\n".join(T) + "\n")
 
 # ---------------------------------------------------------------- 3. orden de tiras
