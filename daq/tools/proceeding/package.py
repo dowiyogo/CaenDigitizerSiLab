@@ -138,5 +138,60 @@ if os.path.exists(W + "/stage3.json"):
             source="stage3.py")
     R["maps"]["hod2018_xy_stage3"] = {k: {a: s3["maps"][k][a] for a in ("label", "sub_corrected", "mixed", "in_time")} for k in s3["maps"]}
     R["tables"]["stage3"] = {k: s3[k] for k in ("strip_orders", "multiplicity", "hod2019_claims", "oct_ch39_ch47", "occupancy_2018_50mV_proxy", "mc_strip_spread")}
+# ---------------------------------------------------------------- etapa 4
+if os.path.exists(W + "/stage4.json"):
+    s4 = json.load(open(W + "/stage4.json"))
+    c4 = s4["commit"]
+    R["provenance"] += [
+        {"stage": 4, "claim": "espectros de amplitud en p.e. y tiempos de pulso en todo el registro (mayo v8)", "commit": c4,
+         "code": "daq/tools/proceeding/stage4.py; daq/tools/proceeding/timing_extract.C; proc_plot_stage4.C",
+         "source_file": "work/hd64_may_v8_hits.bin; work/tm_may_v8_pulsetimes.csv; work/tm_may_v8_manuscript.csv (de /data/daq/raw/.../v8.root)",
+         "method": SINGLE + "; tiempos: buscador de pulsos del DAQ en [150, 624) con pedestal [0, 150); definición del manuscrito reproducida (gen_beamer_figs.C)",
+         "status": "measured"},
+        {"stage": 4, "claim": "estadística del trigger v7 y v8", "commit": c4, "code": "analysis/bin/poisson_analysis (sin cambios); stage4.py",
+         "source_file": "work/poisson/run.log; work/hd64_may_v7/v8_hits.bin (tiempos del trigger)", "method": "ajuste y KS de poisson_analysis.cxx; el resto en stage4.py",
+         "status": "measured"}]
+    for run in ("v7", "v8"):
+        d = s4["trigger"][run]
+        res(f"rate_nogaps_{run}", f"{run}: N/T sin interrupciones > 50 T_media", d["lambda_without_gaps_Hz"], d["lambda_without_gaps_err_Hz"], unit="Hz", dataset=run,
+            code="stage4.py", commit=c4, note=f"{d['gaps_gt_50Tmean']} interrupciones, {d['gap_sum_50Tmean_s']:.1f} s")
+        res(f"min_dt_{run}", f"{run}: ΔT mínimo entre triggers", d["min_dt_ms"], unit="ms", dataset=run, code="stage4.py", commit=c4,
+            note="; ".join(f"{x['range_ms'][0]:.3f}-{x['range_ms'][1]:.3f} ms: {x['observed']} (Poisson sin tiempo muerto {x['expected_poisson_no_deadtime']})"
+                           for x in d["short_intervals"][1:]))
+        for x in d["dispersion"]:
+            res(f"D_{run}_{x['window_s']}s", f"{run}: σ²/μ de triggers por intervalo de {x['window_s']} s (tramos vivos)", x["D"], x["D_err"], dataset=run,
+                code="stage4.py", commit=c4)
+        res(f"hourly_chi2_{run}", f"{run}: χ² de la tasa por hora contra una constante", d["hourly"]["chi2"], dataset=run, code="stage4.py", commit=c4,
+            note=f"ndf {d['hourly']['ndf']}; desviación relativa {d['hourly']['rel_sd']:.4f}")
+    t = s4["timing"]
+    for f in t["fifty_three_sigma"]["channels"]:
+        res(f"z53_ch{f['ch']}", f"mayo v8: 'significancia' de ch{f['ch']} con la fórmula publicada", f["z_as_published"], dataset="v8 completo",
+            hitdef="manuscrito (mínimo global en [3000, 5000] ns)", threshold="35 mV", code="timing_extract.C; stage4.py", commit=c4,
+            note=f"N = {f['N_ph_gt_35']}; definición única: {f['single_def_in_window']} en 4000-4400 ns, {f['single_def_outside_window']} fuera")
+    res("ch0_flat_over_max", "mayo v8: componente plana de ch0 (> 50 mV) / máximo por bin de 80 ns", t["ch0_flat"]["manuscript_def_50mV"]["flat_over_max"],
+        dataset="v8 completo", hitdef="manuscrito", threshold="50 mV", code="stage4.py", commit=c4,
+        note=f"definición única agrupada a 80 ns: {t['ch0_flat']['single_def_50mV_80ns']['flat_over_max']:.3f}; manuscrito 0.3")
+    res("ch0_oot_rate_50mV", "mayo v8: pulsos de ch0 > 50 mV fuera de 4000-4400 ns, por evento y µs", t["ch0_oot_50mV"]["pulses_per_event_per_us"], unit="1/µs",
+        dataset="v8 completo", hitdef=SINGLE, threshold="50 mV", code="stage4.py", commit=c4,
+        note=f"P(ventana de 144 ns fuera de tiempo) = {t['ch0_oot_50mV']['P_window144_oot_hits_file_good_time']:.5f} (tiempo bueno)")
+    sp = t["summed_peak_ns"]
+    res("peak_centroid_h18_h19", "mayo v8: centroide del pico de tiempos (hod2018 > 50 mV, hod2019 > 35 mV)", [sp["hod2018_centroid_ns"], sp["hod2019_centroid_ns"]],
+        unit="ns", dataset="v8 completo", hitdef=SINGLE, code="stage4.py", commit=c4, note="±3 muestras alrededor del máximo de la suma de canales")
+    pt = {}
+    for l in open(W + "/tm_may_v8_pulsetimes.csv"):
+        if l[0] in "#c":
+            continue
+        f = l.split(",")
+        pt[(int(f[0]), float(f[1]) >= 34.9)] = [int(x) for x in f[2:]]
+    rb = lambda h: [sum(h[k:k + 5]) for k in range(150, 620, 5)]  # 2400-9920 ns en bins de 80 ns
+    ser("pulse_times_ch0_ch50", "mayo v8: pulsos por 80 ns (definición única en todo el registro)", "t (ns, inicio del bin)", "pulsos / 80 ns", [
+        {"name": n, "x": list(range(2400, 9920, 80)), "y": rb(pt[k]), "yerr": None}
+        for n, k in (("ch0 > 50 mV", (0, True)), ("ch0 > 5 p.e.", (0, False)), ("ch50 > 35 mV", (50, True)), ("ch50 > 3 mV", (50, False)))],
+        source="work/tm_may_v8_pulsetimes.csv (timing_extract.C)")
+    R["tables"]["stage4"] = {"spectra_channels": [{k: c[k] for k in ("rule", "ch", "G_mV", "P_oot_5pe")} for c in s4["spectra"]["channels"]],
+                             "trigger": {r: {k: v for k, v in s4["trigger"][r].items()} for r in ("v7", "v8")},
+                             "poisson_analysis_table": s4["trigger"]["poisson_analysis_table"], "poisson_analysis_method": s4["trigger"]["poisson_analysis_method"],
+                             "timing": {k: t[k] for k in ("summed_peak_ns", "ch0_flat", "ch0_oot_50mV", "fifty_three_sigma", "edge_3510", "hod2019_outside_35mV",
+                                                          "peak_hod2018_high_ns", "peak_hod2019_high_ns")}}
 json.dump(R, open(OUT + "/results.json", "w"), indent=1, ensure_ascii=False, default=float)
 print("results.json", os.path.getsize(OUT + "/results.json"), "bytes;", len(R["results"]), "resultados;", len(R["series"]), "series")
