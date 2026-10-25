@@ -116,7 +116,7 @@ for geom in ("OLD", "CAD"):
         print(geom, model, "f18 %.5f f19 %.5f fboth %.5f ± %.5f θ %.2f / %.2f P(trig|both) %.6f" % (d["f_2018"][0], d["f_2019"][0], d["f_both"][0], d["f_both"][1],
               d["mean_zenith_trig_deg"], d["mean_zenith_both_deg"], d["P_trig_given_both"]), {k: d[k] for k in d if k.startswith(("G2", "A_eff"))})
 S["bench"] = bench
-b = bench["OLD_cos3"]
+b = bench["CAD_cos3"]  # R1: z del CAD
 S["derived"] = {"rate_1_per_cm2_min_Hz": b["A_eff_trigger_cm2"] / 60.0, "IvG2_trigger_Hz": IV * b["G2_trigger_cm2sr"] * 1e-4,
                 "trigger_over_telescope_G2": b["G2_trigger_cm2sr"] / b["G2_telescope_cm2sr"], "G2_telescope_analytic_98p4": GF["98.4"]["G2_cm2sr"],
                 "two_station_rate_mHz_lambda_hat_v8": b["f_both"][0] * 0.5561374216263751 * 1e3,
@@ -126,21 +126,22 @@ print("derivados:", S["derived"])
 # ---------------------------------------------------------------- sensibilidad
 SENS = {g: json.load(open(f"{W}/geom_sens_{g}_1e8.json")) for g in ("OLD", "CAD")}
 S["sensitivity"] = SENS
-L = ["% PROC-1 etapa 6: sensibilidad geométrica del MC del banco (bench_mc.py + geom_sensitivity.py, 1e8 rayos, semilla 42, cos^3).",
-     "% Cambio relativo respecto de la nominal (mismos rayos); en las variaciones de la estación se mueven las dos estaciones.", f"% Commit {git}.",
+L = ["% PROC-1/PROC-2 etapa 6: sensibilidad geométrica del MC del banco (bench_mc.py + geom_sensitivity.py, 1e8 rayos, semilla 42, cos^3),",
+     "% placas en las z del CAD (R1, geometría versión 2). Cambio relativo respecto de la nominal (mismos rayos); en las variaciones de la",
+     f"% estación se mueven las dos estaciones. Commit {git}.",
      "\\begin{tabular}{lrrr}", "\\hline", "Variación & $\\Delta f_{2018}/f_{2018}$ (\\%) & $\\Delta f_{2019}/f_{2019}$ (\\%) & $\\Delta f_\\mathrm{both}/f_\\mathrm{both}$ (\\%) \\\\",
      "\\hline"]
-nom = SENS["OLD"]["cos3"]["nominal"]
-L.append(f"Nominal (placas de geom\\_acceptance.py) & {100 * nom['f']:.3f} & {100 * nom['f_2019']:.2f} & {100 * nom['f_both']:.3f} \\\\")
+nom = SENS["CAD"]["cos3"]["nominal"]  # R1
+L.append(f"Nominal (placas en las z del CAD) & {100 * nom['f']:.3f} & {100 * nom['f_2019']:.2f} & {100 * nom['f_both']:.3f} \\\\")
 P = lambda v, e: f"{100 * v:+.2f} $\\pm$ {100 * e:.2f}"
-for k, v in SENS["OLD"]["cos3"].items():
+for k, v in SENS["CAD"]["cos3"].items():
     if k == "nominal":
         continue
     L.append(f"{k} & {P(v['rel_change'], v['rel_change_err'])} & {P(v['rel_change_2019'], v['rel_change_2019_err'])} & "
              f"{P(v['rel_change_both'], v['rel_change_both_err'])} \\\\")
-cad = SENS["CAD"]["cos3"]["nominal"]
-L.append(f"Placas del CAD (A5; z +1.5 mm) & {100 * (cad['f'] / nom['f'] - 1):+.2f} & {100 * (cad['f_2019'] / nom['f_2019'] - 1):+.2f} & "
-         f"{100 * (cad['f_both'] / nom['f_both'] - 1):+.2f} \\\\")
+old = SENS["OLD"]["cos3"]["nominal"]
+L.append(f"Valor anterior: placas de geom\\_acceptance.py (z $-1.5$ mm) & {100 * (old['f'] / nom['f'] - 1):+.2f} & "
+         f"{100 * (old['f_2019'] / nom['f_2019'] - 1):+.2f} & {100 * (old['f_both'] / nom['f_both'] - 1):+.2f} \\\\")
 L += ["\\hline", "\\end{tabular}"]
 open(OUT + "/tables/geom_sensitivity.tex", "w").write("\n".join(L) + "\n")
 json.dump(S, open(W + "/stage6.json", "w"), indent=1, default=float)

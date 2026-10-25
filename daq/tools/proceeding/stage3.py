@@ -7,6 +7,7 @@
 #  - Mapa X × Y de hod2018 (5 p.e., peso 1/(nX·nY), en tiempo − mezclados; xy_estimator.xy_map), impactos por tira en tiempo −
 #    fuera de tiempo (5 y 10 p.e.) con la expectativa del MC de barras (work/bar_mc_g.json, strip_fraction_per_trigger),
 #    hod2019 por tira (35 y 3 mV, mayo v8 y octubre run 8), multiplicidad por plano contra Poisson.
+#    PROC-2 (R1): el MC de barras usa las placas en las z del CAD.
 # Salida: work/stage3.json, work/fig_stage3.json (para proc_plot_stage3.C), tables/occupancy_ratio.tex, tables/multiplicity.tex.
 # Uso: stage3.py <dir del paquete>
 import json, math, subprocess, sys, time
@@ -80,7 +81,7 @@ def strip_hits(e, chans, T, cal, field="aS"):
 
 # ---------------------------------------------------------------- 3.1 mapa X × Y de hod2018
 BM = json.load(open(W + "/bar_mc_g.json"))
-MC = next(r for r in BM["runs"] if r["geometry"] == "OLD")["strip_fraction_per_trigger"]
+MC = next(r for r in BM["runs"] if r["geometry"] == "CAD")["strip_fraction_per_trigger"]
 S["maps"] = {}
 for key in ("may8_good", "oct8"):
     e, cal, lab = DATA[key]
@@ -165,7 +166,7 @@ for pl in "XY":
     S["occupancy_2018_50mV_proxy"][pl] = {"channels": MAY[k], "in_time": hi.tolist(), "out_of_time": ho.tolist(),
                                           "ratio_in_time": ratio(hi, np.sqrt(hi), idx), "ratio_net": ratio(hi - ho, np.sqrt(hi + ho), idx)}
     print("50 mV", pl, "en tiempo", hi.astype(int).tolist(), "máx/mín %.2f" % S["occupancy_2018_50mV_proxy"][pl]["ratio_in_time"]["max_over_min"])
-S["mc_strip_spread"] = next(r for r in BM["runs"] if r["geometry"] == "OLD")["strip_spread"]
+S["mc_strip_spread"] = next(r for r in BM["runs"] if r["geometry"] == "CAD")["strip_spread"]
 
 # ---------------------------------------------------------------- 3.3 hod2019 por tira
 S["occupancy_2019"] = {}
@@ -237,7 +238,7 @@ for key in ("may8_good", "oct8"):
 
 # ---------------------------------------------------------------- tablas
 L = ["% PROC-1 etapa 3: impactos por tira de hod2018, en tiempo − fuera de tiempo, definición única; razón máx/mín sobre las 15 tiras X vivas",
-     "% (ch3 fuera) y las 16 Y. MC: bar_mc.py (1e8 rayos, cos^3, placas de geom_acceptance.py), cruces por tira con detección perfecta.",
+     "% (ch3 fuera) y las 16 Y. MC: bar_mc.py (1e8 rayos, cos^3, placas en las z del CAD, R1), cruces por tira con detección perfecta.",
      f"% Commit {git}.", "\\begin{tabular}{llrrrr}", "\\hline",
      "Conjunto & Plano & $\\max/\\min$ (5 p.e.) & $\\max/\\min$ (10 p.e.) & $\\chi^2/\\mathrm{ndf}$ vs MC (5 p.e.) & MC $\\max/\\min$ \\\\", "\\hline"]
 for key in ("may8_good", "oct8"):
@@ -275,7 +276,7 @@ for pl in "XY":
                        "series": [{"name": f"{T} p.e.", "y": d[f"{pl}_T{T}"]["net_per_1000"], "e": d[f"{pl}_T{T}"]["net_per_1000_err"]} for T in (5, 10)],
                        "mc": (np.asarray(d[f"{pl}_T5"]["mc_expected"]) / d["events"] * 1e3).tolist(),
                        "mc_err": (np.asarray(d[f"{pl}_T5"]["mc_expected"]) / d["events"] * 1e3 * np.sqrt(1 / np.maximum(np.asarray(
-                           next(r for r in BM["runs"] if r["geometry"] == "OLD")["strip_crossings"][f"h18_{pl}"]), 1))).tolist()})
+                           next(r for r in BM["runs"] if r["geometry"] == "CAD")["strip_crossings"][f"h18_{pl}"]), 1))).tolist()})
 d = S["occupancy_2019"]["may8_all"]
 for pl in "XY":
     fig["occ"].append({"panel": f"hod2019 {pl}", "ylabel": "Hits per 1000 triggers", "valid": MAY_VALID[f"h19_{pl}"], "dead": [False] * 16,

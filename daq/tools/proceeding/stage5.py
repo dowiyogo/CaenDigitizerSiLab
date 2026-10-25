@@ -8,7 +8,7 @@
 #    los T). Syst: diferencia al subir la etiqueta a 15 p.e.; la versión por clases (1 tira o 2 vecinas, restando la ventana fuera
 #    de tiempo) se guarda solo como referencia (sobrecorrige a T bajo).
 #  - Datos: mayo v8 tiempo bueno (orden de la etapa 1, G reajustada) y octubre run 8 (r4, c1); ch3 (coordenada X 12) muerto.
-#  - MC: bench_mc.py, cos³θ, placas OLD, triggers T1 ∧ T2; tira con impacto = camino > corte (0, 0.2, 0.5 mm); la coordenada
+#  - MC: bench_mc.py, cos³θ, placas en las z del CAD (PROC-2, R1), triggers T1 ∧ T2; tira con impacto = camino > corte (0, 0.2, 0.5 mm); la coordenada
 #    X 12 se apaga como en los datos; etiqueta = la otra coordenada cruzada (camino > corte); bloque X arriba y bloque Y
 #    arriba. Comprobación a incidencia normal sobre |x|, |y| ≤ 16.5 mm: 15 traslapes de 1 mm / 33 mm = 0.455.
 # Salida: work/stage5.json, work/fig_stage5.json (proc_plot_stage5.C).
@@ -106,7 +106,7 @@ trig = 0
 for start in range(0, NMC, 2_000_000):
     m = min(2_000_000, NMC - start)
     r = bm.generate(rng, m, "cos3")
-    t = bm.trigger(r, bm.GEOMS["OLD"])
+    t = bm.trigger(r, bm.GEOMS["CAD"])
     rt = bm.Rays(r.x0[t], r.y0[t], r.dx[t], r.dy[t], r.dz[t])
     trig += int(t.sum())
     for top in ("X", "Y"):
@@ -123,7 +123,7 @@ for start in range(0, NMC, 2_000_000):
                 c[1] += b
                 c[2] += int((hp[:, :-1] & hp[:, 1:]).sum())
                 c[3] += int(hp.any(1).sum())
-MCR = {"rays": NMC, "triggers": trig, "model": "cos3", "geometry": "OLD", "seed": 42, "values": []}
+MCR = {"rays": NMC, "triggers": trig, "model": "cos3", "geometry": "CAD", "seed": 42, "values": []}
 for (top, cut, probe), (a, b, pr, nh) in cnt.items():
     f = pr / nh
     MCR["values"].append({"top_block": top, "path_cut_mm": cut, "probe": probe, "single": a, "double": b, "pairs": pr, "probe_events": nh, "f2": f,

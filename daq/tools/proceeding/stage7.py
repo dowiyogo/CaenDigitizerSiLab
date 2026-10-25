@@ -104,7 +104,7 @@ def noise(step):
 
 e0, n0 = noise(0)
 e1, n1 = noise(1)
-FLAGS = {45: "no_hv_dependence", 50: "no_hv_dependence", 52: "no_hv_dependence", 41: "ok (grupo HV sin medir)", 42: "ok (grupo HV sin medir)",
+FLAGS = {45: "no_hv_dependence", 50: "no_hv_dependence → hv_dependent (enmienda PROC-2)", 52: "no_hv_dependence", 41: "ok (grupo HV sin medir)", 42: "ok (grupo HV sin medir)",
          51: "ok (grupo HV sin medir)"}
 r4 = json.load(open(REPO + "/daq/config/mapping/hodo_mapping_2026_10_r4.json"))
 grp = {c["dig_ch"]: c.get("hv_group") for c in r4["channels"]}
@@ -132,6 +132,7 @@ print("barrido: sin cambio a 2σ", S["oct_day_scan"]["unchanged_2sigma"], "sin c
 for c in sorted(FLAGS):
     d = scan[str(c)]
     print("  ch%d %s: %d / %d cuentas, razón %s" % (c, FLAGS[c], d["count_0V"], d["count_m0p5V"], d.get("ratio")))
+S["oct_day_scan"]["amendment"] = "ch50: hv_dependent (outputs/characterization_2026_10_23/amendments.json, PROC-2)"
 
 # ---------------------------------------------------------------- 3. cambio de nivel (por hora)
 CH = REPO + "/outputs/characterization_2026_10_23/work"

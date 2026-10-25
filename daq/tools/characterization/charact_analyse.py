@@ -296,6 +296,10 @@ for c in range(64):
     else:
         f = "ok"
     flags[c] = f
+# PROC-2 (René): enmiendas a las marcas, guardadas junto al paquete (<out>/amendments.json) sin reescribir sus resultados
+if os.path.exists(OUT + "/amendments.json"):
+    for c_, a_ in json.load(open(OUT + "/amendments.json")).get("flags", {}).items():
+        flags[int(c_)] = a_["new"]
 per_channel = {}
 for c in range(64):
     t = CT["run008"][c]

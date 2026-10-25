@@ -5,9 +5,12 @@
 #    (work/hd64_may_v8_peaks.csv, semilla de ch9 = su G de c1; A3) para todos los runs de mayo; octubre = c1 (mediana para los
 #    canales sin G). Control: G del archivo de mayo (pe_calibration_v8.txt).
 #  - Conjuntos: mayo v8 (tiempo bueno y todo), v7, v9, v10 (tiempo bueno), octubre run 8 y noche del 2026-10-19.
-#  - Aceptancia: f_2018 = 0.03646 ± 0.00026 (geom_sensitivity.py, cos³θ); syst de aceptancia = error del MC ⊕ 2.2 % (cota de
-#    posición, etapa 6). Factores de barra (work/bar_mc_g.json, bar_mc.py): g = P(X∧Y | cruza el cuadrado), g_XY, g_YX, con el
-#    bloque de arriba desconocido (promedio de las dos opciones; la mitad de la diferencia como syst).
+#  - Aceptancia (PROC-2, R1): z del CAD (geometría versión 2), 1e8 rayos, cos³θ: f_2018 de work/geom_sens_CAD_1e8.json
+#    (geom_sensitivity.py); syst de aceptancia = error del MC ⊕ 2.7 % (placas z ± 2 mm) ⊕ 2.2 % (cota de posición de 10 mm), un número.
+#  - g (PROC-2, R2) = P(X∧Y | cruza el cuadrado) = 0.980 (promedio de los dos órdenes de bloque del MC de barras con el CAD,
+#    work/bar_mc_g.json), syst 0.03 (diferencia con Meiga, 0.951). ε_XY = q / (f_2018 · g) con cuatro incertidumbres: stat,
+#    estimador (mezclados contra fuera de tiempo), aceptancia (R1) y g. R3: ε_X, ε_Y corregidas por plano ya no se calculan;
+#    ε(X|Y) y ε(Y|X) quedan como "sin corrección geométrica".
 #  - Convención publicada (p0 + 3.5 G del archivo de mayo, definición de mayo aM), las 8073 del manuscrito (work/msxy_may8.bin,
 #    manuscript_xy.C), estabilidad, exclusión de ch2/9/15 y la tabla tab:counts.
 # Salida: work/stage2.json, tables/eff_vs_threshold.tex, tables/counts.tex, work/fig_eff.json (para proc_plot_eff.C).
@@ -25,8 +28,11 @@ import xy_estimator as xy  # noqa: E402
 OUT = sys.argv[1]
 W = OUT + "/work"
 git = subprocess.run(["git", "-C", REPO, "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
-F18, F18_ERR, POS_SYST = 0.03646, 0.00026, 0.022
-ACC_REL = math.sqrt((F18_ERR / F18) ** 2 + POS_SYST ** 2)
+_cad = json.load(open(W + "/geom_sens_CAD_1e8.json"))["cos3"]["nominal"]
+F18, F18_ERR, F19, FBOTH, FBOTH_ERR = _cad["f"], _cad["f_err"], _cad["f_2019"], _cad["f_both"], _cad["f_both_err"]
+PLATE_Z_SYST, POS_SYST = 0.027, 0.022  # R1 (René): placas z ± 2 mm y cota de posición de 10 mm
+ACC_REL = math.sqrt((F18_ERR / F18) ** 2 + PLATE_Z_SYST ** 2 + POS_SYST ** 2)
+G_XY, G_SYST = 0.980, 0.03  # R2 (René)
 TS = list(range(3, 13))
 XCH = [c for c in range(16) if c != 3]
 YCH = list(range(16, 32))
@@ -73,33 +79,30 @@ def frac(e, G, T, xs=XCH, ys=YCH):
 
 # factores de barra
 BG = json.load(open(W + "/bar_mc_g.json"))
-old = next(r for r in BG["runs"] if r["geometry"] == "OLD")
+old = next(r for r in BG["runs"] if r["geometry"] == "CAD")  # R1: z del CAD
 def avg(k):
     a, b = old["X arriba"][k], old["Y arriba"][k]
     return {"value": 0.5 * (a["value"] + b["value"]), "stat": max(a["err"], b["err"]), "syst_top": 0.5 * abs(a["value"] - b["value"]),
             "X_top": a["value"], "Y_top": b["value"]}
 GF = {k: avg(k) for k in ("g", "g_XY", "g_YX", "f_XY")}
 S["geometry_factors"] = GF
-S["geometry_factors_note"] = "bar_mc.py, 1e8 rayos, semilla 42, placas de geom_acceptance.py (OLD); Meiga 2026-10-24_cosmic_telescope_v2b: g = 0.951"
+S["geometry_factors_note"] = ("bar_mc.py, 1e8 rayos, semilla 42, placas del CAD; g usado = 0.980 ± 0.03 (R2; MC: %.4f, Meiga 2026-10-24_cosmic_telescope_v2b: 0.951)"
+                              % GF["g"]["value"])
+S["g_used"] = {"value": G_XY, "syst": G_SYST, "mc_average": GF["g"]["value"], "meiga": 0.951}
 
 
 def enrich(r):
-    """eficiencias: ε_geo = q / f_2018; ε_XY = q / (f_2018 · g); ε_X = ε(X|Y)/g_XY, ε_Y = ε(Y|X)/g_YX."""
+    """eficiencias: ε_geo = q / f_2018; ε_XY = q / (f_2018 · g) con stat, estimador, aceptancia (R1) y g (R2)."""
     q, qe, qc = r["f_mix"], r["f_mix_err"], r["f_ctl"]
     d = {k: r.get(k) for k in ("N", "N_XY", "acc_mix", "acc_ctl", "aX", "aY", "rX", "rY", "f_mix", "f_mix_err", "f_ctl", "f_ctl_err",
                               "e_X|Y_mix", "e_X|Y_mix_err", "e_Y|X_mix", "e_Y|X_mix_err", "e_X|Y_ctl", "e_Y|X_ctl")}
     d["syst_estimator"] = abs(q - qc)
     eg = q / F18
     d["eps_geo"] = {"value": eg, "stat": qe / F18, "syst_estimator": abs(q - qc) / F18, "syst_acceptance": eg * ACC_REL}
-    g = GF["g"]["value"]
+    g = G_XY
     exy = q / (F18 * g)
-    d["eps_XY"] = {"value": exy, "stat": qe / (F18 * g), "syst_estimator": abs(q - qc) / (F18 * g),
-                   "syst_acceptance": exy * math.sqrt(ACC_REL ** 2 + (GF["g"]["syst_top"] / g) ** 2 + (GF["g"]["stat"] / g) ** 2)}
-    for a, gk in (("X|Y", "g_XY"), ("Y|X", "g_YX")):
-        v, ve = r[f"e_{a}_mix"], r[f"e_{a}_mix_err"]
-        gg = GF[gk]["value"]
-        d[f"eps_{a[0]}"] = {"value": v / gg, "stat": ve / gg, "syst_estimator": abs(v - r[f"e_{a}_ctl"]) / gg,
-                            "syst_geometry": v / gg * math.hypot(GF[gk]["syst_top"], GF[gk]["stat"]) / gg}
+    d["eps_XY"] = {"value": exy, "stat": qe / (F18 * g), "syst_estimator": abs(q - qc) / (F18 * g), "syst_acceptance": exy * ACC_REL,
+                   "syst_g": exy * G_SYST / g}
     return d
 
 
@@ -130,8 +133,9 @@ T_eq = (P0_MAYFILE + 3.5 * fill(G_MAYFILE)) / fill(G_MAY)
 S["published_convention"] = {"definition": "definición de mayo (mínimo de la ventana de 10 muestras, pedestal local [k−12, k−4]), umbral p0 + 3.5 G de "
                                            "pe_calibration_v8.txt, v8 tiempo bueno, ch3 fuera",
                              "q_mix": rp["f_mix"], "q_mix_err": rp["f_mix_err"], "q_ctl": rp["f_ctl"], "q_ctl_err": rp["f_ctl_err"],
-                             "eps_0.03646_mix": rp["f_mix"] / F18, "eps_0.03646_ctl": rp["f_ctl"] / F18, "eps_0.0360_mix": rp["f_mix"] / 0.0360,
-                             "eps_0.0360_ctl": rp["f_ctl"] / 0.0360, "stat_0.0360": rp["f_mix_err"] / 0.0360, "stat_0.03646": rp["f_mix_err"] / F18,
+                             "eps_f2018_mix": rp["f_mix"] / F18, "eps_f2018_ctl": rp["f_ctl"] / F18, "eps_0.0360_mix": rp["f_mix"] / 0.0360,
+                             "eps_0.0360_ctl": rp["f_ctl"] / 0.0360, "stat_0.0360": rp["f_mix_err"] / 0.0360, "stat_f2018": rp["f_mix_err"] / F18,
+                             "eps_XY_mix": rp["f_mix"] / (F18 * G_XY), "stat_eps_XY": rp["f_mix_err"] / (F18 * G_XY), "f_2018": F18,
                              "T_equivalent_per_channel": {str(c): float(T_eq[c]) for c in XCH + YCH},
                              "T_equivalent_median": float(np.median(T_eq[XCH + YCH])), "handoff": "0.88 ± 0.04 ± 0.11 (v7-v10)"}
 
@@ -188,12 +192,12 @@ S["stability"] = stab
 S["exclude_noisy"] = {str(T): {"with": enrich(frac(e8, G8, T)), "without_2_9_15": enrich(frac(e8, G8, T, [c for c in XCH if c not in NOISY]))}
                       for T in (5, 8, 10, 12)}
 
-# ---------------------------------------------------------------- 2.8 tab:counts (MC: 1e8 rayos, OLD, cos³θ)
+# ---------------------------------------------------------------- 2.8 tab:counts (MC: 1e8 rayos, CAD, cos³θ)
 rng = np.random.default_rng(42)
 cnt = {"trig": 0, "h18": 0, "h19": 0, "both": 0}
 for _ in range(50):
     r = bm.generate(rng, 2_000_000, "cos3")
-    t = bm.trigger(r, bm.GEOMS["OLD"])
+    t = bm.trigger(r, bm.GEOMS["CAD"])
     a, b = bm.in_square(r, 0.0) & t, bm.in_square(r, 98.4) & t
     cnt["trig"] += int(t.sum()); cnt["h18"] += int(a.sum()); cnt["h19"] += int(b.sum()); cnt["both"] += int((a & b).sum())
 fr = {k: cnt[k] / cnt["trig"] for k in ("h18", "h19", "both")}
@@ -204,22 +208,26 @@ S["counts_table"] = {"N_triggers": NB, "expected": {k: fr[k] * NB for k in fr}, 
 
 # ---------------------------------------------------------------- tablas y figura
 P = lambda v, e: f"{v:.4f} $\\pm$ {e:.4f}"
-L = ["% PROC-1 etapa 2: fracción X·Y por trigger con accidentales restados (q), eficiencias. Definición única de impacto, ch3 fuera.",
-     f"% G: mayo = reajustada con la definición única (A3); octubre = c1. f_2018 = {F18} ± {F18_ERR}. Commit {git}.",
+L = ["% PROC-1/PROC-2 etapa 2: fracción X·Y por trigger con accidentales restados (q) y eficiencia. Definición única de impacto, ch3 fuera.",
+     f"% G: mayo = reajustada con la definición única (A3); octubre = c1. f_2018 = {F18:.5f} ± {F18_ERR:.5f} (CAD, R1), g = {G_XY} (R2).",
+     f"% ε_XY = q_mix/(f_2018 g) ± stat ± estimador ± aceptancia ({100 * ACC_REL:.1f} %) ± g ({100 * G_SYST / G_XY:.1f} %). "
+     f"ε(X|Y), ε(Y|X): sin corrección geométrica. Commit {git}.",
      "\\begin{tabular}{llrrrrr}", "\\hline",
-     "Conjunto & $T$ (p.e.) & $q_\\mathrm{mix}$ & $q_\\mathrm{fuera}$ & $q_\\mathrm{mix}/f_{2018}$ & $\\varepsilon(X|Y)$ & $\\varepsilon(Y|X)$ \\\\", "\\hline"]
+     "Conjunto & $T$ (p.e.) & $q_\\mathrm{mix}$ & $q_\\mathrm{fuera}$ & $\\varepsilon_{XY}$ & $\\varepsilon(X|Y)$ & $\\varepsilon(Y|X)$ \\\\", "\\hline"]
 for key in ("may8_good", "oct8"):
     for T in (3, 5, 8, 10, 12):
         r = S["datasets"][key]["per_T"][str(T)]
+        e = r["eps_XY"]
         L.append(f"{S['datasets'][key]['label']} & {T} & {P(r['f_mix'], r['f_mix_err'])} & {P(r['f_ctl'], r['f_ctl_err'])} & "
-                 f"{r['eps_geo']['value']:.3f} $\\pm$ {r['eps_geo']['stat']:.3f} & {r['e_X|Y_mix']:.3f} $\\pm$ {r['e_X|Y_mix_err']:.3f} & "
+                 f"{e['value']:.3f} $\\pm$ {e['stat']:.3f} $\\pm$ {e['syst_estimator']:.3f} $\\pm$ {e['syst_acceptance']:.3f} $\\pm$ {e['syst_g']:.3f} & "
+                 f"{r['e_X|Y_mix']:.3f} $\\pm$ {r['e_X|Y_mix_err']:.3f} & "
                  f"{r['e_Y|X_mix']:.3f} $\\pm$ {r['e_Y|X_mix_err']:.3f} \\\\")
 L += ["\\hline", "\\end{tabular}"]
 open(OUT + "/tables/eff_vs_threshold.tex", "w").write("\n".join(L) + "\n")
 m = MS["run B completo (como el manuscrito)"]
 new5 = S["datasets"]["may8_all"]["per_T"]["5"]
 C = ["% PROC-1 etapa 2.8: tab:counts nuevo. Run B = v8 completo (143 814 triggers, se omite el último en el mezclado del código antiguo).",
-     "% Esperado: MC geométrico (bench_mc.py, 1e8 rayos, semilla 42, cos^3, placas de geom_acceptance.py), sin eficiencia.",
+     "% Esperado: MC geométrico (bench_mc.py, 1e8 rayos, semilla 42, cos^3, placas en las z del CAD, R1), sin eficiencia.",
      "% Observado restado: q·N con el estimador de eventos mezclados (central) y el de la ventana fuera de tiempo.",
      "\\begin{tabular}{lrrrr}", "\\hline", "Condición & Esperado (MC) & Observado & Restado (mezclados) & Restado (fuera de tiempo) \\\\", "\\hline",
      f"X--Y en hod2018, 50 mV, 4000--4400 ns & {S['counts_table']['expected']['h18']:.0f} & {m['N_XY']} & {m['true_XY_mix']:.0f} $\\pm$ {m['err_true_mix']:.0f} & "
@@ -235,13 +243,14 @@ C = ["% PROC-1 etapa 2.8: tab:counts nuevo. Run B = v8 completo (143 814 trigger
      "% se da el producto N·P(X--Y en hod2018)·P(X--Y en hod2019).",
      "\\hline", "\\end{tabular}"]
 open(OUT + "/tables/counts.tex", "w").write("\n".join(C) + "\n")
-fig = {"T": TS, "f18": F18, "f18_rel_syst": ACC_REL, "series": [], "published": {"T": S["published_convention"]["T_equivalent_median"],
-                                                                                    "eps": S["published_convention"]["eps_0.03646_mix"],
-                                                                                    "err": S["published_convention"]["stat_0.03646"]}}
-for key, lab in (("may8_good", "mayo v8"), ("oct8", "octubre run 8"), ("night", "octubre noche")):
-    fig["series"].append({"name": lab, "eps": [S["datasets"][key]["per_T"][str(T)]["eps_geo"]["value"] for T in TS],
-                          "stat": [S["datasets"][key]["per_T"][str(T)]["eps_geo"]["stat"] for T in TS],
-                          "syst": [S["datasets"][key]["per_T"][str(T)]["eps_geo"]["syst_estimator"] for T in TS]})
+# figura (PROC-2): eje izquierdo ε_XY = q/(f_2018 g), eje derecho q (escala f_2018·g); banda = syst de aceptancia (R1)
+fig = {"T": TS, "f18": F18 * G_XY, "f18_rel_syst": ACC_REL, "series": [], "published": {"T": S["published_convention"]["T_equivalent_median"],
+                                                                                         "eps": S["published_convention"]["eps_XY_mix"],
+                                                                                         "err": S["published_convention"]["stat_eps_XY"]}}
+for key, lab in (("may8_good", "May v8"), ("oct8", "Oct run 8"), ("night", "Oct night 10-19")):
+    fig["series"].append({"name": lab, "eps": [S["datasets"][key]["per_T"][str(T)]["eps_XY"]["value"] for T in TS],
+                          "stat": [S["datasets"][key]["per_T"][str(T)]["eps_XY"]["stat"] for T in TS],
+                          "syst": [S["datasets"][key]["per_T"][str(T)]["eps_XY"]["syst_estimator"] for T in TS]})
 json.dump(fig, open(W + "/fig_eff.json", "w"), indent=1)
 json.dump(S, open(W + "/stage2.json", "w"), indent=1, default=float)
 print("hecho")

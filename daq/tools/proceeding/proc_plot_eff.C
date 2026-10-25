@@ -1,7 +1,7 @@
-// proc_plot_eff.C — PROC-1 etapa 2: figura eff_vs_threshold (q_mix / f_2018 contra el umbral) desde work/fig_eff.json
-// (stage2.py). Barras = error estadístico; cajas = syst del estimador (|q_mix − q_fuera|) / f_2018; banda gris = syst de
-// aceptancia (error del MC ⊕ cota de posición) sobre la serie de mayo; estrella = convención publicada (p0 + 3.5 G) en su T
-// equivalente (mediana por canal); eje derecho = q. Estilo: proc_style.C.
+// proc_plot_eff.C — PROC-1/PROC-2 etapa 2: figura eff_vs_threshold (ε_XY = q_mix / (f_2018 · g) contra el umbral) desde
+// work/fig_eff.json (stage2.py). Barras = error estadístico; cajas = syst del estimador (|q_mix − q_fuera|) / (f_2018 · g); banda
+// gris = syst de aceptancia (R1: MC ⊕ placas z ± 2 mm ⊕ cota de posición) sobre la serie de mayo; estrella = convención publicada
+// (p0 + 3.5 G) en su T equivalente (mediana por canal); eje derecho = q (j["f18"] = f_2018 · g). Estilo: proc_style.C.
 // Uso: root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_eff.C("<fig_eff.json>", "<base de salida>")'
 #include <TAxis.h>
 #include <TGaxis.h>
@@ -23,7 +23,7 @@ void proc_plot_eff(const char* json, const char* base) {
   const double f18 = j["f18"], rel = j["f18_rel_syst"];
   auto* c = proc_canvas("c_eff", 1, 0.78);
   c->SetRightMargin(0.15);
-  auto* fr = new TH1F("fr", ";Threshold #it{T} (p.e.);#it{q} / #it{f}_{2018}", 10, 2.5, 12.5);
+  auto* fr = new TH1F("fr", ";Threshold #it{T} (p.e.);#varepsilon_{XY} = #it{q} / (#it{f}_{2018} #it{g})", 10, 2.5, 12.5);
   fr->SetMinimum(0.0);
   fr->SetMaximum(1.3);
   fr->Draw("AXIS");

@@ -70,9 +70,10 @@ if os.path.exists(W + "/stage2.json"):
                 dataset=d["label"], hitdef=SINGLE, threshold=f"{T} p.e.", code="stage2.py", commit=c2)
             e = r["eps_XY"]
             res(f"epsXY_{key}_T{T}", f"{d['label']}: ε_XY = q / (f_2018 · g), T = {T} p.e.", e["value"], e["stat"],
-                (e["syst_estimator"] ** 2 + e["syst_acceptance"] ** 2) ** 0.5, status="estimated", dataset=d["label"], hitdef=SINGLE,
+                {"estimator": e["syst_estimator"], "acceptance": e["syst_acceptance"], "g": e["syst_g"]}, status="estimated", dataset=d["label"], hitdef=SINGLE,
                 threshold=f"{T} p.e.", code="stage2.py; bar_mc.py", commit=c2,
-                note="f_2018 = 0.03646 ± 0.00026 (cos³θ), g = P(X∧Y | cruza el cuadrado) del MC de barras; syst = estimador ⊕ aceptancia ⊕ g")
+                note="f_2018 = %.5f ± %.5f (CAD, 1e8, cos³θ; R1), aceptancia ± %.1f %% (MC ⊕ placas z ± 2 mm ⊕ posición), g = 0.980 ± 0.03 (R2)"
+                     % (s2["f_2018"], s2["f_2018_err"], 100 * s2["acceptance_rel_syst"]))
         ser(f"q_vs_T_{key}", f"{d['label']}: q contra T", "T (p.e.)", "q", [
             {"name": "mezclados", "x": [int(T) for T in d["per_T"]], "y": [d["per_T"][T]["f_mix"] for T in d["per_T"]],
              "yerr": [d["per_T"][T]["f_mix_err"] for T in d["per_T"]]},
@@ -84,7 +85,8 @@ if os.path.exists(W + "/stage2.json"):
     p = s2["published_convention"]
     res("published_convention_v8", "v8, convención del taller (p0 + 3.5 G, definición de mayo): q / 0.0360", p["eps_0.0360_mix"], p["stat_0.0360"],
         abs(p["eps_0.0360_mix"] - p["eps_0.0360_ctl"]), status="estimated", dataset="v8 tiempo bueno", hitdef="definición de mayo", threshold="p0 + 3.5 G",
-        code="stage2.py", commit=c2, note="handoff: 0.88 ± 0.04 ± 0.11 (v7-v10); con 0.03646: %.4f" % p["eps_0.03646_mix"])
+        code="stage2.py", commit=c2, note="handoff: 0.88 ± 0.04 ± 0.11 (v7-v10); q / f_2018 (CAD, %.5f): %.4f ± %.4f; ε_XY = q/(f_2018 g): %.4f ± %.4f"
+        % (p["f_2018"], p["eps_f2018_mix"], p["stat_f2018"], p["eps_XY_mix"], p["stat_eps_XY"]))
     m = s2["manuscript_8073"]["run B completo (como el manuscrito)"]
     res("ms8073_true_mix", "Run B, definición del manuscrito (50 mV, 4000-4400 ns): coincidencias X·Y verdaderas (q·N, mezclados)", m["true_XY_mix"],
         m["err_true_mix"], abs(m["true_XY_mix"] - m["true_XY_ctl"]), dataset="v8 completo", hitdef="manuscrito", threshold="50 mV", code="manuscript_xy.C; stage2.py",
