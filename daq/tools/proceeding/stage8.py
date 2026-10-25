@@ -41,7 +41,7 @@ R = json.load(open(OUT + "/results.json"))
 size = os.path.getsize(OUT + "/results.json")
 assert size < 2_000_000, size
 assert all(len(d["x"]) <= 200 for s in R["series"] for d in s["data"])
-stages = sorted({p["stage"] for p in R["provenance"]})
+stages = sorted({str(p["stage"]) for p in R["provenance"]})  # etapas de PROC-1 (números) y de PROC-2 (texto)
 print("results.json", size, "bytes; etapas con provenance:", stages)
 
 
