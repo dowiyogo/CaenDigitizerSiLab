@@ -111,6 +111,13 @@ python3 -I -B daq/tools/proceeding/bar_mc.py $P/work/bar_mc_g.json 100000000
 python3 -I -B daq/tools/characterization/geom_sensitivity.py $P/work/geom_sens_OLD_1e8.json 100000000 OLD   # y CAD
 # etapas
 python3 -I -B daq/tools/proceeding/stage1.py $P      # … hasta stage7.py; stage5.py $P 30000000; stage6.py $P 100000000
+# PROC-2 (versión 2: R1 aceptancia del CAD, R2 g = 0.980)
+python3 -I -B daq/tools/characterization/geom_sensitivity.py $P/work/geom_sens_CAD_1e8.json 100000000 CAD
+python3 -I -B daq/tools/proceeding/headline.py $P
+python3 -I -B daq/tools/proceeding/along_bar.py $P 30000000
+python3 -I -B daq/tools/proceeding/h19_xy.py $P
+python3 -I -B daq/tools/proceeding/doublehit2.py $P 10000000
+python3 -I -B daq/tools/proceeding/trigger_diurnal.py $P
 python3 -I -B daq/tools/proceeding/stage8.py $P
 # figuras
 root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_eff.C("$P/work/fig_eff.json","$P/figs/eff_vs_threshold")'
@@ -118,6 +125,8 @@ root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_
 root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_stage4.C("$P/work/fig_stage4.json","$P/figs/amp_spectra_hod2018_pe")'
 root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_stage5.C("$P/work/fig_stage5.json","$P/figs/double_hit_fraction")'
 root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_stage7.C("$P/work/fig_stage7.json","$P/figs/hod2019_rates")'
+root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_along_bar.C("$P/work/fig_along_bar.json","$P/figs/eff_along_bar")'
+root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_diurnal.C("$P/work/fig_trigger_diurnal.json","$P/figs/trigger_rate_vs_time")'
 ```
 
 Entradas derivadas usadas además: `outputs/daq2-15/biasscan_2026_10_23_day/noise_step{{0,1}}.csv` (barrido de día) y
@@ -139,23 +148,24 @@ print("handover:", len(files), "archivos; crudos", len(raw_lines), "; sin índic
 heavy = sorted(p for p in glob.glob(W + "/**", recursive=True) if os.path.isfile(p) and os.path.getsize(p) > 1_000_000)
 open(OUT + "/SHA256SUMS", "w").write("".join(f"{sha(p)}  {os.path.relpath(p, OUT)}\n" for p in heavy))
 commits = subprocess.run(["git", "-C", REPO, "log", "--format=%h %s", "8027437^..HEAD"], capture_output=True, text=True).stdout.strip().splitlines()
-manifest = {"module": "proceeding", "tag": "proceeding_2026_10", "task": "PROC-1", "generated_utc": S["generated_utc"],
+manifest = {"module": "proceeding", "tag": "proceeding_2026_10", "task": "PROC-1 + PROC-2", "package_version": 2, "generated_utc": S["generated_utc"],
             "repo": {"name": "CaenDigitizerSiLab-jai", "branch": branch, "commit": git_full, "proc1_commits": commits},
             "dependencies": {"ROOT": "6.32.10 (~/root6)", "python": platform.python_version(), "numpy": np.__version__,
                              "nlohmann_json": "sistema (/usr/include/nlohmann)", "analysis/bin/poisson_analysis": "binario del repositorio, sin cambios"},
             "parameters": {"hit_definition": "única (DAQ2-15)", "thresholds_pe": list(range(3, 13)), "main_threshold_pe": 5, "hod2019_thresholds_mV": [1, 3, 35],
                            "accidentals": "eventos mezclados (central), ventana fuera de tiempo (syst)", "dead_channel": 3,
                            "G_may": "reajustada con la definición única (A3)", "G_oct": "pe_calibration_2026_10_c1.json"},
-            "geometry_version": {"note": "convención posterior a PROC-1: 1 = z anteriores (geom_acceptance.py, placas OLD), 2 = CAD 2026-10-24",
-                                 "stage2_stage3_stage5": 1, "stage6": "1 y 2 (las dos se dan)", "bars": "CAD (René, 2026-10-24) en bar_mc.py y bench_mc.py"},
-            "seeds": {"bench_mc": 42, "bar_mc": 42, "stage5_mc": 42, "geom_sensitivity": 42},
+            "geometry_version": {"note": "1 = z anteriores (geom_acceptance.py, placas OLD), 2 = CAD 2026-10-24", "used": 2,
+                                 "stage6_previous_values": 1, "bars": "CAD (René, 2026-10-24) en bar_mc.py y bench_mc.py",
+                                 "acceptance": "R1: f_2018, f_2019, f_both del CAD con 1e8 rayos, cos3", "g": "R2: 0.980 ± 0.03"},
+            "seeds": {"bench_mc": 42, "bar_mc": 42, "stage5_mc": 42, "geom_sensitivity": 42, "along_bar_mc": 42, "doublehit2_mc": 42, "h19_bootstrap": 42},
             "duration": "no medida (las etapas se corrieron por separado entre el 2026-10-24 y la fecha de generación)",
             "machine": {"host": platform.node(), "os": platform.platform()},
             "heavy_files": "SHA256SUMS (archivos de work/ de más de 1 MB)", "handover": "handover/ (MANIFEST.sha256)"}
 json.dump(manifest, open(OUT + "/manifest.json", "w"), indent=1, ensure_ascii=False)
 idx = REPO + "/outputs/INDEX.md"
-line = (f"- `proceeding_2026_10/` — PROC-1, paquete del proceeding de Muographers 2026 (JAIS): mayo v8 y octubre, figuras, tablas, results.json; "
-        f"commit {git}, {S['generated_utc'][:10]}\n")
+line = (f"- `proceeding_2026_10/` — PROC-1 + PROC-2 (versión 2: aceptancia del CAD, g = 0.980), paquete del proceeding de Muographers 2026 (JAIS): "
+        f"mayo v8 y octubre, figuras, tablas, results.json; rama {branch}, commit {git}, {S['generated_utc'][:10]}\n")
 old = open(idx).read() if os.path.exists(idx) else "# Índice de outputs/\n\n"
 keep = [l for l in old.splitlines(keepends=True) if not l.startswith("- `proceeding_2026_10/`")]  # la línea de este paquete se reemplaza
 open(idx, "w").write("".join(keep) + line)

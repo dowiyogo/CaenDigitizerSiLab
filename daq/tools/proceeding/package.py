@@ -284,5 +284,63 @@ if os.path.exists(W + "/stage8.json"):
                 threshold=thr, code="stage8.py", commit=s8["commit"], note=f"/ f_2019 = {d[k + '_over_f2019']:.4f}")
         res(f"h19_rXrYN_{thr}", "mayo v8: X·Y esperadas en hod2019 si X e Y fueran independientes (rX·rY·N)", d["rXrY_times_N"], status="estimated", dataset="v8 completo",
             threshold=thr, code="stage8.py", commit=s8["commit"], note=f"observadas N_XY = {d['N_XY']}")
+# ---------------------------------------------------------------- PROC-2
+if os.path.exists(W + "/along_bar.json"):
+    ab = json.load(open(W + "/along_bar.json"))
+    R["provenance"].append({"stage": "PROC-2 2", "claim": "eficiencia a lo largo de las barras de hod2018 por capa", "commit": ab["commit"],
+                            "code": "daq/tools/proceeding/along_bar.py; proc_plot_along_bar.C; xy_estimator.py; bench_mc.py",
+                            "source_file": "work/hd64_may_v8_hits.bin, work/hd64_oct8_hits.bin", "status": "measured (ε); estimated (÷ MC geométrico)",
+                            "method": SINGLE + "; estimador X·Y con la referencia restringida a una tira; ÷ P(capa | tira) del MC de barras (CAD)"})
+    for key, d in ab["data"].items():
+        for probe in "XY":
+            for l in "AB":
+                for T in (5, 10):
+                    f_ = d[f"{probe}_{l}_T{T}"]["fit_eps_over_mc"]
+                    res(f"alongbar_{key}_{probe}{l}_T{T}", f"{d['label']}: ε/ε_MC de la capa {l} de las barras {probe}, razón entre los extremos (+16.5 / −16.5 mm), recta",
+                        f_["line"]["ratio_plus_over_minus_16p5"], f_["line"]["ratio_err"], dataset=d["label"], hitdef=SINGLE, threshold=f"{T} p.e.",
+                        code="along_bar.py", commit=ab["commit"], note="pendiente relativa %.5f ± %.5f /mm; exponencial: razón %.3f; χ² recta %.1f/%d; lado de los MPPC sin registro" % (
+                            f_["line"]["rel_slope_per_mm"], f_["line"]["slope_err"] / f_["line"]["intercept"], f_["exp"]["ratio_plus_over_minus_16p5"], f_["line"]["chi2"], f_["line"]["ndf"]))
+                    rows = [r for r in d[f"{probe}_{l}_T{T}"]["rows"] if r]
+                    ser(f"alongbar_{key}_{probe}{l}_T{T}", f"{d['label']}: ε/ε_MC de la capa {l} de las barras {probe} contra la posición, {T} p.e.", "posición (mm)", "ε/ε_MC",
+                        [{"name": f"capa {l}", "x": [r["pos_mm"] for r in rows], "y": [r["eps_over_mc"] for r in rows], "yerr": [r["eps_over_mc_err"] for r in rows]}],
+                        source="along_bar.py")
+    for k, v in ab["outside"]["per_dataset"].items():
+        for p_, x in v.items():
+            res(f"outside_{k}_{p_}", f"{k}: (r_{p_} − q)/q medido / del MC con detección perfecta", x["R_over_R0"], x["R_over_R0_err"], status="estimated", code="along_bar.py",
+                commit=ab["commit"], note=ab["outside"]["assumptions"])
+if os.path.exists(W + "/h19_xy.json"):
+    hx = json.load(open(W + "/h19_xy.json"))
+    R["provenance"].append({"stage": "PROC-2 3", "claim": "hod2019: déficit de X·Y en el mismo evento, respuesta del otro plano, multiplicidad, amplitudes", "commit": hx["commit"],
+                            "code": "daq/tools/proceeding/h19_xy.py", "source_file": "work/hd64_may_v8_hits.bin, work/hd64_oct8_hits.bin", "status": "measured",
+                            "method": SINGLE + "; producto = eventos mezclados; significancia de Poisson"})
+    for thr, d in hx["xy"].items():
+        res(f"h19_deficit_{thr}", f"mayo v8: X·Y de hod2019 en el mismo evento / producto (mezclados), {thr}", d["ratio_observed_over_product"], dataset="v8 completo", hitdef=SINGLE,
+            threshold=thr, code="h19_xy.py", commit=hx["commit"], note=f"observadas {d['N_XY']}, producto {d['acc_mix']:.1f}, déficit {d['deficit_z']:.2f}σ")
+    R["tables"]["proc2_h19"] = {k: hx[k] for k in ("response_3mV", "multiplicity_3mV", "amplitudes_may8_summary", "amplitudes_oct8")}
+if os.path.exists(W + "/doublehit2.json"):
+    dh = json.load(open(W + "/doublehit2.json"))
+    R["provenance"].append({"stage": "PROC-2 4", "claim": "doble impacto por par vecino, sensibilidad geométrica del MC, dependencia de la etiqueta, fase par/impar", "commit": dh["commit"],
+                            "code": "daq/tools/proceeding/doublehit2.py", "source_file": "work/hd64_may_v8_hits.bin", "status": "measured (pares); estimated (MC)",
+                            "method": SINGLE + "; pares verdaderos por par = mismo evento − mezclados, ÷ unión verdadera de las dos tiras"})
+    for p_ in "XY":
+        for T in (5, 10):
+            sm = dh["pairs"][f"{p_}_T{T}_summary"]
+            res(f"dh_pairs_{p_}_T{T}", f"mayo v8: razón medido/MC por par vecino de {p_}, media pesada", sm["weighted_mean_ratio"], dataset="v8 tiempo bueno", hitdef=SINGLE,
+                threshold=f"{T} p.e.", code="doublehit2.py", commit=dh["commit"], note=f"χ² contra uniforme {sm['chi2_uniform']:.1f}/{sm['ndf']}, rango {sm['min']:.2f}-{sm['max']:.2f}")
+    R["tables"]["proc2_doublehit"] = {"geometry_sensitivity": dh["geometry_sensitivity"], "tag_dependence": dh["tag_dependence"],
+                                      "alternation_phase": {k: v["fit"] for k, v in dh["alternation_phase"]["configs"].items()}}
+if os.path.exists(W + "/trigger_diurnal.json"):
+    td = json.load(open(W + "/trigger_diurnal.json"))
+    R["provenance"].append({"stage": "PROC-2 5", "claim": "tasa del trigger contra la hora del día (v1, v8, v10)", "commit": td["commit"], "code": "daq/tools/proceeding/trigger_diurnal.py",
+                            "source_file": "work/hd64_may_v1/v8/v10_hits.bin (tiempos del trigger)", "status": "measured",
+                            "method": "tasa por hora sin ΔT > 20 s; plegado en hora local UTC−4; ajuste de un coseno"})
+    for run, d in td["runs"].items():
+        c_ = d["cosine"]
+        res(f"diurnal_{run}", f"mayo {run}: amplitud relativa del coseno diario de la tasa del trigger", c_["rel_amplitude"], c_["amplitude_err_Hz"] / c_["a_Hz"], dataset=run,
+            code="trigger_diurnal.py", commit=td["commit"], note=f"máximo a las {c_['phase_local_h']:.1f} ± {c_['phase_err_h']:.1f} h locales; χ² {c_['chi2']:.1f}/{c_['ndf']} (constante "
+                                                             f"{d['chi2_constant']:.1f}/{d['ndf_constant']}); rms/Poisson {d['rms_over_poisson']:.2f}")
+        ser(f"diurnal_{run}", f"mayo {run}: tasa del trigger por hora", "hora UTC (inicio, s)", "Hz", [{"name": run, "x": [r["hour_utc_s"] for r in d["rows"]],
+                                                                                                      "y": [r["rate_Hz"] for r in d["rows"]], "yerr": [r["err_Hz"] for r in d["rows"]]}],
+            source="trigger_diurnal.py")
 json.dump(R, open(OUT + "/results.json", "w"), indent=1, ensure_ascii=False, default=float)
 print("results.json", os.path.getsize(OUT + "/results.json"), "bytes;", len(R["results"]), "resultados;", len(R["series"]), "series")
