@@ -9,6 +9,7 @@
 //   {"cmd":"measure-offsets","seconds":60,"channels":[...]}   solo canales con Pw = 0
 //   {"cmd":"pw","ch":3,"on":true,"authorize":"motivo"} escritura de Pw; requiere allow_commands
 //   {"cmd":"notify-test","ch":11}                     correo de PRUEBA (GAVE_UP sintético)
+//   {"cmd":"nominal-v0set","ch":3,"authorize":"..."}   XPLUS-1: V0Set al nominal registrado, solo con el canal apagado
 // Respuesta: {"ok":true,...} o {"ok":false,"error":"..."}. Las peticiones largas (pw,
 // measure-offsets) se atienden en un hilo propio para no bloquear status/read.
 // CommandHandler::handle() nunca lanza excepciones; CommandServer es el transporte.

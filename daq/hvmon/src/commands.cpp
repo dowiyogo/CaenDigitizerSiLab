@@ -40,7 +40,7 @@ bool CommandHandler::isLong(const std::string& line) {
     const auto j = nlohmann::json::parse(line);
     const std::string cmd = j.value("cmd", "");
     return cmd == "pw" || cmd == "measure-offsets" || cmd == "notify-test" || cmd == "bias-begin" || cmd == "v0set" ||
-           cmd == "bias-restore" || cmd == "notify-summary";
+           cmd == "bias-restore" || cmd == "notify-summary" || cmd == "nominal-v0set";
   } catch (...) {
     return false;
   }
@@ -149,6 +149,18 @@ nlohmann::json CommandHandler::dispatch(const nlohmann::json& req, const PeerCre
     r.requester = describePeer(peer);
     // El rechazo con allow_commands = false lo hace (y lo registra) el hilo de sondeo.
     return forward(std::move(r), 3600.0);
+  }
+  if (cmd == "nominal-v0set") {
+    // XPLUS-1: V0Set al nominal registrado por hvmon con el canal apagado; el valor no viaja en la petición.
+    if (!req.contains("ch") || !req["ch"].is_number_integer()) return error("nominal-v0set: falta \"ch\"");
+    const std::string reason = req.value("authorize", "");
+    if (reason.empty()) return error("nominal-v0set: falta \"authorize\" (motivo de la escritura)");
+    PollRequest r;
+    r.kind = PollRequest::Kind::NominalV0Set;
+    r.ch = req["ch"].get<int>();
+    r.reason = reason;
+    r.requester = describePeer(peer);
+    return forward(std::move(r), 600.0);
   }
   if (cmd == "bias-begin" || cmd == "v0set" || cmd == "bias-restore" || cmd == "bias-status") {
     PollRequest r;

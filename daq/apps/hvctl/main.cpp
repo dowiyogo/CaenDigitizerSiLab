@@ -67,6 +67,7 @@ const char* kUsage =
     "      (DAQ2-14; DAQ2-17: --max-above hasta 1.0 V sobre el nominal, --max-step hasta 0.5 V; sobre el nominal escalón ≤ 0.25 V)\n"
     "  bias set --ch N --value V --authorize \"<motivo>\"   V0Set con límites (≤ nominal + max-above, ≥ nominal − 2 V, escalón ≤ max-step)\n"
     "  bias restore --authorize \"<motivo>\" | bias status   nominal en todos los canales y cierre / estado\n"
+    "  bias nominal --ch N --authorize \"<motivo>\"   XPLUS-1: V0Set al nominal registrado, solo con el canal apagado\n"
     "  notify-summary --text-file F [--kind K]   correo de resumen por el notificador de hvmon\n"
     "Sin hvmon (modo directo, solo lectura):\n"
     "  map                                   mapa del crate\n"
@@ -765,8 +766,16 @@ int cmdBias(const std::string& sock, const Options& o) {
     req = {{"cmd", "v0set"}, {"ch", *ch}, {"value", *o.value}, {"authorize", *o.authorize}};
   } else if (sub == "restore") {
     req = {{"cmd", "bias-restore"}, {"authorize", *o.authorize}};
+  } else if (sub == "nominal") {
+    // XPLUS-1: V0Set de un canal apagado al nominal registrado por hvmon (recuperación tras un corte)
+    auto ch = o.chSpec ? toInt(*o.chSpec) : std::nullopt;
+    if (!ch) {
+      std::fprintf(stderr, "Uso: hvctl bias nominal --ch N --authorize \"<motivo>\"\n");
+      return kExitUsage;
+    }
+    req = {{"cmd", "nominal-v0set"}, {"ch", *ch}, {"authorize", *o.authorize}};
   } else {
-    std::fprintf(stderr, "Uso: hvctl bias begin|set|restore|status ...\n");
+    std::fprintf(stderr, "Uso: hvctl bias begin|set|restore|nominal|status ...\n");
     return kExitUsage;
   }
   auto r = request(sock, req, 3700);

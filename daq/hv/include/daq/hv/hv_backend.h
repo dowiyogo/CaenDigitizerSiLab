@@ -2,7 +2,8 @@
 // Interfaz de acceso a una fuente de HV CAEN. Hay TRES operaciones de escritura en todo el código:
 // setChannelPw() (Pw de un canal a 0 o 1), clearBoardAlarm() (ClrAlarm de la placa, opcional antes
 // de un reintento, fase 2) y, desde DAQ2-14, setChannelV0Set() (solo dentro de una sesión de barrido
-// de tensión de hvmon, con los límites de bias_scan.h). No existe escritura de I0Set, Trip ni de
+// de tensión de hvmon, con los límites de bias_scan.h, y desde XPLUS-1 el nominal registrado con el canal apagado,
+// Poller::handleNominalV0Set). No existe escritura de I0Set, Trip ni de
 // ningún otro parámetro. Las llama solo el hilo de sondeo de hvmon, tras validar allow_commands y la
 // secuencia de docs/daq_v2_design.md, sección 9.2.
 // Seguridad entre hilos: una instancia NO es segura entre hilos; la usa un único hilo dueño

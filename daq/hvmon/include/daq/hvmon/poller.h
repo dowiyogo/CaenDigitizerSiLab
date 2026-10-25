@@ -50,7 +50,8 @@
 namespace daq::hvmon {
 
 struct PollRequest {
-  enum class Kind { Pw, Offsets, BiasBegin, V0Set, BiasRestore, BiasStatus };
+  // NominalV0Set (XPLUS-1): V0Set al nominal registrado por hvmon, solo con el canal apagado (recuperación tras un corte).
+  enum class Kind { Pw, Offsets, BiasBegin, V0Set, BiasRestore, BiasStatus, NominalV0Set };
   Kind kind = Kind::Pw;
   int ch = -1;
   bool on = false;
@@ -128,6 +129,7 @@ class Poller {
   void handlePw(PollRequest& r, SteadyTime now);
   void handleBiasBegin(PollRequest& r);
   void handleV0Set(PollRequest& r, SteadyTime now);
+  void handleNominalV0Set(PollRequest& r, SteadyTime now);
   void handleBiasRestore(PollRequest& r, SteadyTime now);
   void advanceRestore(SteadyTime now);
   void persistBias();

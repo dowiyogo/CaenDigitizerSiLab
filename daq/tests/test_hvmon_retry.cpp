@@ -353,6 +353,29 @@ TEST(HvmonRetry, DisabledChannelTripIsOnlyLogged) {
   EXPECT_EQ(r.st(9), RetryState::Disabled);
   EXPECT_EQ(r.backend.pwWrites(), 0u);
   EXPECT_TRUE(r.path(9).empty());
+  // XPLUS-1: sin reintento, pero el trip sí genera un evento de aviso (uno solo por trip)
+  EXPECT_EQ(r.countEvents("trip", 9), 1);
+  EXPECT_EQ(r.countEvents("gave_up", 9), 0);
+}
+
+// XPLUS-1: con enabled_channels vacío (la configuración real) el trip de un canal se avisa igual, una vez por trip; si el
+// canal se vuelve a encender y dispara otra vez, hay un segundo aviso. Ninguna escritura de hvmon.
+TEST(HvmonRetry, TripEventWithoutAnyAutoRetryChannel) {
+  MemoryFileSystem fs;
+  RRig r(scenario({{{"t_s", 20.0}, {"type", "current"}, {"ch", 8}, {"extra_uA", 20.0}, {"duration_s", 15.0}},
+                   {{"t_s", 150.0}, {"type", "set"}, {"ch", 8}, {"param", "Pw"}, {"value", 1}},  // encendido manual (escritura externa)
+                   {{"t_s", 200.0}, {"type", "current"}, {"ch", 8}, {"extra_uA", 20.0}, {"duration_s", 15.0}}}),
+         nlohmann::json{{"enabled_channels", nlohmann::json::array()}, {"state_file", kStateFile}}, fs);
+  r.runUntil(100s);
+  EXPECT_EQ(r.st(8), RetryState::Disabled);
+  EXPECT_EQ(r.countEvents("trip", 8), 1);
+  r.runUntil(150s);
+  EXPECT_EQ(r.countEvents("trip", 8), 1);  // sigue apagado: sin aviso repetido
+  // encendido manual a t = 150 s (evento "set" del guion) y segundo trip a t = 210 s
+  r.runUntil(300s);
+  EXPECT_EQ(r.countEvents("trip", 8), 2);
+  EXPECT_EQ(r.backend.pwWrites(), 0u);  // hvmon no escribió
+  EXPECT_EQ(r.countEvents("trip", 9), 0);
 }
 
 TEST(HvmonRetry, ResetAfterHoursOfNormal) {

@@ -22,5 +22,7 @@ mkdir -p "$prefix/share/calibration"
 install -m 0644 "$repo"/daq/config/calibration/*.json "$prefix/share/calibration/"
 git -C "$repo" rev-parse HEAD > "$prefix/INSTALLED_COMMIT"
 install -m 0644 "$repo/daq/systemd/hvmon.service" "$HOME/.config/systemd/user/hvmon.service"
+# XPLUS-1: informe de la mañana como unidad de usuario (no se arranca aquí)
+install -m 0644 "$repo/daq/systemd/morning_report.service" "$HOME/.config/systemd/user/morning_report.service"
 systemctl --user daemon-reload
 echo "instalado en $prefix (commit $(cat "$prefix/INSTALLED_COMMIT"))"

@@ -1,0 +1,14 @@
+# morning_report.service — XPLUS-1: espera el fin del barrido de noche y escribe el informe de la mañana (updown_report.py);
+# reemplaza la espera en segundo plano de la sesión interactiva de DAQ2-17. Configuración en ~/.config/daqv2/morning_report.env
+# (SCAN_UNIT, DAY_DIR, NIGHT_DIR, OUT_DIR, DEADLINE_UTC; plantilla daq/config/morning_report.env.example). Se arranca a mano al
+# programar un barrido de noche (systemctl --user start morning_report.service); no hace escrituras de HV ni abre el digitizador.
+[Unit]
+Description=XPLUS-1 informe de la mañana tras el barrido de noche (espera el fin de la unidad del barrido)
+After=hvmon.service
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/daqv2/morning_report.env
+ExecStart=/usr/bin/python3 -I -B /home/xplus/digitizer/CaenDigitizerSiLab-jai/daq/tools/biasscan/morning_report_waiter.py
+RuntimeMaxSec=86400
+Restart=no

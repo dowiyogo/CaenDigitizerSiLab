@@ -295,6 +295,7 @@ void Poller::handleRequest(PollRequest& r, SteadyTime now) {
     case PollRequest::Kind::BiasBegin: handleBiasBegin(r); break;
     case PollRequest::Kind::V0Set: handleV0Set(r, now); break;
     case PollRequest::Kind::BiasRestore: handleBiasRestore(r, now); break;
+    case PollRequest::Kind::NominalV0Set: handleNominalV0Set(r, now); break;
     case PollRequest::Kind::BiasStatus:
       r.reply->set_value(nlohmann::json{{"ok", true}, {"session", bias_.toJson(clock_.now_utc_ns())}, {"restoring", restoring_},
                                         {"pending_steps", restoreSteps_.size()}});
@@ -463,6 +464,74 @@ void Poller::handleV0Set(PollRequest& r, SteadyTime now) {
   a.target = r.value;
   a.v0setBefore = v0->si;
   if (const auto* vm = pre.value().get("VMon", r.ch)) a.vmonBefore = vm->si;
+  active_ = a;
+}
+
+// XPLUS-1 (recuperación tras un corte, autorizada por René): V0Set de un canal apagado al nominal que hvmon registró al empezar
+// la última sesión de barrido (estado persistido). El valor no viene en la petición. Solo sin sesión activa ni restauración,
+// con Pw = 0, sin rampa ni bits de riesgo, y con el nominal entre kNominalMinV y kNominalMaxV. Verificación: la de las
+// escrituras con el canal apagado (Pw = 0 y V0Set releído a match_tol_V del nominal).
+void Poller::handleNominalV0Set(PollRequest& r, SteadyTime now) {
+  CommandRecord rec;
+  rec.id = nextCommandId_++;
+  rec.slot = cfg_.slot;
+  rec.ch = r.ch;
+  rec.param = "V0Set";
+  rec.reason = r.reason;
+  rec.requester = r.requester;
+  rec.tUtcNs = clock_.now_utc_ns();
+  rec.phase = "request";
+  const bool known = bias_.hasNominal(r.ch);
+  rec.valueV = known ? bias_.nominal(r.ch) : 0.0;
+  record(rec);
+  auto finish = [&](const std::string& phase, const std::string& detail, bool ok) {
+    rec.phase = phase;
+    rec.detail = "nominal registrado: " + detail;
+    rec.tUtcNs = clock_.now_utc_ns();
+    record(rec);
+    if (!ok) logWarn("comando ", rec.id, " V0Set nominal CH", r.ch, ": ", phase, ": ", detail);
+    r.reply->set_value(nlohmann::json{{"ok", ok}, {"command_id", rec.id}, {"result", phase}, {"detail", detail}, {"ch", r.ch}, {"value_V", rec.valueV}});
+  };
+  if (!cfg_.allowCommands) return finish("rejected", "escrituras deshabilitadas (allow_commands = false)", false);
+  if (r.reason.empty()) return finish("rejected", "falta authorize", false);
+  if (!contains(cfg_.channels, r.ch) || !contains(bias_.limits().channels, r.ch)) return finish("rejected", "canal fuera de los de la sesión", false);
+  if (!known) return finish("rejected", "no hay nominal registrado para el canal", false);
+  if (rec.valueV < kNominalMinV || rec.valueV > kNominalMaxV) return finish("rejected", "nominal fuera del intervalo admitido", false);
+  if (bias_.active() || restoring_) return finish("rejected", "hay una sesión de barrido o una restauración en curso", false);
+  if (!connected_ || !prevFast_) return finish("rejected", "sin conexión o sin lectura previa", false);
+  if (active_) return finish("rejected", "otro comando en curso (id " + std::to_string(active_->id) + ")", false);
+  auto pre = backend_.readChannels(cfg_.slot, {r.ch}, cfg_.fastParams);
+  if (!pre) {
+    finish("aborted", "la relectura previa falló: " + pre.error().message, false);
+    onReadError(pre.error(), now);
+    return;
+  }
+  const auto* pw = pre.value().get("Pw", r.ch);
+  const auto* st = pre.value().get("Status", r.ch);
+  const auto* v0 = pre.value().get("V0Set", r.ch);
+  if (!pw || !st || !v0) return finish("aborted", "relectura incompleta", false);
+  if (pw->raw != 0u || (st->raw & kRampBits) || (st->raw & kHazardBits)) {
+    char b[112];
+    std::snprintf(b, sizeof b, "el canal debe estar apagado, sin rampa ni bits de riesgo (Pw %u, Status 0x%X)", pw->raw, st->raw);
+    return finish("rejected", b, false);
+  }
+  if (std::fabs(v0->si - rec.valueV) <= bias_.limits().matchTolV) return finish("noop", "V0Set ya es el nominal", true);
+  const double timeoutS = cfg_.verifyMarginS + 30.0;
+  detector_.addPending({rec.id, r.ch, now, now + secondsToNs(timeoutS + cfg_.commandWindowExtraS)});
+  if (auto w = backend_.setChannelV0Set(cfg_.slot, r.ch, rec.valueV); !w) {
+    detector_.setPendingEnd(rec.id, now);
+    return finish("write_failed", w.error().message, false);
+  }
+  rec.phase = "written";
+  rec.detail = "nominal registrado, canal apagado; V0Set antes " + std::to_string(v0->si) + " V";
+  rec.tUtcNs = clock_.now_utc_ns();
+  record(rec);
+  logInfo("comando ", rec.id, ": V0Set CH", r.ch, "=", rec.valueV, " V (nominal, canal apagado) escrito (", r.requester, "): ", r.reason);
+  ActiveCommand a{rec.id, r.ch, false, now + secondsToNs(timeoutS), r.reason, r.requester, r.reply, 0};
+  a.v0set = true;
+  a.offWrite = true;
+  a.target = rec.valueV;
+  a.v0setBefore = v0->si;
   active_ = a;
 }
 

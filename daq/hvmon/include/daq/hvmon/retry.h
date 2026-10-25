@@ -136,6 +136,7 @@ class RetryMachine {
     std::uint64_t episode = 0;
     std::uint64_t token = 0;
     bool gecoWarned = false;
+    bool tripLatched = false;  // XPLUS-1: canal sin reintento con un trip ya avisado (se libera al volver encendido sin trip)
     nlohmann::json timeline = nlohmann::json::array();
     // Persistido (se aplica en la primera lectura)
     RetryState pState = RetryState::Uninit;

@@ -430,3 +430,77 @@ TEST(BiasScanPoller, OffsetDriftOverPointFifteenFromNominalIsAHazardAndRestoreSt
   EXPECT_NEAR(r.v0(0), 65.75, 1e-6);
   EXPECT_FALSE(r.poller.bias().active());
 }
+
+// XPLUS-1: tras un corte de la fuente, el V0Set de un canal apagado vuelve al nominal que hvmon registró en la última sesión
+// (estado persistido, sesión cerrada). Solo con el canal apagado, sin sesión activa y con allow_commands; el valor no viene en
+// la petición.
+namespace {
+nlohmann::json nominalReq(Rig& r, int ch) {
+  PollRequest q;
+  q.kind = PollRequest::Kind::NominalV0Set;
+  q.ch = ch;
+  return r.send(std::move(q));
+}
+void recordNominal(MemoryFileSystem& fs) {
+  Rig r(scenario(), fs);
+  r.run(5s);
+  ASSERT_TRUE(r.begin().value("ok", false));
+  ASSERT_TRUE(r.restore().value("ok", false));  // cierra la sesión: queda el nominal persistido con active = false
+}
+}  // namespace
+
+TEST(BiasScanPoller, NominalV0SetRestoresALostValueOnlyOnAnOffChannel) {
+  MemoryFileSystem fs;
+  recordNominal(fs);
+  auto sc = scenario();
+  sc["slots"][0]["set"]["Pw"] = nlohmann::json{0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0};  // tras el corte: apagados, salvo CH07
+  sc["slots"][0]["set"]["V0Set"][3] = 0.0;                                          // V0Set perdido en CH03
+  sc["slots"][0]["set"]["V0Set"][7] = 10.0;                                         // y en CH07, que está encendido
+  Rig r(sc, fs);
+  EXPECT_FALSE(r.poller.bias().active());
+  r.run(5s);
+  const auto ok = nominalReq(r, 3);
+  EXPECT_TRUE(ok.value("ok", false)) << ok.dump();
+  EXPECT_EQ(ok.value("result", ""), "verified");
+  EXPECT_NEAR(r.v0(3), kNominal.at(3), 1e-6);
+  EXPECT_EQ(r.backend.v0setWrites(), 1u);
+  const auto same = nominalReq(r, 0);  // ya en el nominal
+  EXPECT_TRUE(same.value("ok", false));
+  EXPECT_EQ(same.value("result", ""), "noop");
+  const auto on = nominalReq(r, 7);  // encendido: rechazado, sin escritura
+  EXPECT_FALSE(on.value("ok", true));
+  EXPECT_EQ(on.value("result", ""), "rejected");
+  const auto outside = nominalReq(r, 9);  // canal fuera de la sesión
+  EXPECT_EQ(outside.value("result", ""), "rejected");
+  EXPECT_EQ(r.backend.v0setWrites(), 1u);
+  EXPECT_NEAR(r.v0(7), 10.0, 1e-6);
+}
+
+TEST(BiasScanPoller, NominalV0SetRefusedWithoutRecordWithoutAllowOrDuringSession) {
+  {
+    MemoryFileSystem fs;  // sin nominal registrado
+    auto sc = scenario();
+    sc["slots"][0]["set"]["Pw"] = nlohmann::json{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    Rig r(sc, fs);
+    r.run(5s);
+    EXPECT_EQ(nominalReq(r, 3).value("result", ""), "rejected");
+  }
+  {
+    MemoryFileSystem fs;
+    recordNominal(fs);
+    auto sc = scenario();
+    sc["slots"][0]["set"]["Pw"] = nlohmann::json{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    sc["slots"][0]["set"]["V0Set"][3] = 0.0;
+    Rig r(sc, fs, /*allow=*/false);
+    r.run(5s);
+    EXPECT_EQ(nominalReq(r, 3).value("result", ""), "rejected");
+    EXPECT_EQ(r.backend.v0setWrites(), 0u);
+  }
+  {
+    MemoryFileSystem fs;
+    Rig r(scenario(), fs);
+    r.run(5s);
+    ASSERT_TRUE(r.begin().value("ok", false));  // sesión activa: la restauración del nominal es de la sesión
+    EXPECT_EQ(nominalReq(r, 3).value("result", ""), "rejected");
+  }
+}

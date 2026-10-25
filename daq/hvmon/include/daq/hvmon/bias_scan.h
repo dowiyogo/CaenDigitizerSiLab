@@ -1,5 +1,7 @@
 // bias_scan.h
-// Sesión de barrido de tensión de hvmon (DAQ2-14): la única vía para escribir V0Set.
+// Sesión de barrido de tensión de hvmon (DAQ2-14): la única vía para escribir V0Set, salvo la restauración del nominal
+// registrado con el canal apagado (XPLUS-1, Poller::handleNominalV0Set: nominal de esta sesión persistida, kNominalMinV a
+// kNominalMaxV, sin sesión activa).
 //  - begin(): registra el V0Set nominal de los canales de la sesión (CH00-07) leído de la placa y lo
 //    compara con el esperado (si difiere en más de match_tol_V, no empieza); guarda también el
 //    desvío VMon − V0Set de cada canal al nominal (en la placa real −0.14 a −0.38 V, DAQ2-6), con el
@@ -39,6 +41,9 @@ namespace daq::hvmon {
 inline constexpr double kMaxAboveCapV = 1.0;    // tope fijo de V0Set sobre el nominal (DAQ2-17)
 inline constexpr double kMaxStepAboveV = 0.25;  // escalón máximo con V0Set sobre el nominal (DAQ2-17)
 inline constexpr double kMaxStepCapV = 0.5;     // escalón máximo en cualquier sesión
+// XPLUS-1: intervalo admitido para escribir el nominal registrado con el canal apagado (recuperación tras un corte)
+inline constexpr double kNominalMinV = 55.0;
+inline constexpr double kNominalMaxV = 70.0;
 
 struct BiasLimits {
   std::vector<int> channels{0, 1, 2, 3, 4, 5, 6, 7};
@@ -76,6 +81,7 @@ class BiasSession {
   bool active() const { return active_; }
   bool inSession(int ch) const;
   double nominal(int ch) const { return nominal_.at(ch); }
+  bool hasNominal(int ch) const { return nominal_.count(ch) != 0; }  // XPLUS-1: nominal registrado (sesión activa o no)
   double offset(int ch) const { return offset_.at(ch); }
   const BiasLimits& limits() const { return lim_; }
   nlohmann::json toJson(UtcNs now) const;

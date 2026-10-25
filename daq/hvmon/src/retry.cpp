@@ -285,7 +285,6 @@ RetryOutput RetryMachine::update(const RetryInput& in) {
       initial(c, ch, v, now, out);
       continue;
     }
-    if (c.st == RetryState::Disabled) continue;
     std::string manualWhy;
     bool tripChange = false;
     for (const auto& r : in.changes) {
@@ -293,6 +292,21 @@ RetryOutput RetryMachine::update(const RetryInput& in) {
       if (r.origin == "external" && (r.param == "Pw" || r.param == "V0Set"))
         manualWhy = r.param + " " + r.oldValue.dump() + " -> " + r.newValue.dump();
       if (r.origin == "trip" && r.param == "Pw" && r.newValue == 0) tripChange = true;
+    }
+    if (c.st == RetryState::Disabled) {
+      // XPLUS-1: el aviso de trip no depende de auto_retry.enabled_channels. Un canal sin reintento no escribe nada, pero su
+      // trip genera un evento "trip" (correo si notify_each_trip), una vez por trip: se libera cuando vuelve a estar encendido
+      // sin bit de trip.
+      const bool newTripD = tripChange || (v.pw == 1u && hasTrip(v.status));
+      if (newTripD && !c.tripLatched) {
+        c.tripLatched = true;
+        c.episode = nextEpisode_++;
+        c.timeline = nlohmann::json::array({{{"t_utc_ns", now}, {"t_utc", formatUtcIso(now)}, {"event", "trip"}, {"k", 0}}});
+        event(c, ch, "trip", "trip (canal sin reintento automático)", now, out);
+      } else if (c.tripLatched && v.pw == 1u && !hasTrip(v.status)) {
+        c.tripLatched = false;
+      }
+      continue;
     }
     const bool tripNow = hasTrip(v.status) || tripChange;
     // En RETRY/STABILIZING solo cuenta un trip nuevo: Pw 1 -> 0 con origen trip, o bit de trip con
