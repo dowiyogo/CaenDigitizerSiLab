@@ -2,7 +2,8 @@
 // de sus barras, dada por la tira de referencia de la coordenada ortogonal; dividida por la probabilidad geométrica del MC de barras),
 // cuatro paneles (barras X y barras Y, 5 y 10 p.e.), capas A y B, recta (continua) y exponencial (discontinua) ajustadas. Datos:
 // work/fig_along_bar.json (along_bar.py). Estilo: proc_style.C.
-// Uso: root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_along_bar.C("<fig_along_bar.json>", "<base>")'
+// PROC-4: panels = "" (los cuatro, doble columna) o una lista de índices, p. ej. "1,3" (barras X e Y a 10 p.e., una columna).
+// Uso: root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_along_bar.C("<fig_along_bar.json>", "<base>"[, "1,3"])'
 #include <TF1.h>
 #include <TGraphErrors.h>
 #include <TH1F.h>
@@ -10,19 +11,28 @@
 #include <TLegend.h>
 #include <TPad.h>
 
+#include <algorithm>
 #include <fstream>
+#include <vector>
 #include <string>
 
 #include <nlohmann/json.hpp>
 
-void proc_plot_along_bar(const char* json, const char* base) {
+void proc_plot_along_bar(const char* json, const char* base, const char* panels = "") {
   proc_style();
   std::ifstream in(json);
   auto j = nlohmann::json::parse(in);
-  auto* c = proc_canvas("c_bar", 2, 0.62);
-  c->Divide(2, 2, 0.0, 0.0);
-  int p = 0;
+  std::vector<int> sel;
+  for (const char* q = panels; *q; ++q)
+    if (*q >= '0' && *q <= '9') sel.push_back(*q - '0');
+  const bool two = !sel.empty();
+  auto* c = two ? proc_canvas("c_bar", 1, 1.25) : proc_canvas("c_bar", 2, 0.62);
+  if (two) c->Divide(1, static_cast<int>(sel.size()), 0.0, 0.0);
+  else c->Divide(2, 2, 0.0, 0.0);
+  int p = 0, idx = -1;
   for (const auto& pan : j["panels"]) {
+    ++idx;
+    if (two && std::find(sel.begin(), sel.end(), idx) == sel.end()) continue;
     c->cd(++p);
     gPad->SetLeftMargin(0.15);
     gPad->SetRightMargin(0.03);

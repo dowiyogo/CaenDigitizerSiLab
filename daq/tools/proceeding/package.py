@@ -380,5 +380,16 @@ if os.path.exists(W + "/meiga_ref.json"):
     R["tables"]["proc3_meiga_reference"] = json.load(open(W + "/meiga_ref.json"))
 if os.path.exists(W + "/proc3_status.json"):
     R["tables"]["proc3_status"] = json.load(open(W + "/proc3_status.json"))
+# ---------------------------------------------------------------- XPLUS-1 C.1
+if os.path.exists(W + "/mppc_hit.json"):
+    mh = json.load(open(W + "/mppc_hit.json"))
+    R["provenance"].append({"stage": "XPLUS-1 C.1", "claim": "hipótesis de impacto directo en los MPPC de hod2019", "commit": mh["commit"], "code": "daq/tools/proceeding/mppc_hit.py",
+                            "source_file": "MC; mediciones del run B (h19_xy.py)", "method": mh["assumptions"], "status": "estimated (MC con supuestos)"})
+    for shape, d in mh["per_shape"].items():
+        for k in ("X", "Y", "XY"):
+            res(f"mppc_{shape}_P{k}", f"MC: fracción de triggers que cruza un MPPC ({shape}) de hod2019, {k}", d[f"P_{k}"]["value"], d[f"P_{k}"]["stat"],
+                d[f"P_{k}"]["syst_order"], status="estimated", dataset="MC 1e8, CAD, cos3", code="mppc_hit.py", commit=mh["commit"], note=mh["assumptions"])
+    R["tables"]["xplus1_mppc_hit"] = {"per_shape": mh["per_shape"], "measured": mh["measured"], "z_used_mm": mh["z_used_mm"], "shapes": mh["shapes"],
+                                      "assumptions": mh["assumptions"]}
 json.dump(R, open(OUT + "/results.json", "w"), indent=1, ensure_ascii=False, default=float)
 print("results.json", os.path.getsize(OUT + "/results.json"), "bytes;", len(R["results"]), "resultados;", len(R["series"]), "series")

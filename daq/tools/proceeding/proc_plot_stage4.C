@@ -1,7 +1,8 @@
 // proc_plot_stage4.C — PROC-1 etapa 4: figura amp_spectra_hod2018_pe (espectros de amplitud en p.e. de 4 canales de hod2018
 // elegidos por regla, ventana signal en color y ventana fuera de tiempo en gris; líneas a 5 y 10 p.e.) desde
 // work/fig_stage4.json (stage4.py). Estilo: proc_style.C.
-// Uso: root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_stage4.C("<fig_stage4.json>", "<base>")'
+// PROC-4: chans = "" (los cuatro canales, doble columna) o una lista de canales, p. ej. "13,2" (una columna).
+// Uso: root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_stage4.C("<fig_stage4.json>", "<base>"[, "13,2"])'
 #include <TH1F.h>
 #include <TLatex.h>
 #include <TLegend.h>
@@ -9,13 +10,14 @@
 #include <TPad.h>
 
 #include <fstream>
+#include <sstream>
 #include <map>
 #include <string>
 #include <vector>
 
 #include <nlohmann/json.hpp>
 
-void proc_plot_stage4(const char* json, const char* base) {
+void proc_plot_stage4(const char* json, const char* base, const char* chans = "") {
   proc_style();
   std::ifstream in(json);
   auto j = nlohmann::json::parse(in);
@@ -23,10 +25,27 @@ void proc_plot_stage4(const char* json, const char* base) {
   const int nb = static_cast<int>(edges.size()) - 1;
   const std::map<std::string, std::string> rule{{"G mediana", "median gain"}, {"G mínima", "lowest gain"},
                                                 {"más ruidoso a 5 p.e.", "noisiest at 5 p.e."}, {"Y de ocupación mediana", "Y, median occupancy"}};
-  auto* c = proc_canvas("c_spec", 2, 0.62);
-  c->Divide(2, 2, 0.0, 0.0);
+  std::vector<int> sel;
+  {
+    std::string s(chans), tok;
+    std::stringstream ss(s);
+    while (std::getline(ss, tok, ','))
+      if (!tok.empty()) sel.push_back(std::stoi(tok));
+  }
+  const bool two = !sel.empty();
+  auto* c = two ? proc_canvas("c_spec", 1, 1.25) : proc_canvas("c_spec", 2, 0.62);
+  if (two) c->Divide(1, static_cast<int>(sel.size()), 0.0, 0.0);
+  else c->Divide(2, 2, 0.0, 0.0);
   int p = 0;
-  for (const auto& ch : j["channels"]) {
+  std::vector<nlohmann::json> order;
+  if (two) {
+    for (int want : sel)
+      for (const auto& ch : j["channels"])
+        if (ch["ch"].get<int>() == want) order.push_back(ch);
+  } else {
+    for (const auto& ch : j["channels"]) order.push_back(ch);
+  }
+  for (const auto& ch : order) {
     c->cd(++p);
     gPad->SetLeftMargin(0.15);
     gPad->SetRightMargin(0.03);
