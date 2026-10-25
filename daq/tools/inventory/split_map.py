@@ -17,6 +17,7 @@ REPO, OUT = sys.argv[1], sys.argv[2]
 
 RULES = [
     (r"^daq/tools/orchestrators/", "DAQ", "registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2"),
+    (r"^docs/split/fixtures/", "ANALYSIS", "fixture de la prueba de humo de daq_analysis (XPLUS-3: entradas de xy_fraction desde work/ de PROC)"),
     (r"^docs/split_", "OTHER", "plan de división (XPLUS-2 B): mapa y listas para filter-repo; no entra a ningún repo nuevo"),
     (r"^daq/tools/inventory/", "OTHER", "herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis"),
     (r"^daq/tools/legacy/(hv_readall\.c|test_sy5527\.c|CMakeLists\.txt)$", "LEGACY", "herramienta HV heredada (2026-10-18), reemplazada por hvctl read/params/map; propuesta: attic/ en la división"),

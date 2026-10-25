@@ -167,7 +167,7 @@ daq/apps/sctool/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",186,no,,0
 daq/apps/sctool/main.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2662,no,,0
 daq/cmake/embed_text.cmake,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",597,no,,0
 daq/cmake/git_info.cmake,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",979,no,,0
-daq/config/calibration/pe_calibration_2026_10_c1.json,DAQ,calibración p.e. que daqrun/biasscan leen en tiempo de run,19360,yes,ANALYSIS:daq/tools/characterization/charact_analyse.py; ANALYSIS:daq/tools/characterization/may_common.py; ANALYSIS:daq/tools/characterization/test_xy_estimator.py; ANALYSIS:daq/tools/proceeding/package.py; ANALYSIS:daq/tools/proceeding/stage8.py,1
+daq/config/calibration/pe_calibration_2026_10_c1.json,DAQ,calibración p.e. que daqrun/biasscan leen en tiempo de run,19360,yes,ANALYSIS:daq/tools/characterization/charact_analyse.py; ANALYSIS:daq/tools/characterization/may_common.py; ANALYSIS:daq/tools/characterization/test_xy_estimator.py; ANALYSIS:daq/tools/proceeding/export_xy_fixture.py; ANALYSIS:daq/tools/proceeding/package.py; ANALYSIS:daq/tools/proceeding/stage8.py; ANALYSIS:docs/split/fixtures/xy_estimator_run8_T5.json,1
 daq/config/daqrun.example.json,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",1879,no,,1
 daq/config/fake/README.md,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",1332,no,,0
 daq/config/fake/connection_loss.json,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",104,no,,0
@@ -355,11 +355,11 @@ daq/tools/characterization/charact_gain.C,ANALYSIS,"caracterización: lee crudos
 daq/tools/characterization/charact_plots.C,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",6685,no,,0
 daq/tools/characterization/geom_sensitivity.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",7255,no,,4
 daq/tools/characterization/hitdef_analyse.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",5897,no,,1
-daq/tools/characterization/hitdef_extract.C,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",7563,yes,DAQ:daq/tools/biasscan/biasscan.py,5
-daq/tools/characterization/may_common.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",2351,no,,9
+daq/tools/characterization/hitdef_extract.C,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",7563,yes,DAQ:daq/tools/biasscan/biasscan.py,8
+daq/tools/characterization/may_common.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",2351,no,,10
 daq/tools/characterization/may_inventory.C,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",2592,no,,2
 daq/tools/characterization/test_xy_estimator.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",3041,yes,DAQ:daq/tests/CMakeLists.txt,0
-daq/tools/characterization/xy_estimator.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",4286,yes,DAQ:daq/tools/biasscan/biasscan.py,19
+daq/tools/characterization/xy_estimator.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",4286,yes,DAQ:daq/tools/biasscan/biasscan.py,20
 daq/tools/inventory/host_inventory.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",8279,no,,0
 daq/tools/inventory/may_raw_manifest.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",5329,no,,0
 daq/tools/inventory/secret_scan.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",3687,no,,0
@@ -386,6 +386,7 @@ daq/tools/proceeding/bar_mc.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLU
 daq/tools/proceeding/block_fractions.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",3437,no,,2
 daq/tools/proceeding/doublehit2.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",13765,no,,2
 daq/tools/proceeding/doublehit_confirmed.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",6788,no,,2
+daq/tools/proceeding/export_xy_fixture.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",5957,no,,2
 daq/tools/proceeding/h19_xy.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",7408,no,,2
 daq/tools/proceeding/headline.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",2661,no,,1
 daq/tools/proceeding/manuscript_xy.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",3030,no,,2
@@ -402,7 +403,7 @@ daq/tools/proceeding/proc_plot_stage7.C,ANALYSIS,"paquete del proceeding (PROC-1
 daq/tools/proceeding/proc_style.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",3022,no,,1
 daq/tools/proceeding/sensitive_length.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",6923,no,,2
 daq/tools/proceeding/stage1.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",11866,no,,2
-daq/tools/proceeding/stage2.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",17213,no,,1
+daq/tools/proceeding/stage2.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",17213,no,,4
 daq/tools/proceeding/stage3.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",18635,no,,1
 daq/tools/proceeding/stage4.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",15958,no,,1
 daq/tools/proceeding/stage5.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",8091,no,,2
@@ -445,9 +446,12 @@ docs/monorepo_handoff/manifest_example.json,DOCS,"handoff, notas, cambios de an�
 docs/monorepo_handoff/submodules.txt,DOCS,"handoff, notas, cambios de análisis o reorganización",161,no,,0
 docs/monorepo_handoff/tree_L2.txt,DOCS,"handoff, notas, cambios de análisis o reorganización",1374,no,,0
 docs/notes_for_analysis.md,DOCS,"handoff, notas, cambios de análisis o reorganización",8356,no,,0
-docs/split_map_2026-10-25.csv,OTHER,plan de división (XPLUS-2 B): mapa y listas para filter-repo; no entra a ningún repo nuevo,54504,no,,0
+docs/split/fixtures/xy_estimator_may8good_T5.json,ANALYSIS,fixture de la prueba de humo de daq_analysis (XPLUS-3: entradas de xy_fraction desde work/ de PROC),78441,no,,0
+docs/split/fixtures/xy_estimator_run8_T5.json,ANALYSIS,fixture de la prueba de humo de daq_analysis (XPLUS-3: entradas de xy_fraction desde work/ de PROC),32776,no,,0
+docs/split_map_2026-10-25.csv,OTHER,plan de división (XPLUS-2 B): mapa y listas para filter-repo; no entra a ningún repo nuevo,55252,no,,0
 docs/split_paths_2026-10-25/daq_analysis.paths,OTHER,plan de división (XPLUS-2 B): mapa y listas para filter-repo; no entra a ningún repo nuevo,6270,no,,0
-docs/split_paths_2026-10-25/daqv2.paths,OTHER,plan de división (XPLUS-2 B): mapa y listas para filter-repo; no entra a ningún repo nuevo,7745,no,,0
+docs/split_paths_2026-10-25/daqv2.paths,OTHER,plan de división (XPLUS-2 B): mapa y listas para filter-repo; no entra a ningún repo nuevo,7813,no,,0
+docs/split_plan_addendum_2026-10-25.md,OTHER,plan de división (XPLUS-2 B): mapa y listas para filter-repo; no entra a ningún repo nuevo,10587,no,,0
 example.cxx,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",4336,no,,0
 outputs/_superseded/README.md,RESULTS,resultado versionado (el resto de outputs/ está ignorado),876,no,,0
 outputs/legacy_2025/Ch0_ext_muon_trig.pdf,RESULTS,resultado versionado (el resto de outputs/ está ignorado),67546,no,,0

@@ -102,6 +102,7 @@ daq/tools/proceeding/bar_mc.py
 daq/tools/proceeding/block_fractions.py
 daq/tools/proceeding/doublehit2.py
 daq/tools/proceeding/doublehit_confirmed.py
+daq/tools/proceeding/export_xy_fixture.py
 daq/tools/proceeding/h19_xy.py
 daq/tools/proceeding/headline.py
 daq/tools/proceeding/manuscript_xy.C
@@ -146,6 +147,8 @@ docs/ANALYSIS_CHANGES_2026-10-17.md
 docs/REORG_2026-10-17.md
 docs/handoff_analysis_2026-10-18.md
 docs/notes_for_analysis.md
+docs/split/fixtures/xy_estimator_may8good_T5.json
+docs/split/fixtures/xy_estimator_run8_T5.json
 export_tree.C
 export_tree.h
 final_hodoscope_analysis.cpp
