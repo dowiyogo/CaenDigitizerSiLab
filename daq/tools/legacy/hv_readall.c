@@ -3,7 +3,9 @@
  * de una tarjeta del SY5527 vía CAEN HV Wrapper.
  *
  * Uso:    ./hv_readall <IP> <slot> [usuario] [password]
- *         ./hv_readall 192.168.1.118 3 admin admin
+ *         usuario y password salen de los argumentos o, si faltan, de DAQ_HV_USER y
+ *         DAQ_HV_PASSWORD en el entorno (como hvctl); sin valores por defecto. Preferir el
+ *         entorno: un argumento se ve en ps. Reemplazado por `hvctl read|params --slot 3`.
  * Salida: lista de parámetros del canal 0 con su tipo y unidad, y una tabla
  *         con el valor de cada parámetro en cada canal de la tarjeta.
  *         Numéricos en float (unidades según la tarjeta: V, uA, V/s, s);
@@ -38,8 +40,12 @@ int main(int argc, char **argv)
     }
     const char *ip   = argv[1];
     unsigned short slot = (unsigned short)atoi(argv[2]);
-    const char *user = (argc > 3) ? argv[3] : "admin";
-    const char *pass = (argc > 4) ? argv[4] : "admin";
+    const char *user = (argc > 3) ? argv[3] : getenv("DAQ_HV_USER");
+    const char *pass = (argc > 4) ? argv[4] : getenv("DAQ_HV_PASSWORD");
+    if (!user || !*user || !pass || !*pass) {
+        fprintf(stderr, "Faltan usuario o password: argumentos o DAQ_HV_USER/DAQ_HV_PASSWORD\n");
+        return 1;
+    }
     int handle = -1;
 
     if (CAENHV_InitSystem(SY5527, LINKTYPE_TCPIP, (void *)ip,

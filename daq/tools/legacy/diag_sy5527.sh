@@ -5,6 +5,8 @@
 #        sudo bash diag_sy5527.sh ...              (para ver también el firewall)
 # Salida: todo se muestra en pantalla y se guarda en diag_sy5527_<fecha>.txt
 # No requiere nmap: usa ping, ip, curl y /dev/tcp de bash.
+# El paso 9 (test_sy5527) toma usuario y password de DAQ_HV_USER y DAQ_HV_PASSWORD en el entorno;
+# si faltan, se omite. Este script no los pide ni los imprime.
 
 IP="${1:-192.168.1.117}"
 OUT="diag_sy5527_$(date +%Y%m%d_%H%M%S).txt"
@@ -116,9 +118,11 @@ echo "Header: ${HDR:-no encontrado}"
 
 # ---------------------------------------------------------------
 sec "9. Test de conexión con la Wrapper (test_sy5527.c)"
-if [ -f test_sy5527.c ] && [ -n "$HDR" ] && ldconfig -p | grep -qi caenhv; then
+if [ -z "${DAQ_HV_USER:-}" ] || [ -z "${DAQ_HV_PASSWORD:-}" ]; then
+    echo "Se omite: faltan DAQ_HV_USER o DAQ_HV_PASSWORD en el entorno."
+elif [ -f test_sy5527.c ] && [ -n "$HDR" ] && ldconfig -p | grep -qi caenhv; then
     gcc -Wall -I"$(dirname "$HDR")" test_sy5527.c -o test_sy5527 -lcaenhvwrapper \
-        && ./test_sy5527 "$IP" admin admin
+        && ./test_sy5527 "$IP"
 else
     echo "Se omite: falta test_sy5527.c en este directorio, el header o la librería."
 fi

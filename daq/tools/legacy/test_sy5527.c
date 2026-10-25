@@ -1,6 +1,8 @@
 /* test_sy5527.c
  * Prueba mínima de conexión al SY5527 vía CAEN HV Wrapper (TCP/IP).
  * Uso: ./test_sy5527 <IP> [usuario] [password]
+ *      usuario y password salen de los argumentos o, si faltan, de DAQ_HV_USER y DAQ_HV_PASSWORD
+ *      en el entorno (como hvctl); sin valores por defecto. Reemplazado por `hvctl map`.
  * Salida: código de retorno de la Wrapper y mapa de slots del crate.
  * Compilar: gcc -Wall test_sy5527.c -o test_sy5527 -lcaenhvwrapper
  * Nota: verificar los nombres SY5527 y LINKTYPE_TCPIP en el CAENHVWrapper.h instalado.
@@ -12,9 +14,17 @@
 
 int main(int argc, char **argv)
 {
-    const char *ip   = (argc > 1) ? argv[1] : "192.168.1.117";
-    const char *user = (argc > 2) ? argv[2] : "admin";
-    const char *pass = (argc > 3) ? argv[3] : "admin";
+    if (argc < 2) {
+        fprintf(stderr, "Uso: %s <IP> [usuario] [password]\n", argv[0]);
+        return 1;
+    }
+    const char *ip   = argv[1];
+    const char *user = (argc > 2) ? argv[2] : getenv("DAQ_HV_USER");
+    const char *pass = (argc > 3) ? argv[3] : getenv("DAQ_HV_PASSWORD");
+    if (!user || !*user || !pass || !*pass) {
+        fprintf(stderr, "Faltan usuario o password: argumentos o DAQ_HV_USER/DAQ_HV_PASSWORD\n");
+        return 1;
+    }
     int handle = -1;
 
     /* SY5527: tipo de sistema; con LINKTYPE_TCPIP el argumento es la IP como string */
