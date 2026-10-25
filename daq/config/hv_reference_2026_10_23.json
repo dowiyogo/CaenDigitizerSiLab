@@ -1,7 +1,7 @@
 {
  "schema": "daqv2.hv_reference/1",
  "created_utc": "2026-10-25T18:11:46Z",
- "source": "/data/daq/slowcontrol/2026/hv_full_20261023.csv: lectura completa con t_req 1792790834475869168 (2026-10-23T21:27:14Z, read_seq 10127), la última antes del corte. El archivo tiene otra lectura con el mismo read_seq (t_req 1792770575213837293, 15:49:35Z) porque hvmon se reinició a las 18:41Z y el contador volvió a empezar; esa no se usa.",
+ "source": "/data/daq/slowcontrol/2026/hv_full_20261023.csv (desde 2026-10-25 18:52Z comprimido por hvmon como hv_full_20261023.csv.gz, contenido verificado): lectura completa con t_req 1792790834475869168 (2026-10-23T21:27:14Z, read_seq 10127), la última antes del corte. El archivo tiene otra lectura con el mismo read_seq (t_req 1792770575213837293, 15:49:35Z) porque hvmon se reinició a las 18:41Z y el contador volvió a empezar; esa no se usa.",
  "note_es": "parámetros de ajuste de CH00-07 de referencia para la recuperación tras el corte (XPLUS-1); no incluye Pw ni Status (en esa lectura seis canales ya habían disparado). Tolerancias de comparación en 'tolerance'.",
  "slot": 3,
  "channels": {
