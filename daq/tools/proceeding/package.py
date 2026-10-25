@@ -342,5 +342,43 @@ if os.path.exists(W + "/trigger_diurnal.json"):
         ser(f"diurnal_{run}", f"mayo {run}: tasa del trigger por hora", "hora UTC (inicio, s)", "Hz", [{"name": run, "x": [r["hour_utc_s"] for r in d["rows"]],
                                                                                                       "y": [r["rate_Hz"] for r in d["rows"]], "yerr": [r["err_Hz"] for r in d["rows"]]}],
             source="trigger_diurnal.py")
+# ---------------------------------------------------------------- PROC-3
+if os.path.exists(W + "/block_fractions.json"):
+    bf = json.load(open(W + "/block_fractions.json"))
+    R["provenance"].append({"stage": "PROC-3 1", "claim": "fracción de triggers que cruza bloques de barras completos", "commit": bf["commit"], "code": "daq/tools/proceeding/block_fractions.py",
+                            "source_file": "ninguno (MC)", "method": "bench_mc, CAD, cos3, 1e8 rayos; dentro del bloque en las dos capas", "status": "estimated"})
+    for st, d in bf["stations"].items():
+        for k, v in d.items():
+            res(f"block_{st}_{k}", f"MC: fracción de triggers que cruza ({k}) de {st}", v["value"], v["stat"], v["syst_order"], status="estimated", dataset="MC 1e8, CAD, cos3",
+                code="block_fractions.py", commit=bf["commit"], note="syst = mitad de la diferencia entre los dos órdenes de bloque")
+if os.path.exists(W + "/sensitive_length.json"):
+    sl = json.load(open(W + "/sensitive_length.json"))
+    R["provenance"].append({"stage": "PROC-3 2", "claim": "modelo de longitud sensible de hod2019", "commit": sl["commit"], "code": "daq/tools/proceeding/sensitive_length.py",
+                            "source_file": "MC; mediciones del run B (h19_xy.py)", "method": sl["assumptions"], "status": "estimated (modelo)"})
+    for thr, d in sl["comparison"].items():
+        res(f"sensL_{thr}_LX", f"modelo: L que reproduce rX de hod2019 a {thr}", d["L_X_mm"], unit="mm", status="estimated", code="sensitive_length.py", commit=sl["commit"],
+            note=sl["assumptions"])
+        res(f"sensL_{thr}_LY", f"modelo: L que reproduce rY de hod2019 a {thr}", d["L_Y_mm"], unit="mm", status="estimated", code="sensitive_length.py", commit=sl["commit"])
+        res(f"sensL_{thr}_NXY", f"modelo: X·Y predichas en el run B a {thr}", d["predicted_N_XY"], syst={"range": d["predicted_range"]}, status="estimated",
+            code="sensitive_length.py", commit=sl["commit"], note=f"observadas {d['measured']['N_XY']} ({d['measured']['N_XY_note']})")
+    ser("sensL_curves", "modelo de longitud sensible: P(X), P(Y), P(X∧Y) por trigger contra L", "L (mm)", "probabilidad", [
+        {"name": n, "x": [r["L_mm"] for r in sl["table"]], "y": [r[k] for r in sl["table"]], "yerr": None} for n, k in (("P(X)", "PX"), ("P(Y)", "PY"), ("P(X∧Y)", "PXY"))],
+        status="estimated", source="sensitive_length.py")
+if os.path.exists(W + "/doublehit_confirmed.json"):
+    dc = json.load(open(W + "/doublehit_confirmed.json"))
+    R["provenance"].append({"stage": "PROC-3 3", "claim": "doble impacto sin los pares de unión derivada", "commit": dc["commit"], "code": "daq/tools/proceeding/doublehit_confirmed.py",
+                            "source_file": "work/hd64_may_v8_hits.bin, work/hd64_oct8_hits.bin", "method": "definición de stage5.py con los pares confirmados; el MC excluye los mismos",
+                            "status": "measured (f2); estimated (÷ MC)"})
+    for key, d in dc["data"].items():
+        for p_ in "XY":
+            for r in d[p_]["rows"]:
+                if r["T"] in (5, 8, 10, 12):
+                    res(f"f2conf_{key}_{p_}_T{r['T']}", f"{d['label']}: doble impacto con pares confirmados, {p_}", r["confirmed"], r["confirmed_err"], dataset=d["label"], hitdef=SINGLE,
+                        threshold=f"{r['T']} p.e.", code="doublehit_confirmed.py", commit=dc["commit"],
+                        note=f"todos los pares {r['all']:.4f}; medido/MC confirmados {r['ratio_conf_cut0.0']:.3f} ± {r['ratio_conf_cut0.0_err']:.3f}, todos {r['ratio_all_cut0.0']:.3f}")
+if os.path.exists(W + "/meiga_ref.json"):
+    R["tables"]["proc3_meiga_reference"] = json.load(open(W + "/meiga_ref.json"))
+if os.path.exists(W + "/proc3_status.json"):
+    R["tables"]["proc3_status"] = json.load(open(W + "/proc3_status.json"))
 json.dump(R, open(OUT + "/results.json", "w"), indent=1, ensure_ascii=False, default=float)
 print("results.json", os.path.getsize(OUT + "/results.json"), "bytes;", len(R["results"]), "resultados;", len(R["series"]), "series")

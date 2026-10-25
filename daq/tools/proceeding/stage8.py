@@ -118,7 +118,12 @@ python3 -I -B daq/tools/proceeding/along_bar.py $P 30000000
 python3 -I -B daq/tools/proceeding/h19_xy.py $P
 python3 -I -B daq/tools/proceeding/doublehit2.py $P 10000000
 python3 -I -B daq/tools/proceeding/trigger_diurnal.py $P
+# PROC-3 (versión 3)
+python3 -I -B daq/tools/proceeding/block_fractions.py $P 100000000
+python3 -I -B daq/tools/proceeding/sensitive_length.py $P 100000000
+python3 -I -B daq/tools/proceeding/doublehit_confirmed.py $P 30000000
 python3 -I -B daq/tools/proceeding/stage8.py $P
+root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_sensitive_length.C("$P/work/fig_sensitive_length.json","$P/figs/sensitive_length_hod2019")'
 # figuras
 root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_eff.C("$P/work/fig_eff.json","$P/figs/eff_vs_threshold")'
 root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_stage3.C("$P/work/fig_stage3.json","$P/figs")'
@@ -148,7 +153,7 @@ print("handover:", len(files), "archivos; crudos", len(raw_lines), "; sin índic
 heavy = sorted(p for p in glob.glob(W + "/**", recursive=True) if os.path.isfile(p) and os.path.getsize(p) > 1_000_000)
 open(OUT + "/SHA256SUMS", "w").write("".join(f"{sha(p)}  {os.path.relpath(p, OUT)}\n" for p in heavy))
 commits = subprocess.run(["git", "-C", REPO, "log", "--format=%h %s", "8027437^..HEAD"], capture_output=True, text=True).stdout.strip().splitlines()
-manifest = {"module": "proceeding", "tag": "proceeding_2026_10", "task": "PROC-1 + PROC-2", "package_version": 2, "generated_utc": S["generated_utc"],
+manifest = {"module": "proceeding", "tag": "proceeding_2026_10", "task": "PROC-1 + PROC-2 + PROC-3", "package_version": 3, "generated_utc": S["generated_utc"],
             "repo": {"name": "CaenDigitizerSiLab-jai", "branch": branch, "commit": git_full, "proc1_commits": commits},
             "dependencies": {"ROOT": "6.32.10 (~/root6)", "python": platform.python_version(), "numpy": np.__version__,
                              "nlohmann_json": "sistema (/usr/include/nlohmann)", "analysis/bin/poisson_analysis": "binario del repositorio, sin cambios"},
@@ -164,7 +169,7 @@ manifest = {"module": "proceeding", "tag": "proceeding_2026_10", "task": "PROC-1
             "heavy_files": "SHA256SUMS (archivos de work/ de más de 1 MB)", "handover": "handover/ (MANIFEST.sha256)"}
 json.dump(manifest, open(OUT + "/manifest.json", "w"), indent=1, ensure_ascii=False)
 idx = REPO + "/outputs/INDEX.md"
-line = (f"- `proceeding_2026_10/` — PROC-1 + PROC-2 (versión 2: aceptancia del CAD, g = 0.980), paquete del proceeding de Muographers 2026 (JAIS): "
+line = (f"- `proceeding_2026_10/` — PROC-1 + PROC-2 + PROC-3 (versión 3; aceptancia del CAD, g = 0.980), paquete del proceeding de Muographers 2026 (JAIS): "
         f"mayo v8 y octubre, figuras, tablas, results.json; rama {branch}, commit {git}, {S['generated_utc'][:10]}\n")
 old = open(idx).read() if os.path.exists(idx) else "# Índice de outputs/\n\n"
 keep = [l for l in old.splitlines(keepends=True) if not l.startswith("- `proceeding_2026_10/`")]  # la línea de este paquete se reemplaza

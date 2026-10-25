@@ -51,7 +51,7 @@ void proc_plot_eff(const char* json, const char* base) {
       band->SetFillColorAlpha(proc::grey(), 0.35);
       band->SetLineColor(0);
       band->Draw("E3 SAME");
-      lg->AddEntry(band, Form("MC acceptance #pm%.1f%%", 100 * rel), "f");
+      lg->AddEntry(band, "acceptance uncertainty (May v8)", "f");  // PROC-3: la banda va solo sobre mayo; su valor (rel) va en el pie
     }
     gs->SetFillStyle(0);
     gs->SetLineColor(col);
