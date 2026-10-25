@@ -1,0 +1,456 @@
+path,class,reason,size_bytes,used_by_other_class,other_class_users,n_same_class_users
+.directory,OTHER,metadatos del repositorio / del gestor de archivos,123,no,,0
+.gitignore,OTHER,metadatos del repositorio / del gestor de archivos,548,no,,0
+AGENTS.md,DOCS,"registro del DAQ antiguo, de los runs v1-v10 y del análisis",12030,no,,0
+CLAUDE.md,DAQ,"reglas del host y del DAQ v2; al dividir, sus secciones de análisis pasan a DOCS de daq_analysis/",19195,no,,0
+CaenDigitizerSiLab.cxx,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",43098,no,,0
+CaenDigitizerSiLab.h,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",12877,no,,9
+LinkDef.h,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",191,no,,0
+Makefile,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",2339,no,,0
+README.md,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",402,no,,0
+analysis/Makefile,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,2023,no,,0
+analysis/baseline_paths/COMMANDS.txt,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",670,no,,0
+analysis/baseline_paths/after_env/active_channels_windowed_summary.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10080,no,,0
+analysis/baseline_paths/after_env/candidate_events_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",8636471,no,,0
+analysis/baseline_paths/after_env/event_multiplicity_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",5452886,no,,0
+analysis/baseline_paths/after_env/hod2018_amplitude.txt,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10520,no,,0
+analysis/baseline_paths/after_env/scan_windowed.stdout,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",13348,no,,0
+analysis/baseline_paths/after_link/active_channels_windowed_summary.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10080,no,,0
+analysis/baseline_paths/after_link/candidate_events_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",8636471,no,,0
+analysis/baseline_paths/after_link/event_multiplicity_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",5452886,no,,0
+analysis/baseline_paths/after_link/hod2018_amplitude.txt,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10520,no,,0
+analysis/baseline_paths/after_link/scan_windowed.stdout,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",13312,no,,0
+analysis/baseline_paths/fixed/active_channels_windowed_summary.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10080,no,,0
+analysis/baseline_paths/fixed/candidate_events_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",8636471,no,,0
+analysis/baseline_paths/fixed/event_multiplicity_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",5452886,no,,0
+analysis/baseline_paths/fixed/hod2018_amplitude.txt,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10520,no,,0
+analysis/baseline_paths/fixed/scan_windowed.stdout,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",13312,no,,0
+analysis/baseline_paths/fixed2/active_channels_windowed_summary.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10080,no,,0
+analysis/baseline_paths/fixed2/candidate_events_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",8636471,no,,0
+analysis/baseline_paths/fixed2/event_multiplicity_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",5452886,no,,0
+analysis/baseline_paths/fixed2/hod2018_amplitude.txt,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10520,no,,0
+analysis/baseline_paths/fixed2/scan_windowed.stdout,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",13312,no,,0
+analysis/baseline_paths/run1/active_channels_windowed_summary.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10080,no,,0
+analysis/baseline_paths/run1/candidate_events_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",8636471,no,,0
+analysis/baseline_paths/run1/event_multiplicity_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",5452886,no,,0
+analysis/baseline_paths/run1/hod2018_amplitude.txt,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10520,no,,0
+analysis/baseline_paths/run1/scan_windowed.stdout,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",13312,no,,0
+analysis/baseline_paths/run2/active_channels_windowed_summary.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10080,no,,0
+analysis/baseline_paths/run2/candidate_events_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",8636471,no,,0
+analysis/baseline_paths/run2/event_multiplicity_windowed.csv,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",5452886,no,,0
+analysis/baseline_paths/run2/hod2018_amplitude.txt,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",10520,no,,0
+analysis/baseline_paths/run2/scan_windowed.stdout,RESULTS,"salidas de análisis versionadas (CSV de referencia de rutas, 2026-10-17)",13312,no,,0
+analysis/macros/Ch0_ext_muon_trig.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,3546035,no,,0
+analysis/macros/baseline_scan.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,19474,no,,0
+analysis/macros/channel_alive_step1.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,12888,no,,0
+analysis/macros/check_hod2019_w2.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,1182,no,,0
+analysis/macros/compare_ch0_q.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,2841,no,,0
+analysis/macros/dark_pulse_rates_step5.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,5865,no,,0
+analysis/macros/export_tree.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,2215,no,,0
+analysis/macros/export_tree.h,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,5857,no,,1
+analysis/macros/gen_beamer_figs.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,31812,no,,2
+analysis/macros/get_charge.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,2917,no,,0
+analysis/macros/get_charge_minfix.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,2539,no,,0
+analysis/macros/get_pictures.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,352,no,,0
+analysis/macros/hod2018_amplitude.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,18816,no,,0
+analysis/macros/hod2018_analysis_fix14.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,34983,no,,0
+analysis/macros/hod2018_analysis_step1_3.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,28805,no,,0
+analysis/macros/hod2018_channel_coinc_fraction.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,21653,no,,0
+analysis/macros/hod2018_channel_coinc_fraction_v2.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,28499,no,,0
+analysis/macros/hod2018_diag_fix17.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,18735,no,,0
+analysis/macros/hod2018_diag_fix18.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,19476,no,,0
+analysis/macros/hod2018_good_time_step2.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,13377,no,,2
+analysis/macros/hod2018_pe_scale.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,9288,no,,0
+analysis/macros/hod2018_pe_scan_step3.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,11009,no,,0
+analysis/macros/hod2018_threshold_scan.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,8809,no,,0
+analysis/macros/hod2019_lowthr_step1.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,15251,no,,0
+analysis/macros/hod2019_xy_scan.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,12923,no,,0
+analysis/macros/hod_channel_correlations.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,21088,no,,0
+analysis/macros/hod_hit_structure.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,19002,no,,0
+analysis/macros/hv_diag3_gain_vs_time.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,25583,no,,0
+analysis/macros/hv_diag3_pretrip.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,23774,no,,0
+analysis/macros/hv_diag4.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,29605,no,,0
+analysis/macros/hv_diag5_episodes.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,22972,no,,0
+analysis/macros/muon_timing_scan.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,4519,no,,0
+analysis/macros/myclas.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,7155,no,,0
+analysis/macros/myclas.h,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,4800,no,,1
+analysis/macros/myclass.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,5842,no,,0
+analysis/macros/myclass.h,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,4917,no,,1
+analysis/macros/odata_reader.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,10008,no,,0
+analysis/macros/odata_reader.h,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,6345,no,,1
+analysis/macros/pe_scale_step2.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,14550,no,,0
+analysis/macros/plot_hv_imon_day.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,783,no,,0
+analysis/macros/proceeding_figs_v2.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,21169,no,,0
+analysis/macros/process_data.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,3293,no,,0
+analysis/macros/pulse_shape.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,13084,no,,0
+analysis/macros/test_peaks_hod2019.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,2503,no,,0
+analysis/macros/time_dependence_step4.C,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,7821,no,,0
+analysis/python/geom_acceptance.py,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,11783,no,,4
+analysis/scripts/hv_diag6_shape.py,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,10986,no,,0
+analysis/scripts/run_channel_health_analysis.sh,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,793,no,,0
+analysis/scripts/run_channel_health_refit.sh,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,808,no,,0
+analysis/scripts/run_compare_hv_runs.sh,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,489,no,,1
+analysis/scripts/run_final_hod2018_analysis_v4.sh,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,433,no,,1
+analysis/scripts/run_reconstruct_tracks_interleaved.sh,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,602,no,,0
+analysis/scripts/run_reconstruct_tracks_interleaved_v7_corrected_mapping.sh,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,568,no,,0
+analysis/scripts/run_spe_gain_analysis.sh,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,755,no,,0
+analysis/src/analyze_highgain.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,39518,no,,0
+analysis/src/analyze_hod2018.cpp,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,11296,no,,0
+analysis/src/analyze_independent.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,56181,no,,0
+analysis/src/channel_health_analysis.cpp,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,33636,no,,0
+analysis/src/channel_health_refit.cpp,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,12848,no,,0
+analysis/src/charge_analysis.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,41434,no,,0
+analysis/src/compare_hv_runs.cpp,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,47059,no,,0
+analysis/src/final_hodoscope_analysis.cpp,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,43434,no,,0
+analysis/src/hodo_consts.h,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,1520,no,,7
+analysis/src/hodo_mapping.h,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,6021,no,,14
+analysis/src/hodo_mapping_json.h,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,2935,no,,1
+analysis/src/hodo_paths.h,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,3940,yes,DAQ:daq/dig/src/replay_digitizer.cpp; DAQ:daq/tests/test_root_io.cpp; DAQ:daq/tools/validation/validate_replay_v8.C,24
+analysis/src/infer_mapping.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,39021,no,,0
+analysis/src/multirun_analysis.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,31851,no,,0
+analysis/src/plot_hod2018_results.cpp,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,20375,no,,0
+analysis/src/poisson_analysis.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,29153,no,,2
+analysis/src/reconstruct_corrected.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,38040,no,,0
+analysis/src/reconstruct_cosmic_tracks.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,30804,no,,0
+analysis/src/reconstruct_tracks_interleaved.cpp,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,20915,no,,0
+analysis/src/reconstruct_v8.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,36184,no,,0
+analysis/src/reconstruct_v8b.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,33309,no,,0
+analysis/src/scan_active_channels.cpp,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,12373,no,,0
+analysis/src/scan_active_channels_windowed.cpp,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,18491,no,,0
+analysis/src/spe_gain_analysis.cpp,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,15998,no,,0
+analysis/src/tagprobe_analysis.cxx,ANALYSIS,análisis C++/ROOT y scripts de v1-v10,33278,no,,0
+attic/README.md,LEGACY,attic: código o copias retiradas,574,no,,0
+attic/daq_legacy/CAENGECO2020SubscrFail_System.log,LEGACY,attic: código o copias retiradas,240,no,,0
+attic/daq_legacy/Makefile.back,LEGACY,attic: código o copias retiradas,1323,no,,0
+attic/daq_legacy/orlando.cc,LEGACY,attic: código o copias retiradas,10312,no,,0
+attic/daq_legacy/rda.cxx,LEGACY,attic: código o copias retiradas,911,no,,0
+config.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",542,no,,0
+config_commissioning/config_vx1740_a4818.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",812,no,,0
+config_commissioning/config_vx1740_a4818_generic.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",783,no,,0
+config_commissioning/config_vx1740_a4818_link0.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",209,no,,0
+config_commissioning/config_vx1740_a4818_link1.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",209,no,,0
+config_commissioning/config_vx1740_a4818_v2718.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",766,no,,0
+config_commissioning/config_vx1740_a4818_v3718.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",766,no,,0
+config_commissioning/config_vx1740_a4818_v4718.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",766,no,,0
+config_commissioning/config_vx1740_swtrigger.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",212,no,,1
+config_commissioning/tmp_ext_nim_20.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",265,no,,0
+config_commissioning/tmp_ext_nim_rate.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",271,no,,0
+config_commissioning/tmp_open.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",213,no,,0
+config_vx1740_autotrigger_hod2019_ch32_63.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",863,no,,0
+config_vx1740_autotrigger_or.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",484,no,,1
+config_vx1740_ext_nim.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",563,no,,1
+config_vx1740_ext_nim_1000000.conf,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",622,no,,0
+configuration.C,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",3754,no,,0
+configuration.h,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",1046,no,,7
+daq/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",4110,no,,0
+daq/README.md,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",14451,no,,0
+daq/apps/daqcampaign/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",162,no,,0
+daq/apps/daqcampaign/main.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2843,no,,0
+daq/apps/daqoffline/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",403,no,,0
+daq/apps/daqoffline/main.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",18745,no,,0
+daq/apps/daqrun/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1289,no,,0
+daq/apps/daqrun/dash.html,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",6376,no,,0
+daq/apps/daqrun/http_page.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",6970,no,,3
+daq/apps/daqrun/http_page.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2031,no,,2
+daq/apps/daqrun/main.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",24945,no,,0
+daq/apps/daqrun/mapping.html,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",14635,no,,0
+daq/apps/digprobe/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",219,no,,0
+daq/apps/digprobe/main.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5343,no,,0
+daq/apps/hvctl/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",126,no,,0
+daq/apps/hvctl/main.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",38348,no,,0
+daq/apps/hvmon/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1283,no,,0
+daq/apps/hvmon/dash.html,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5725,no,,0
+daq/apps/hvmon/http_page.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",8255,no,,3
+daq/apps/hvmon/http_page.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2857,no,,2
+daq/apps/hvmon/main.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",13134,no,,0
+daq/apps/sctool/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",186,no,,0
+daq/apps/sctool/main.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2662,no,,0
+daq/cmake/embed_text.cmake,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",597,no,,0
+daq/cmake/git_info.cmake,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",979,no,,0
+daq/config/calibration/pe_calibration_2026_10_c1.json,DAQ,calibración p.e. que daqrun/biasscan leen en tiempo de run,19360,yes,ANALYSIS:daq/tools/characterization/charact_analyse.py; ANALYSIS:daq/tools/characterization/may_common.py; ANALYSIS:daq/tools/characterization/test_xy_estimator.py; ANALYSIS:daq/tools/proceeding/package.py; ANALYSIS:daq/tools/proceeding/stage8.py,1
+daq/config/daqrun.example.json,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",1879,no,,1
+daq/config/fake/README.md,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",1332,no,,0
+daq/config/fake/connection_loss.json,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",104,no,,0
+daq/config/fake/dig_synthetic_default.json,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",590,no,,3
+daq/config/fake/trip_ch2.json,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",206,no,,0
+daq/config/hv_reference_2026_10_23.json,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",3311,no,,1
+daq/config/hvctl.example.json,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",367,no,,0
+daq/config/hvmon.example.json,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",1577,no,,0
+daq/config/mapping/hodo_mapping_2026_10.json,DAQ,mapeo de canales que daqrun/hvmon leen en tiempo de run,26155,yes,ANALYSIS:daq/tools/validation/commissioning_hv_period.C; ANALYSIS:daq/tools/validation/commissioning_hv_vs_rate.C,10
+daq/config/mapping/hodo_mapping_2026_10_r2.json,DAQ,mapeo de canales que daqrun/hvmon leen en tiempo de run,45328,no,,1
+daq/config/mapping/hodo_mapping_2026_10_r3.json,DAQ,mapeo de canales que daqrun/hvmon leen en tiempo de run,125463,yes,ANALYSIS:analysis/src/hodo_mapping_json.h,3
+daq/config/mapping/hodo_mapping_2026_10_r4.json,DAQ,mapeo de canales que daqrun/hvmon leen en tiempo de run,128307,yes,ANALYSIS:daq/tools/biasscan/biasscan_report.py; ANALYSIS:daq/tools/biasscan/updown_report.py; ANALYSIS:daq/tools/characterization/charact_analyse.py; ANALYSIS:daq/tools/proceeding/stage1.py; ANALYSIS:daq/tools/proceeding/stage3.py; ANALYSIS:daq/tools/proceeding/stage7.py,2
+daq/config/morning_report.env.example,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",460,no,,0
+daq/config/secrets.env.example,DAQ,"configuración del DAQ v2 (ejemplos, guiones de los fakes, referencia HV)",486,no,,0
+daq/core/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",527,no,,0
+daq/core/include/daq/core/bounded_queue.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",4073,no,,9
+daq/core/include/daq/core/clock.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1832,no,,32
+daq/core/include/daq/core/file_system.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3955,no,,19
+daq/core/include/daq/core/gzip.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2095,no,,8
+daq/core/include/daq/core/instance_lock.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1437,no,,6
+daq/core/include/daq/core/jthread.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",6482,no,,12
+daq/core/include/daq/core/logger.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2072,no,,21
+daq/core/include/daq/core/result.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1356,no,,29
+daq/core/include/daq/core/secrets.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2150,no,,7
+daq/core/include/daq/core/sha256.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1127,no,,7
+daq/core/include/daq/core/snapshot.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",960,no,,4
+daq/core/include/daq/core/spawn.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1283,no,,6
+daq/core/include/daq/core/time.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1405,no,,23
+daq/core/include/daq/core/units.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1969,no,,2
+daq/core/include/daq/core/unix_socket.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2213,no,,6
+daq/core/include/daq/gain_fit.h,DAQ,"encabezado compartido del núcleo (header-only, sin ROOT), usado por daqrun y por el análisis",5990,yes,ANALYSIS:daq/tools/characterization/charact_gain.C; ANALYSIS:daq/tools/characterization/hitdef_extract.C; ANALYSIS:daq/tools/validation/commissioning_pe_calibration.C,2
+daq/core/include/daq/pulse_finder.h,DAQ,"encabezado compartido del núcleo (header-only, sin ROOT), usado por daqrun y por el análisis",3794,yes,ANALYSIS:daq/tools/characterization/charact_extract.C; ANALYSIS:daq/tools/characterization/charact_gain.C; ANALYSIS:daq/tools/characterization/hitdef_extract.C; ANALYSIS:daq/tools/proceeding/timing_extract.C; ANALYSIS:daq/tools/validation/commissioning_ext_runs.C; ANALYSIS:daq/tools/validation/commissioning_group_toggle.C; ANALYSIS:daq/tools/validation/commissioning_group_toggle2.C; ANALYSIS:daq/tools/validation/commissioning_hv_vs_rate.C; ANALYSIS:daq/tools/validation/commissioning_muon.C; ANALYSIS:daq/tools/validation/commissioning_neighbours.C; ANALYSIS:daq/tools/validation/commissioning_pe_calibration.C; ANALYSIS:daq/tools/validation/commissioning_pe_preview.C; ANALYSIS:daq/tools/validation/commissioning_pedestal.C; ANALYSIS:daq/tools/validation/selftrig_check.C; ANALYSIS:daq/tools/validation/selftrig_muon.C; ANALYSIS:daq/tools/validation/selftrig_noise.C,4
+daq/core/include/daq/trigger_interval_stats.h,DAQ,"encabezado compartido del núcleo (header-only, sin ROOT), usado por daqrun y por el análisis",7252,yes,ANALYSIS:daq/tools/validation/commissioning_ext_runs.C; ANALYSIS:daq/tools/validation/commissioning_group_toggle.C; ANALYSIS:daq/tools/validation/commissioning_group_toggle2.C; ANALYSIS:daq/tools/validation/commissioning_timing.C,3
+daq/core/include/daq/ttt.h,DAQ,"encabezado compartido del núcleo (header-only, sin ROOT), usado por daqrun y por el análisis",3019,no,,3
+daq/core/src/clock.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",964,no,,32
+daq/core/src/file_system.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",9205,no,,19
+daq/core/src/gzip.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5131,no,,8
+daq/core/src/instance_lock.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2051,no,,6
+daq/core/src/logger.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2045,no,,21
+daq/core/src/secrets.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",4218,no,,7
+daq/core/src/sha256.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",4637,no,,7
+daq/core/src/spawn.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3106,no,,6
+daq/core/src/stop_token.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1979,no,,1
+daq/core/src/time.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2193,no,,23
+daq/core/src/unix_socket.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5286,no,,6
+daq/daqrun/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",475,no,,0
+daq/daqrun/include/daq/daqrun/calibration.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1258,no,,7
+daq/daqrun/include/daq/daqrun/campaign.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3160,no,,6
+daq/daqrun/include/daq/daqrun/config.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5726,no,,13
+daq/daqrun/include/daq/daqrun/dash.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2257,no,,3
+daq/daqrun/include/daq/daqrun/data_flags.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5469,no,,6
+daq/daqrun/include/daq/daqrun/hv_client.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",14058,no,,12
+daq/daqrun/include/daq/daqrun/monitor.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3792,no,,9
+daq/daqrun/include/daq/daqrun/notes.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",637,no,,3
+daq/daqrun/include/daq/daqrun/panels.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",7040,no,,5
+daq/daqrun/include/daq/daqrun/self_trigger.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1104,no,,3
+daq/daqrun/src/calibration.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1932,no,,7
+daq/daqrun/src/campaign.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",10891,no,,6
+daq/daqrun/src/config.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",13198,no,,12
+daq/daqrun/src/dash.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",6805,no,,3
+daq/daqrun/src/data_flags.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",14066,no,,6
+daq/daqrun/src/hv_client.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",26686,no,,12
+daq/daqrun/src/monitor.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5694,no,,9
+daq/daqrun/src/notes.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2063,no,,3
+daq/daqrun/src/panels.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",17371,no,,5
+daq/daqrun/src/self_trigger.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3025,no,,3
+daq/dig/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1097,no,,0
+daq/dig/include/daq/dig/caen_digitizer.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3014,no,,3
+daq/dig/include/daq/dig/digitizer.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",7448,no,,11
+daq/dig/include/daq/dig/fake_digitizer.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",4441,no,,6
+daq/dig/include/daq/dig/readout.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2915,no,,3
+daq/dig/include/daq/dig/replay_digitizer.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3241,no,,3
+daq/dig/include/daq/dig/x740_raw.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1924,no,,3
+daq/dig/src/caen_digitizer.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",18376,no,,3
+daq/dig/src/digitizer.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",9776,no,,11
+daq/dig/src/fake_digitizer.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",14379,no,,6
+daq/dig/src/readout.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5426,no,,3
+daq/dig/src/replay_digitizer.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",6619,no,,3
+daq/dig/src/x740_raw.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5864,no,,3
+daq/hv/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",663,no,,0
+daq/hv/include/daq/hv/caen_hv_backend.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3063,no,,3
+daq/hv/include/daq/hv/credentials.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1312,no,,7
+daq/hv/include/daq/hv/fake_hv_backend.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",6635,no,,10
+daq/hv/include/daq/hv/hv_backend.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2504,no,,3
+daq/hv/include/daq/hv/hv_types.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3748,no,,7
+daq/hv/include/daq/hv/reading_json.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1160,no,,8
+daq/hv/include/daq/hv/status_bits.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1544,no,,9
+daq/hv/src/caen_hv_backend.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",16411,no,,3
+daq/hv/src/credentials.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2996,no,,7
+daq/hv/src/fake_hv_backend.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",20220,no,,10
+daq/hv/src/hv_types.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3164,no,,7
+daq/hv/src/reading_json.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3859,no,,8
+daq/hv/src/status_bits.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2197,no,,9
+daq/hvmon/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",586,no,,0
+daq/hvmon/include/daq/hvmon/bias_scan.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5943,no,,3
+daq/hvmon/include/daq/hvmon/change_detector.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1908,no,,2
+daq/hvmon/include/daq/hvmon/commands.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3056,no,,3
+daq/hvmon/include/daq/hvmon/compressor.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1623,no,,3
+daq/hvmon/include/daq/hvmon/config.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",4556,no,,11
+daq/hvmon/include/daq/hvmon/mapping.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2110,no,,10
+daq/hvmon/include/daq/hvmon/notifier.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",7084,no,,11
+daq/hvmon/include/daq/hvmon/poller.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",9007,no,,6
+daq/hvmon/include/daq/hvmon/records.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1907,no,,2
+daq/hvmon/include/daq/hvmon/retry.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",6637,no,,3
+daq/hvmon/include/daq/hvmon/state.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",3303,no,,13
+daq/hvmon/include/daq/hvmon/system_probe.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",932,no,,4
+daq/hvmon/include/daq/hvmon/window_stats.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1825,no,,2
+daq/hvmon/include/daq/hvmon/writer.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",5681,no,,5
+daq/hvmon/src/bias_scan.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",7566,no,,3
+daq/hvmon/src/change_detector.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2897,no,,2
+daq/hvmon/src/commands.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",13364,no,,3
+daq/hvmon/src/compressor.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",4248,no,,3
+daq/hvmon/src/config.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",8640,no,,10
+daq/hvmon/src/mapping.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2815,no,,10
+daq/hvmon/src/notifier.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",28932,no,,11
+daq/hvmon/src/poller.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",45805,no,,6
+daq/hvmon/src/retry.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",22162,no,,3
+daq/hvmon/src/state.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",6727,no,,13
+daq/hvmon/src/system_probe.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",2233,no,,4
+daq/hvmon/src/writer.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",14127,no,,5
+daq/io/CMakeLists.txt,DAQ,"E/S ROOT del DAQ (incluye libdaq_screader, lector de slow control)",642,no,,0
+daq/io/include/daq/io/dash_server.h,DAQ,"E/S ROOT del DAQ (incluye libdaq_screader, lector de slow control)",2150,no,,2
+daq/io/include/daq/io/hist_util.h,DAQ,"E/S ROOT del DAQ (incluye libdaq_screader, lector de slow control)",875,no,,3
+daq/io/include/daq/io/panels_root.h,DAQ,"E/S ROOT del DAQ (incluye libdaq_screader, lector de slow control)",2434,no,,3
+daq/io/include/daq/io/run_writer.h,DAQ,"E/S ROOT del DAQ (incluye libdaq_screader, lector de slow control)",7552,no,,3
+daq/io/include/daq/io/sc_reader.h,DAQ,"E/S ROOT del DAQ (incluye libdaq_screader, lector de slow control)",1655,yes,ANALYSIS:analysis/macros/plot_hv_imon_day.C; ANALYSIS:daq/tools/validation/commissioning_hv_period.C; ANALYSIS:daq/tools/validation/commissioning_hv_vs_rate.C,3
+daq/io/src/panels_root.cpp,DAQ,"E/S ROOT del DAQ (incluye libdaq_screader, lector de slow control)",10784,no,,3
+daq/io/src/run_writer.cpp,DAQ,"E/S ROOT del DAQ (incluye libdaq_screader, lector de slow control)",23813,no,,3
+daq/io/src/sc_reader.cpp,DAQ,"E/S ROOT del DAQ (incluye libdaq_screader, lector de slow control)",10500,yes,ANALYSIS:analysis/macros/plot_hv_imon_day.C; ANALYSIS:daq/tools/validation/commissioning_hv_period.C; ANALYSIS:daq/tools/validation/commissioning_hv_vs_rate.C,3
+daq/systemd/biasscan.service,DAQ,unidades de usuario de systemd e instalador,739,no,,0
+daq/systemd/biasscan_day.service,DAQ,unidades de usuario de systemd e instalador,678,no,,0
+daq/systemd/biasscan_night.service,DAQ,unidades de usuario de systemd e instalador,1313,no,,3
+daq/systemd/biasscan_night.timer,DAQ,unidades de usuario de systemd e instalador,368,no,,1
+daq/systemd/hvmon.service,DAQ,unidades de usuario de systemd e instalador,1133,no,,5
+daq/systemd/install.sh,DAQ,unidades de usuario de systemd e instalador,1898,no,,0
+daq/systemd/morning_report.service,DAQ,unidades de usuario de systemd e instalador,879,no,,1
+daq/temp/CMakeLists.txt,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",267,no,,0
+daq/temp/include/daq/temp/temp_backend.h,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1797,no,,4
+daq/temp/src/temp_backend.cpp,DAQ,"DAQ v2 (bibliotecas, apps, CMake)",1711,no,,4
+daq/tests/CMakeLists.txt,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),2810,no,,0
+daq/tests/data/x740/block_000.bin,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),13840,no,,0
+daq/tests/data/x740/block_000.json,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),46288,no,,0
+daq/tests/data/x740/block_001.bin,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),13840,no,,0
+daq/tests/data/x740/block_001.json,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),46288,no,,0
+daq/tests/data/x740/ttt_check_run001.csv,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),44838,no,,0
+daq/tests/data/x740/ttt_check_run002.csv,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),44921,no,,0
+daq/tests/data/x740/ttt_run002_1500_3700.csv,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),68314,no,,1
+daq/tests/test_analysis_shared.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),7674,no,,1
+daq/tests/test_bias_scan.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),22257,no,,1
+daq/tests/test_bounded_queue.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),3991,no,,1
+daq/tests/test_clock_time.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),1773,no,,1
+daq/tests/test_credentials.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),1590,no,,1
+daq/tests/test_daqrun.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),34344,no,,1
+daq/tests/test_data_flags.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),13553,no,,1
+daq/tests/test_dig.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),8549,no,,1
+daq/tests/test_fake_hv.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),11437,no,,1
+daq/tests/test_gzip.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),5080,no,,1
+daq/tests/test_hvmon_commands.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),7262,no,,1
+daq/tests/test_hvmon_misc.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),8763,no,,1
+daq/tests/test_hvmon_poller.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),14726,no,,1
+daq/tests/test_hvmon_retry.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),17951,no,,1
+daq/tests/test_hvmon_writer.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),12511,no,,1
+daq/tests/test_infra.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),5791,no,,1
+daq/tests/test_jthread.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),4230,no,,1
+daq/tests/test_logger.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),2681,no,,1
+daq/tests/test_notifier.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),21148,no,,1
+daq/tests/test_panels.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),7441,no,,1
+daq/tests/test_root_io.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),17206,no,,1
+daq/tests/test_secrets.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),5750,no,,1
+daq/tests/test_self_trigger.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),4409,no,,1
+daq/tests/test_snapshot.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),1493,no,,1
+daq/tests/test_units_status.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),2585,no,,1
+daq/tests/test_x740.cpp,DAQ,pruebas GoogleTest del DAQ v2 (contra los fakes),6669,no,,1
+daq/tools/biasscan/biasscan.py,DAQ,"orquestador del barrido de tensión (hvctl bias, daqrun, systemd)",61449,yes,ANALYSIS:daq/tools/biasscan/biasscan_offline.py,3
+daq/tools/biasscan/biasscan_offline.py,ANALYSIS,análisis del barrido de tensión desde biasscan_results.json o crudos,7353,no,,0
+daq/tools/biasscan/biasscan_report.py,ANALYSIS,análisis del barrido de tensión desde biasscan_results.json o crudos,8425,yes,DAQ:daq/tools/biasscan/biasscan.py,0
+daq/tools/biasscan/biasscan_safety.sh,DAQ,"orquestador del barrido de tensión (hvctl bias, daqrun, systemd)",1154,no,,3
+daq/tools/biasscan/morning_report_waiter.py,DAQ,"orquestador del barrido de tensión (hvctl bias, daqrun, systemd)",4478,no,,1
+daq/tools/biasscan/run_info_dump.C,ANALYSIS,análisis del barrido de tensión desde biasscan_results.json o crudos,931,yes,DAQ:daq/tools/biasscan/biasscan.py,0
+daq/tools/biasscan/updown_report.py,ANALYSIS,análisis del barrido de tensión desde biasscan_results.json o crudos,18339,yes,DAQ:daq/tools/biasscan/morning_report_waiter.py,0
+daq/tools/characterization/bench_mc.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",5160,no,,13
+daq/tools/characterization/charact_analyse.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",57985,no,,0
+daq/tools/characterization/charact_extract.C,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",6923,no,,2
+daq/tools/characterization/charact_gain.C,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",3893,no,,1
+daq/tools/characterization/charact_plots.C,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",6685,no,,0
+daq/tools/characterization/geom_sensitivity.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",7255,no,,4
+daq/tools/characterization/hitdef_analyse.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",5897,no,,1
+daq/tools/characterization/hitdef_extract.C,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",7563,yes,DAQ:daq/tools/biasscan/biasscan.py,5
+daq/tools/characterization/may_common.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",2351,no,,9
+daq/tools/characterization/may_inventory.C,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",2592,no,,2
+daq/tools/characterization/test_xy_estimator.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",3041,yes,DAQ:daq/tests/CMakeLists.txt,0
+daq/tools/characterization/xy_estimator.py,ANALYSIS,"caracterización: lee crudos/salidas y produce números (bench MC, hitdef, xy_estimator, ganancia)",4286,yes,DAQ:daq/tools/biasscan/biasscan.py,19
+daq/tools/inventory/host_inventory.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",8279,no,,0
+daq/tools/inventory/may_raw_manifest.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",5329,no,,0
+daq/tools/inventory/secret_scan.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",3687,no,,0
+daq/tools/inventory/write_report_a.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",9731,no,,0
+daq/tools/legacy/CMakeLists.txt,LEGACY,"herramienta HV heredada (2026-10-18), reemplazada por hvctl read/params/map; propuesta: attic/ en la división",483,no,,0
+daq/tools/legacy/diag_sy5527.sh,DAQ,"diagnóstico de red del SY5527, sin reemplazo en hvctl (su paso 9 compila test_sy5527.c)",5435,no,,0
+daq/tools/legacy/hv_readall.c,LEGACY,"herramienta HV heredada (2026-10-18), reemplazada por hvctl read/params/map; propuesta: attic/ en la división",4601,no,,1
+daq/tools/legacy/test_acquire_sw_20260511.cxx,LEGACY,"programa de adquisición heredado, solo referencia (no se compila)",2747,no,,0
+daq/tools/legacy/test_sy5527.c,LEGACY,"herramienta HV heredada (2026-10-18), reemplazada por hvctl read/params/map; propuesta: attic/ en la división",2597,yes,DAQ:daq/tools/legacy/diag_sy5527.sh,1
+daq/tools/orchestrators/attic/README.md,DAQ,"registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2",2256,no,,0
+daq/tools/orchestrators/attic/daq2-10_toggle.py,DAQ,"registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2",5054,no,,0
+daq/tools/orchestrators/attic/daq2-12_toggle.py,DAQ,"registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2",6666,no,,0
+daq/tools/orchestrators/attic/daq2-13_selftrig.sh,DAQ,"registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2",454,no,,0
+daq/tools/orchestrators/attic/disk_sampler.sh,DAQ,"registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2",557,no,,2
+daq/tools/orchestrators/attic/night_daq2-6.sh,DAQ,"registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2",3031,no,,0
+daq/tools/orchestrators/attic/night_orchestrator.sh,DAQ,"registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2",1849,no,,0
+daq/tools/orchestrators/attic/phase5_orchestrator.sh,DAQ,"registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2",1564,no,,0
+daq/tools/orchestrators/attic/run8_orchestrator.sh,DAQ,"registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2",1838,no,,0
+daq/tools/orchestrators/attic/sampler.sh,DAQ,"registro de los orquestadores de DAQ2-6..13 (copias de /data/daq/logs, XPLUS-2 C); va al attic de daqv2",382,no,,4
+daq/tools/proceeding/along_bar.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",13522,no,,2
+daq/tools/proceeding/bar_mc.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",4509,no,,4
+daq/tools/proceeding/block_fractions.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",3437,no,,2
+daq/tools/proceeding/doublehit2.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",13765,no,,2
+daq/tools/proceeding/doublehit_confirmed.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",6788,no,,2
+daq/tools/proceeding/h19_xy.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",7408,no,,2
+daq/tools/proceeding/headline.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",2661,no,,1
+daq/tools/proceeding/manuscript_xy.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",3030,no,,2
+daq/tools/proceeding/mppc_hit.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",6228,no,,1
+daq/tools/proceeding/package.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",38823,no,,1
+daq/tools/proceeding/proc_plot_along_bar.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",3372,no,,2
+daq/tools/proceeding/proc_plot_diurnal.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",3058,no,,1
+daq/tools/proceeding/proc_plot_eff.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",3458,no,,1
+daq/tools/proceeding/proc_plot_sensitive_length.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",2609,no,,1
+daq/tools/proceeding/proc_plot_stage3.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",6318,no,,2
+daq/tools/proceeding/proc_plot_stage4.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",3579,no,,2
+daq/tools/proceeding/proc_plot_stage5.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",2855,no,,2
+daq/tools/proceeding/proc_plot_stage7.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",4063,no,,2
+daq/tools/proceeding/proc_style.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",3022,no,,1
+daq/tools/proceeding/sensitive_length.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",6923,no,,2
+daq/tools/proceeding/stage1.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",11866,no,,2
+daq/tools/proceeding/stage2.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",17213,no,,1
+daq/tools/proceeding/stage3.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",18635,no,,1
+daq/tools/proceeding/stage4.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",15958,no,,1
+daq/tools/proceeding/stage5.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",8091,no,,2
+daq/tools/proceeding/stage6.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",9956,no,,1
+daq/tools/proceeding/stage7.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",13299,no,,1
+daq/tools/proceeding/stage8.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",12917,no,,1
+daq/tools/proceeding/timing_extract.C,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",5563,no,,2
+daq/tools/proceeding/trigger_diurnal.py,ANALYSIS,"paquete del proceeding (PROC-1..4, XPLUS-1 C): lee crudos/salidas y produce figuras y números",5166,no,,2
+daq/tools/recover_after_poweroff.py,DAQ,recuperación tras corte de energía (XPLUS-1 B) y su prueba contra los fakes,21267,no,,1
+daq/tools/test_recover_after_poweroff.py,DAQ,recuperación tras corte de energía (XPLUS-1 B) y su prueba contra los fakes,10686,no,,0
+daq/tools/validation/commissioning_ext_runs.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",12042,no,,0
+daq/tools/validation/commissioning_group_toggle.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",6886,no,,0
+daq/tools/validation/commissioning_group_toggle2.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",8764,no,,0
+daq/tools/validation/commissioning_hv_period.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",10523,no,,0
+daq/tools/validation/commissioning_hv_vs_rate.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",8230,no,,0
+daq/tools/validation/commissioning_muon.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",5383,no,,0
+daq/tools/validation/commissioning_neighbours.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",6489,no,,0
+daq/tools/validation/commissioning_pe_calibration.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",9032,no,,0
+daq/tools/validation/commissioning_pe_peaks.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",3835,no,,0
+daq/tools/validation/commissioning_pe_preview.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",6219,no,,0
+daq/tools/validation/commissioning_pedestal.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",3941,no,,0
+daq/tools/validation/commissioning_timing.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",4284,no,,0
+daq/tools/validation/selftrig_check.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",2396,no,,0
+daq/tools/validation/selftrig_muon.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",3627,no,,0
+daq/tools/validation/selftrig_noise.C,ANALYSIS,"puesta en marcha: lee runs y slow control y produce números (pedestal, p.e., tasas)",4544,no,,0
+daq/tools/validation/validate_hv_flags.C,DAQ,validación del software DAQ (DAQ2-5) contra salidas conocidas; prueba de aceptación del DAQ,4251,no,,0
+daq/tools/validation/validate_hv_snapshots.C,DAQ,validación del software DAQ (DAQ2-5) contra salidas conocidas; prueba de aceptación del DAQ,3620,no,,0
+daq/tools/validation/validate_replay_v8.C,DAQ,validación del software DAQ (DAQ2-5) contra salidas conocidas; prueba de aceptación del DAQ,6397,no,,0
+docs/ANALYSIS_CHANGES_2026-10-17.md,DOCS,"handoff, notas, cambios de análisis o reorganización",7514,no,,0
+docs/Manual_de_Uso___Librer_a_CaenDigitizerSiLab.pdf,LEGACY,manual de la biblioteca antigua CaenDigitizerSiLab,374676,no,,0
+docs/REORG_2026-10-17.md,DOCS,"handoff, notas, cambios de análisis o reorganización",6128,no,,0
+docs/daq_v2_design.md,DAQ,diseño del DAQ v2; acompaña al código en daqv2,126857,no,,0
+docs/handoff_analysis_2026-10-18.md,DOCS,"handoff, notas, cambios de análisis o reorganización",44727,no,,0
+docs/monorepo_handoff/AGENTS.md,DOCS,"handoff, notas, cambios de análisis o reorganización",3722,no,,0
+docs/monorepo_handoff/KNOWN_ISSUES.md,DOCS,"handoff, notas, cambios de análisis o reorganización",7883,no,,0
+docs/monorepo_handoff/OVERLEAF_SYNC.md,DOCS,"handoff, notas, cambios de análisis o reorganización",1534,no,,0
+docs/monorepo_handoff/RESULTS_INDEX.md,DOCS,"handoff, notas, cambios de análisis o reorganización",11118,no,,0
+docs/monorepo_handoff/git_log.txt,DOCS,"handoff, notas, cambios de análisis o reorganización",1350,no,,0
+docs/monorepo_handoff/manifest_example.json,DOCS,"handoff, notas, cambios de análisis o reorganización",76634,no,,0
+docs/monorepo_handoff/submodules.txt,DOCS,"handoff, notas, cambios de análisis o reorganización",161,no,,0
+docs/monorepo_handoff/tree_L2.txt,DOCS,"handoff, notas, cambios de análisis o reorganización",1374,no,,0
+docs/notes_for_analysis.md,DOCS,"handoff, notas, cambios de análisis o reorganización",8356,no,,0
+example.cxx,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",4336,no,,0
+outputs/_superseded/README.md,RESULTS,resultado versionado (el resto de outputs/ está ignorado),876,no,,0
+outputs/legacy_2025/Ch0_ext_muon_trig.pdf,RESULTS,resultado versionado (el resto de outputs/ está ignorado),67546,no,,0
+outputs/legacy_2025/coincidencias.png,RESULTS,resultado versionado (el resto de outputs/ está ignorado),31500,no,,0
+run_hod2019_selftrigger_threshold_scan.sh,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",3911,no,,0
+runs/good_intervals_2026.csv,ANALYSIS,"catálogo de runs y tiempo bueno de mayo, leído por las macros y por stage1",641,no,,13
+runs/runs_2026.csv,ANALYSIS,"catálogo de runs y tiempo bueno de mayo, leído por las macros y por stage1",11551,no,,1
+test_acquire_ext_nim.cxx,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",2175,no,,0
+test_acquire_sw.cxx,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",1786,no,,0
+test_caencomm_open.cxx,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",1237,no,,0
+test_open.cxx,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",1220,no,,0
