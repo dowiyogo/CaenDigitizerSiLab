@@ -1,0 +1,2 @@
+ 6d25d052fd0cab327c0436c7b6de8fca466734dc external/meiga (heads/hodoscope-na64mini)
+ 234960249f69d688d4dc22174f9dfc16b4d6da85 external/na64-hod2018 (heads/main)

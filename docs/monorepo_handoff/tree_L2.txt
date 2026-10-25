@@ -1,0 +1,50 @@
+.
+├── characterization
+│   ├── diagnostics
+│   ├── figures_of_merit
+│   ├── forward
+│   ├── __pycache__
+│   ├── results
+│   ├── tests
+│   └── tolerances
+├── CMakeFiles
+├── config
+│   └── hardware
+├── data -> /mnt/d/muography-data
+├── docs
+│   └── hardware
+├── external
+│   ├── meiga
+│   └── na64-hod2018
+├── inversion
+│   ├── DATA
+│   ├── Detectores
+│   ├── docs
+│   ├── fase_0_preparacion
+│   ├── fase_1_simulacion_directa
+│   ├── fase_2_inversion_bayesiana
+│   ├── fase_3_validacion
+│   ├── fase_calculo_sensibilidad
+│   ├── fase_conversión_de_datos
+│   ├── fase_propagacion_error
+│   ├── fuentes_diagnostics
+│   ├── MUYSC
+│   ├── notebooks
+│   ├── outputs
+│   ├── scripts
+│   └── tests
+├── sim
+│   └── hodoscope-g4
+├── studies
+│   └── instrument_response
+├── thesis_orchestrator
+│   ├── configs
+│   ├── data
+│   ├── docs
+│   ├── orchestrator
+│   ├── outputs
+│   ├── scripts
+│   └── tests
+└── tools
+    ├── __pycache__
+    └── tests

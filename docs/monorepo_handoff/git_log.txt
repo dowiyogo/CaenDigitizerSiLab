@@ -1,0 +1,25 @@
+f84f05a Fix EcoMug injection exposure and guard it with a regression test
+3074ac6 Document EcoMug surface normalization check
+c336091 Index corrected Meiga cosmic run
+cd303ae Use CAD trigger spacing and compare both Meiga modules
+c499445 Use corrected Meiga trigger geometry
+100df49 Index Meiga cosmic telescope run
+5eaf771 Report both-module any-bar and X-Y coincidences
+2a63b74 Compare Meiga cosmic hits with geometric acceptance
+a83d07c Add analysis for Meiga cosmic telescope runs
+315588a Record geometry version 2 in simulation outputs
+b6d62a2 Point meiga submodule at hodoscope-na64mini after geometry merge
+69caa9e Merge geom/fix-2026-10-24: align both geometries with measured CAD
+76b4f20 Close measured geometry discrepancy issues
+f014d03 Update characterization geometry summary
+4df213d Add CAD geometry dump regression test
+ef87520 Align hodoscope-g4 module geometry to measured CAD
+eca1051 Update Meiga NA64Mini geometry pointer
+6728191 Index geometry spacing sensitivity results
+05318b2 Improve virtual pixel sensitivity plot scale
+0aebddf Add pure Python geometry spacing sensitivity model
+05bdf6b Archive redundant Beamer backup tree
+acb1e6e Add full repository test target
+778b75e Map three additional Overleaf figures
+26d817b Limit Overleaf checks to reachable TeX sources
+f734676 Overleaf sync section 8: finalize report and checks
