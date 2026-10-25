@@ -363,6 +363,8 @@ daq/tools/characterization/xy_estimator.py,ANALYSIS,"caracterización: lee crudo
 daq/tools/inventory/host_inventory.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",8279,no,,0
 daq/tools/inventory/may_raw_manifest.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",5329,no,,0
 daq/tools/inventory/secret_scan.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",3687,no,,0
+daq/tools/inventory/split_map.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",10157,no,,0
+daq/tools/inventory/split_paths.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",3513,no,,0
 daq/tools/inventory/write_report_a.py,OTHER,"herramienta de inventario y de plan de división del host (XPLUS-1/2), no es DAQ ni análisis",9731,no,,0
 daq/tools/legacy/CMakeLists.txt,LEGACY,"herramienta HV heredada (2026-10-18), reemplazada por hvctl read/params/map; propuesta: attic/ en la división",483,no,,0
 daq/tools/legacy/diag_sy5527.sh,DAQ,"diagnóstico de red del SY5527, sin reemplazo en hvctl (su paso 9 compila test_sy5527.c)",5435,no,,0
@@ -443,6 +445,9 @@ docs/monorepo_handoff/manifest_example.json,DOCS,"handoff, notas, cambios de an�
 docs/monorepo_handoff/submodules.txt,DOCS,"handoff, notas, cambios de análisis o reorganización",161,no,,0
 docs/monorepo_handoff/tree_L2.txt,DOCS,"handoff, notas, cambios de análisis o reorganización",1374,no,,0
 docs/notes_for_analysis.md,DOCS,"handoff, notas, cambios de análisis o reorganización",8356,no,,0
+docs/split_map_2026-10-25.csv,OTHER,plan de división (XPLUS-2 B): mapa y listas para filter-repo; no entra a ningún repo nuevo,54504,no,,0
+docs/split_paths_2026-10-25/daq_analysis.paths,OTHER,plan de división (XPLUS-2 B): mapa y listas para filter-repo; no entra a ningún repo nuevo,6270,no,,0
+docs/split_paths_2026-10-25/daqv2.paths,OTHER,plan de división (XPLUS-2 B): mapa y listas para filter-repo; no entra a ningún repo nuevo,7745,no,,0
 example.cxx,LEGACY,"DAQ antiguo (biblioteca CaenDigitizerSiLab, .conf, programas de prueba), no usado por el DAQ v2",4336,no,,0
 outputs/_superseded/README.md,RESULTS,resultado versionado (el resto de outputs/ está ignorado),876,no,,0
 outputs/legacy_2025/Ch0_ext_muon_trig.pdf,RESULTS,resultado versionado (el resto de outputs/ está ignorado),67546,no,,0

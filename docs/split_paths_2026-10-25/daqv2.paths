@@ -210,6 +210,8 @@ daq/tools/characterization/xy_estimator.py
 daq/tools/inventory/host_inventory.py
 daq/tools/inventory/may_raw_manifest.py
 daq/tools/inventory/secret_scan.py
+daq/tools/inventory/split_map.py
+daq/tools/inventory/split_paths.py
 daq/tools/inventory/write_report_a.py
 daq/tools/legacy/CMakeLists.txt
 daq/tools/legacy/diag_sy5527.sh
