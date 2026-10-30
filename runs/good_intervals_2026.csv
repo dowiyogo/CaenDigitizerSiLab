@@ -5,4 +5,6 @@ v8,2026-05-30 11:00,2026-05-31 00:59,HV_OFF,6 20 46 50 56 59 60 62,HV group 2 of
 v8,2026-05-31 10:00,2026-05-31 10:59,EXCLUDE,all,last partial hour (43 events)
 v10,2026-06-01 09:00,2026-06-02 12:59,HV_OFF,0 6 20 22 31 43 46 47 50 54 56 58 59 60 62 63,HV groups 1+2 off
 v10,2026-06-03 09:00,2026-06-05 15:59,HV_OFF,0 1 6 16 17 20 22 31 34 43 46 47 50 53 54 55 56 57 58 59 60 62 63,HV groups 1+2+6 off
-
+v8,2026-05-28 16:00,2026-05-28 20:40,EXCLUDE,all,HV-DIAG-5: unstable start (all hod2018 channels at 3-120% of their night rate)
+v8,2026-05-29 08:30,2026-05-29 20:50,EXCLUDE,0 6 20 22 31 43 46 47 50 54 56 58 59 60 62 63,HV-DIAG-5: HV groups 1 and 2 below their night rate (good_time excludes the whole interval for every channel)
+v10,2026-05-31 16:30,2026-05-31 18:00,EXCLUDE,all,HV-DIAG-5: unstable start of v10 (all hod2018 channels at 30-70% of their night rate)
