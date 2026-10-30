@@ -225,3 +225,10 @@ t ≈ 3510 ns selected that pickup, not muons.
   v5-v10 (0.56-0.64 Hz) [V: runs/runs_2026.csv].
 - Whether a copy of the raw data exists outside this machine.
 - Branch reorg/2026-10-17 is not pushed and not merged into jairo_branch.
+
+## hod2018 construction and orientation (René, 2026-10-30)
+
+Vikuiti held with Kapton, no adhesive (air gap); each bar end glued with optical epoxy to a PMMA light guide painted on the
+outside, glued to the MPPC. Origin (0,0) at the lower left corner; X bars parallel to the Y axis, Y bars parallel to the X axis.
+Upper Y layer read out on the right, lower Y on the left; upper X read out at the bottom, lower X at the top. Details, and the
+status of the absolute sense of the strip order (still open): `docs/hod2018_construction_2026-10-30.md`.
