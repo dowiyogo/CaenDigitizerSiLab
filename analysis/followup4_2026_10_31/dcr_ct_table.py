@@ -7,11 +7,12 @@
 #   p_ct incluye el apilamiento accidental de dos pulsos oscuros sin resolver: p_pile ≈ 1 − exp(−DCR·τ) con τ = 32 ns (2 muestras, supuesto);
 #   se da también p_ct corregido = (p_ct − p_pile)/(1 − p_pile) (inferido, depende de τ).
 #   hod2019: sin G (c1 no tiene picos para hod2019): tasas sobre 1 y 3 mV; p_ct no se calcula.
-# Afterpulsing, canal por canal: n(Δ) de pulsos consecutivos > 0.5 p.e. del mismo canal en la región de L muestras. Modelo B (central): pendiente
-# libre de ln[n(Δ)/(L − Δ)] ajustada por canal en la ventana larga y extrapolada; modelo A (control): Poisson con la
-# tasa del canal r = R(0.5)·16 ns por muestra y el tiempo muerto de 3 muestras: m(Δ) ∝ (L − Δ)·exp(−r(Δ − 3)), normalizado a lo observado en
-# Δ ∈ [40, min(150, L − 20)] (la razón de las formas en esa ventana se da como control). Exceso en Δ ∈ [3, 12] muestras (48-192 ns; < 48 ns no se
-# resuelve) por pulso > 0.5 p.e. del canal = P(afterpulso en 48-192 ns). El pulso anterior es cualquier pulso > 0.5 p.e. (casi siempre 1 p.e.).
+# Afterpulsing, canal por canal: n(Δ) de pulsos consecutivos > 0.5 p.e. del mismo canal en la región de L muestras.
+#   Modelo B (central): ajuste lineal ponderado de ln[n(Δ)/(L − Δ)] en Δ ∈ [40, min(150, L − 20)] con pendiente libre, extrapolado.
+#   Modelo A (control): Poisson con la tasa del canal r = R(0.5)·16 ns y tiempo muerto de 3 muestras, m(Δ) ∝ (L − Δ)·exp(−r(Δ − 3)),
+#   normalizado a lo observado en la misma ventana. Se da también pendiente/R(0.5): si es ≪ 1, los pulsos no son un proceso de Poisson.
+# Exceso en Δ ∈ [3, 12] muestras (48-192 ns; < 48 ns no se resuelve) por pulso > 0.5 p.e. del canal = P(afterpulso en 48-192 ns).
+# El pulso anterior es cualquier pulso > 0.5 p.e. (casi siempre 1 p.e.).
 # (El ajuste con todos los canales sumados de stage2_summary.py mezcla exponenciales de tasas distintas y subestima el fondo a Δ corto.)
 # Uso: dcr_ct_table.py <salida dir> <tag>=<dir>/<prefijo>:<G csv o c1>:<etiqueta> ...
 import csv, json, math, os, statistics as st, sys
