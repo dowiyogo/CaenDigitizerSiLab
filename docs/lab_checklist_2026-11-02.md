@@ -173,9 +173,46 @@ Riesgos:
 - RUp solo cambia la velocidad de la rampa. Con 0.1 V/s una subida de 0 a 65 V tarda 11 min en vez de 1, lo que importa si un canal se enciende.
 - Un error de tecleo en otro parámetro (V0Set, I0Set) sí es peligroso: revisar antes de confirmar.
 
+## e.0) Antes de arrancar la física: lectura de hod2019
+
+Hallazgo del 2026-10-31 (seguimiento 5):
+- hod2019 (canales 32-63) **no tiene señal desde el 2026-10-21 entre las 17:13 y las 20:51 UTC**, con la HV encendida y nominal en CH00-07.
+  Los canales de hod2018, que van en los mismos grupos HV, siguen normales.
+- En esa ventana hubo trabajo en el banco: no hubo triggers entre 17:13 y 20:00 UTC, y la IMon subió en escalón a las 17:11-17:17 y 17:28-17:37 UTC.
+- Desde entonces el pedestal de hod2019 tiene el RMS de un canal sin entrada (0.19-0.25 mV) y ningún pulso.
+  Eso vale para todo el run 8 (salvo el minuto 20:21 UTC del 22), el barrido del 22 y el run 10.
+
+**Verificar que la electrónica de lectura de hod2019 esté conectada y alimentada** (indicadores, cable plano, conector al digitalizador), sin abrir la caja y sin desconectar nada:
+1. LEDs o indicadores de las placas de front-end de hod2019 y de su fuente de baja tensión, si los tiene: encendidos o apagados, con foto.
+2. Cable plano entre el front-end de hod2019 y la caja: que esté insertado a fondo en los dos extremos y sin dobleces, con foto.
+3. Conectores de hod2019 en el VX1740 (canales 32-63, grupos 4-7): que estén enchufados y asegurados, con foto.
+4. Comparar con hod2018: lo que esté encendido o conectado en hod2018 debe estarlo también en hod2019.
+
+Si algo está suelto, desconectado o apagado: **no reconectarlo con la HV encendida**. Sacar foto, anotar la hora y avisar a René, que decide si se baja la HV antes de reconectar.
+
+**Qué debe verse después, en los canales 32-63**, con el primer segmento cerrado del run nuevo. René o el agente corren en el host, solo lectura:
+
+    cp analysis/followup5_2026_10_31/h19_live_check.C /home/xplus/night_2026-10-25/build/ && cd /home/xplus/night_2026-10-25/build
+    root -l -b -q 'h19_live_check.C+("/data/daq/raw/hodoscope_2026_10/<run011_seg001>.root","daqv2",20000,1.5)' | grep RESUMEN
+
+La línea RESUMEN da la tasa de cruces de −1.5 mV en el pre-trigger, por canal, con 20000 eventos o los que haya.
+
+| Referencia | Fecha | hod2018, mediana | hod2019, mediana | hod2019, canales > 50 kHz |
+|---|---|---|---|---|
+| lectura viva (commissioning2) | 2026-10-21 10:00Z | 1537.969 kHz | 3.906 kHz | 6 de 32 |
+| lectura viva (commissioning3) | 2026-10-21 14:58Z | 1568.203 kHz | 0.391 kHz | 4 de 32 |
+| mayo v8 | 2026-05 | 1488.594 kHz | 138.203 kHz | 23 de 32 |
+| sin lectura (run 8) | 2026-10-22 | 1532.070 kHz | 0.000 kHz | 0 de 32 |
+| sin lectura (run 10) | 2026-10-28 | 1500.187 kHz | 0.000 kHz | 0 de 32 |
+
+- **Lectura arreglada:** hod2019 con al menos 4 canales > 50 kHz. El 21 de octubre los más activos eran ch47, 39, 40, 53 y 36, con 100-205 kHz.
+- **Sigue rota:** hod2019 con mediana 0.000 kHz y 0 de 32 canales > 50 kHz, mientras hod2018 da ~1500 kHz.
+  En ese caso, detener la física solo si René lo pide.
+- **Pulsos sincronizados con el trigger:** se ven después de un día de física (~20 000 triggers). En mayo, a 3 mV, los 32 canales tenían exceso > 3σ en la ventana signal.
+
 ## e) Volver a arrancar la física
 
-Después de b (enlace bueno) y de c si se hizo, René o el agente:
+Después de b (enlace bueno), e.0 y c si se hizo, René o el agente:
 
     systemctl --user is-active daq-physics            # debe dar inactive
     systemd-run --user --unit=daq-physics --collect --property=RuntimeMaxSec=1209600 --property=KillSignal=SIGTERM \
