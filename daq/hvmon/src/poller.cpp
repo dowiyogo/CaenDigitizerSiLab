@@ -296,6 +296,7 @@ void Poller::handleRequest(PollRequest& r, SteadyTime now) {
     case PollRequest::Kind::V0Set: handleV0Set(r, now); break;
     case PollRequest::Kind::BiasRestore: handleBiasRestore(r, now); break;
     case PollRequest::Kind::NominalV0Set: handleNominalV0Set(r, now); break;
+    case PollRequest::Kind::RUp: handleRUp(r, now); break;
     case PollRequest::Kind::BiasStatus:
       r.reply->set_value(nlohmann::json{{"ok", true}, {"session", bias_.toJson(clock_.now_utc_ns())}, {"restoring", restoring_},
                                         {"pending_steps", restoreSteps_.size()}});
@@ -535,6 +536,101 @@ void Poller::handleNominalV0Set(PollRequest& r, SteadyTime now) {
   active_ = a;
 }
 
+// Seguimiento 2026-10-31 (7) (René): RUp (V/s) de un canal dentro de una sesión de barrido, para una rampa lenta. Escritura
+// síncrona (RUp no mueve la tensión): relectura previa, límites (BiasSession::checkRUp, 0.05-5 V/s, y el rango del parámetro que
+// informa la placa), RUp previo registrado en la sesión (la restauración lo devuelve, también si el barrido aborta o hvmon
+// arranca con la sesión activa), escritura, relectura y comparación a kRUpTolVps. Las peticiones internas son las de la
+// restauración: solo pueden escribir el RUp previo registrado (sin el límite 0.05-5 V/s, que no aplica a volver al valor de antes).
+void Poller::handleRUp(PollRequest& r, SteadyTime now) {
+  CommandRecord rec;
+  rec.id = nextCommandId_++;
+  rec.slot = cfg_.slot;
+  rec.ch = r.ch;
+  rec.param = "RUp";
+  rec.valueV = r.value;
+  rec.reason = r.reason;
+  rec.requester = r.requester;
+  rec.tUtcNs = clock_.now_utc_ns();
+  rec.phase = "request";
+  record(rec);
+  auto finish = [&](const std::string& phase, const std::string& detail, bool ok) {
+    rec.phase = phase;
+    rec.detail = detail;
+    rec.tUtcNs = clock_.now_utc_ns();
+    record(rec);
+    if (!ok) logWarn("comando ", rec.id, " RUp CH", r.ch, "=", r.value, ": ", phase, ": ", detail);
+    r.reply->set_value(nlohmann::json{{"ok", ok}, {"command_id", rec.id}, {"result", phase}, {"detail", detail}, {"ch", r.ch}, {"value_V_per_s", r.value}});
+  };
+  if (!cfg_.allowCommands) return finish("rejected", "escrituras deshabilitadas (allow_commands = false)", false);
+  if (r.reason.empty()) return finish("rejected", "falta authorize", false);
+  if (!contains(cfg_.channels, r.ch)) return finish("rejected", "canal fuera de la configuración", false);
+  if (!connected_ || !prevFast_) return finish("rejected", "sin conexión o sin lectura previa", false);
+  if (active_) return finish(r.internal ? "busy" : "rejected", "otro comando en curso (id " + std::to_string(active_->id) + ")", false);
+  if (r.internal) {
+    const auto& prev = bias_.rupPrevious();
+    auto it = prev.find(r.ch);
+    if (!restoring_ || it == prev.end() || std::fabs(it->second - r.value) > 1e-9)
+      return finish("rejected", "petición interna distinta del RUp previo registrado en la sesión", false);
+  } else {
+    if (restoring_) return finish("rejected", "hay una restauración en curso", false);
+    if (auto ck = bias_.checkRUp(r.ch, r.value); !ck) return finish("rejected", ck.error().message, false);
+    // Rango del parámetro que informa la placa (A7030DP: 1-500 V/s según hvctl params del 2026-10-18).
+    for (const auto& info : state_.params) {
+      if (info.name != "RUp") continue;
+      const double k = std::pow(10.0, info.exponent);
+      char b[160];
+      if (info.minBoard && r.value < *info.minBoard * k - 1e-9) {
+        std::snprintf(b, sizeof b, "RUp %.3f V/s bajo el mínimo que informa la placa (%.3f V/s)", r.value, *info.minBoard * k);
+        return finish("rejected", b, false);
+      }
+      if (info.maxBoard && r.value > *info.maxBoard * k + 1e-9) {
+        std::snprintf(b, sizeof b, "RUp %.3f V/s sobre el máximo que informa la placa (%.3f V/s)", r.value, *info.maxBoard * k);
+        return finish("rejected", b, false);
+      }
+    }
+  }
+  auto pre = backend_.readChannels(cfg_.slot, {r.ch}, {"RUp"});
+  if (!pre) {
+    finish("aborted", "la relectura previa falló: " + pre.error().message, false);
+    onReadError(pre.error(), now);
+    return;
+  }
+  const hv::ParamValue* cur = pre.value().get("RUp", r.ch);
+  if (!cur) return finish("aborted", "la relectura previa no trae RUp", false);
+  const double before = cur->si;
+  if (std::fabs(before - r.value) <= kRUpTolVps) {
+    state_.values[r.ch]["RUp"] = *cur;
+    return finish("noop", "RUp ya es el pedido", true);
+  }
+  if (!r.internal && bias_.notePreviousRUp(r.ch, before)) persistBias();  // antes de escribir: la restauración lo necesita
+  // Ventana de comando hasta la próxima lectura completa (RUp se lee cada full_period_s): el cambio se atribuye al comando.
+  detector_.addPending({rec.id, r.ch, now, now + secondsToNs(cfg_.fullPeriodS + cfg_.commandWindowExtraS)});
+  if (auto w = backend_.setChannelRUp(cfg_.slot, r.ch, r.value); !w) {
+    detector_.setPendingEnd(rec.id, now);
+    return finish("write_failed", w.error().message, false);
+  }
+  char wb[96];
+  std::snprintf(wb, sizeof wb, "RUp antes %.3f V/s", before);
+  rec.phase = "written";
+  rec.detail = wb;
+  rec.tUtcNs = clock_.now_utc_ns();
+  record(rec);
+  logInfo("comando ", rec.id, ": RUp CH", r.ch, "=", r.value, " V/s escrito (", r.requester, "): ", r.reason);
+  auto post = backend_.readChannels(cfg_.slot, {r.ch}, {"RUp"});
+  if (!post) {
+    finish("verify_failed", "la relectura falló: " + post.error().message, false);
+    onReadError(post.error(), now);
+    return;
+  }
+  const hv::ParamValue* got = post.value().get("RUp", r.ch);
+  if (!got) return finish("verify_failed", "la relectura no trae RUp", false);
+  state_.values[r.ch]["RUp"] = *got;
+  char b[128];
+  std::snprintf(b, sizeof b, "RUp releído %.3f V/s (antes %.3f V/s)", got->si, before);
+  if (std::fabs(got->si - r.value) > kRUpTolVps) return finish("verify_failed", b, false);
+  finish("verified", b, true);
+}
+
 void Poller::handleBiasRestore(PollRequest& r, SteadyTime now) {
   if (!bias_.active()) {
     r.reply->set_value(nlohmann::json{{"ok", true}, {"result", "noop"}, {"detail", "sin sesión de barrido activa"}});
@@ -555,6 +651,7 @@ void Poller::handleBiasRestore(PollRequest& r, SteadyTime now) {
   restoreDetail_.clear();
   restoreSteps_.clear();
   restorePwTried_.clear();
+  restoreRupTried_.clear();
   logWarn("restauración del V0Set nominal pedida (", r.requester, "): ", restoreReason_);
   advanceRestore(now);
 }
@@ -641,6 +738,26 @@ void Poller::advanceRestore(SteadyTime now) {
         handlePw(q, now);
         return;
       }
+    }
+  }
+  // Seguimiento 2026-10-31 (7): RUp previo de cada canal escrito en la sesión (síncrono; un intento por canal), después del
+  // nominal y de Pw, para que los escalones de vuelta usen el RUp de la sesión.
+  for (const auto& [ch, prevRup] : std::map<int, double>(bias_.rupPrevious())) {
+    if (restoreRupTried_.count(ch)) continue;
+    restoreRupTried_.insert(ch);
+    PollRequest q;
+    q.kind = PollRequest::Kind::RUp;
+    q.ch = ch;
+    q.value = prevRup;
+    q.internal = true;
+    q.reason = restoreReason_ + " (RUp previo)";
+    q.requester = "hvmon (restauración del barrido)";
+    auto fut = q.reply->get_future();
+    handleRUp(q, now);
+    const auto res = fut.get();
+    if (!res.value("ok", false)) {
+      restoreFailed_ = true;
+      restoreDetail_ += "CH" + std::to_string(ch) + " RUp " + res.value("result", "") + ": " + res.value("detail", "") + "; ";
     }
   }
   // Fin: todo en el nominal y Pw = 1 (si no falló nada) -> la sesión se cierra.

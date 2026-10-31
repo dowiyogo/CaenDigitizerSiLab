@@ -498,6 +498,25 @@ Status FakeHVBackend::setChannelV0Set(int slot, int channel, double volts) {
   return okStatus();
 }
 
+Status FakeHVBackend::setChannelRUp(int slot, int channel, double voltsPerSecond) {
+  if (auto st = checkLink(); !st) return st;
+  Slot* s = findSlot(slot);
+  if (!s || channel < 0 || channel >= s->info.channels) return Status::failure(-3, "fake: slot o canal inexistente");
+  ++rupWrites_;
+  char b[64];
+  std::snprintf(b, sizeof b, "RUp:%d=%.3f", channel, voltsPerSecond);
+  writeLog_.push_back(b);
+  Event e;
+  e.t = simTime_;
+  e.type = "set";
+  e.slot = slot;
+  e.channel = channel;
+  e.param = "RUp";
+  e.value = voltsPerSecond;
+  apply(e);
+  return okStatus();
+}
+
 Status FakeHVBackend::clearBoardAlarm(int slot) {
   if (auto st = checkLink(); !st) return st;
   Slot* s = findSlot(slot);

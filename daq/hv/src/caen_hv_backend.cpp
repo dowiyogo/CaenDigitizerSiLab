@@ -1,8 +1,8 @@
 // caen_hv_backend.cpp
 // Implementación sobre la Wrapper: InitSystem, DeinitSystem, GetCrateMap, GetChParamInfo,
-// GetChParamProp, GetChParam, GetBd*, GetError, Free, CAENHVLibSwRel y dos escrituras:
-// CAENHV_SetChParam("Pw") en setChannelPw(), CAENHV_SetChParam("V0Set") en setChannelV0Set() (DAQ2-14)
-// y CAENHV_SetBdParam("ClrAlarm") en clearBoardAlarm().
+// GetChParamProp, GetChParam, GetBd*, GetError, Free, CAENHVLibSwRel y las escrituras:
+// CAENHV_SetChParam("Pw") en setChannelPw(), CAENHV_SetChParam("V0Set") en setChannelV0Set() (DAQ2-14),
+// CAENHV_SetChParam("RUp") en setChannelRUp() (seguimiento 2026-10-31 (7)) y CAENHV_SetBdParam("ClrAlarm") en clearBoardAlarm().
 #include "daq/hv/caen_hv_backend.h"
 
 #include <array>
@@ -372,6 +372,16 @@ Status CaenHVBackend::setChannelV0Set(int slot, int channel, double volts) {
   float value = static_cast<float>(volts);
   const CAENHVRESULT r = CAENHV_SetChParam(handle_, static_cast<unsigned short>(slot), "V0Set", 1, &ch, &value);
   if (r != CAENHV_OK) return Status(wrapperError(r, "SetChParam(V0Set)"));
+  return okStatus();
+}
+
+// Escritura de RUp (V/s; la placa usa V/s, exponente 0) de un canal (seguimiento 2026-10-31 (7)).
+Status CaenHVBackend::setChannelRUp(int slot, int channel, double voltsPerSecond) {
+  if (!isConnected()) return Status::failure(-1, "no conectado");
+  unsigned short ch = static_cast<unsigned short>(channel);
+  float value = static_cast<float>(voltsPerSecond);
+  const CAENHVRESULT r = CAENHV_SetChParam(handle_, static_cast<unsigned short>(slot), "RUp", 1, &ch, &value);
+  if (r != CAENHV_OK) return Status(wrapperError(r, "SetChParam(RUp)"));
   return okStatus();
 }
 

@@ -1,8 +1,9 @@
 // caen_hv_backend.h
 // Backend sobre CAEN HV Wrapper 6.6 (libcaenhvwrapper). Usa CAENHV_InitSystem/DeinitSystem,
-// funciones CAENHV_Get* (canal y placa) y dos escrituras: CAENHV_SetChParam("Pw") en
-// setChannelPw(), CAENHV_SetChParam("V0Set") en setChannelV0Set() (DAQ2-14) y
-// CAENHV_SetBdParam("ClrAlarm") en clearBoardAlarm(); ninguna otra función escribe.
+// funciones CAENHV_Get* (canal y placa) y las escrituras CAENHV_SetChParam("Pw") en
+// setChannelPw(), CAENHV_SetChParam("V0Set") en setChannelV0Set() (DAQ2-14), CAENHV_SetChParam("RUp") en
+// setChannelRUp() (seguimiento 2026-10-31 (7)) y CAENHV_SetBdParam("ClrAlarm") en clearBoardAlarm(); ninguna otra
+// función escribe.
 // - Es dueño del handle (RAII): el destructor llama a DeinitSystem.
 // - Libera con CAENHV_Free cada buffer que reserva la Wrapper.
 // - Convierte a SI en esta frontera: valor_SI = valor_placa * 10^Exp, con la unidad y el
@@ -49,6 +50,7 @@ class CaenHVBackend final : public HVBackend {
   Result<BoardReading> readBoard(int slot, const std::vector<std::string>& params) override;
   Status setChannelPw(int slot, int channel, bool on) override;
   Status setChannelV0Set(int slot, int channel, double volts) override;
+  Status setChannelRUp(int slot, int channel, double voltsPerSecond) override;
   Status clearBoardAlarm(int slot) override;
   std::string describe() const override;
 

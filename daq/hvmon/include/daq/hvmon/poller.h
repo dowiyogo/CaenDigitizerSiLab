@@ -51,7 +51,8 @@ namespace daq::hvmon {
 
 struct PollRequest {
   // NominalV0Set (XPLUS-1): V0Set al nominal registrado por hvmon, solo con el canal apagado (recuperación tras un corte).
-  enum class Kind { Pw, Offsets, BiasBegin, V0Set, BiasRestore, BiasStatus, NominalV0Set };
+  // RUp (seguimiento 2026-10-31 (7)): RUp de un canal dentro de una sesión de barrido (value en V/s).
+  enum class Kind { Pw, Offsets, BiasBegin, V0Set, BiasRestore, BiasStatus, NominalV0Set, RUp };
   Kind kind = Kind::Pw;
   int ch = -1;
   bool on = false;
@@ -62,7 +63,7 @@ struct PollRequest {
   std::vector<int> channels;      // offsets (vacío = todos)
   std::uint64_t retryToken = 0;   // != 0: escritura pedida por la máquina de reintento
   bool clearAlarmFirst = false;   // ClrAlarm de la placa antes de Pw = 1 (clear_alarm_before_retry)
-  double value = 0;               // V0Set pedido (V)
+  double value = 0;               // V0Set pedido (V) o RUp pedido (V/s)
   std::map<int, double> expected; // bias-begin: V0Set nominal esperado por canal
   double maxAboveV = 0.0;         // bias-begin (DAQ2-17): V0Set máximo sobre el nominal (0 a 1.0 V)
   double maxStepV = -1.0;         // bias-begin (DAQ2-17): escalón de la sesión (≤ 0.5 V; ≤ 0: el de siempre)
@@ -130,6 +131,7 @@ class Poller {
   void handleBiasBegin(PollRequest& r);
   void handleV0Set(PollRequest& r, SteadyTime now);
   void handleNominalV0Set(PollRequest& r, SteadyTime now);
+  void handleRUp(PollRequest& r, SteadyTime now);
   void handleBiasRestore(PollRequest& r, SteadyTime now);
   void advanceRestore(SteadyTime now);
   void persistBias();
@@ -190,7 +192,8 @@ class Poller {
   std::string restoreReason_, restoreDetail_;
   std::shared_ptr<std::promise<nlohmann::json>> restoreReply_;
   std::optional<std::shared_future<nlohmann::json>> restoreFut_;
-  std::set<int> restorePwTried_;  // verificación del escalón en curso
+  std::set<int> restorePwTried_;
+  std::set<int> restoreRupTried_;  // seguimiento 2026-10-31 (7): un intento de devolver el RUp previo por canal  // verificación del escalón en curso
 };
 
 }  // namespace daq::hvmon

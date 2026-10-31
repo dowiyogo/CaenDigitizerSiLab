@@ -68,6 +68,8 @@ const char* kUsage =
     "  bias set --ch N --value V --authorize \"<motivo>\"   V0Set con límites (≤ nominal + max-above, ≥ nominal − 2 V, escalón ≤ max-step)\n"
     "  bias restore --authorize \"<motivo>\" | bias status   nominal en todos los canales y cierre / estado\n"
     "  bias nominal --ch N --authorize \"<motivo>\"   XPLUS-1: V0Set al nominal registrado, solo con el canal apagado\n"
+    "  bias rup --ch N --value V/s --authorize \"<motivo>\"   RUp dentro de la sesión (0.05-5 V/s y rango de la placa);\n"
+    "      bias restore devuelve el RUp previo de cada canal tocado\n"
     "  notify-summary --text-file F [--kind K]   correo de resumen por el notificador de hvmon\n"
     "Sin hvmon (modo directo, solo lectura):\n"
     "  map                                   mapa del crate\n"
@@ -764,6 +766,14 @@ int cmdBias(const std::string& sock, const Options& o) {
       return kExitUsage;
     }
     req = {{"cmd", "v0set"}, {"ch", *ch}, {"value", *o.value}, {"authorize", *o.authorize}};
+  } else if (sub == "rup") {
+    // Seguimiento 2026-10-31 (7): RUp (V/s) de un canal dentro de la sesión de barrido
+    auto ch = o.chSpec ? toInt(*o.chSpec) : std::nullopt;
+    if (!ch || !o.value) {
+      std::fprintf(stderr, "Uso: hvctl bias rup --ch N --value V/s --authorize \"<motivo>\"\n");
+      return kExitUsage;
+    }
+    req = {{"cmd", "rup"}, {"ch", *ch}, {"value", *o.value}, {"authorize", *o.authorize}};
   } else if (sub == "restore") {
     req = {{"cmd", "bias-restore"}, {"authorize", *o.authorize}};
   } else if (sub == "nominal") {
@@ -775,7 +785,7 @@ int cmdBias(const std::string& sock, const Options& o) {
     }
     req = {{"cmd", "nominal-v0set"}, {"ch", *ch}, {"authorize", *o.authorize}};
   } else {
-    std::fprintf(stderr, "Uso: hvctl bias begin|set|restore|nominal|status ...\n");
+    std::fprintf(stderr, "Uso: hvctl bias begin|set|rup|restore|nominal|status ...\n");
     return kExitUsage;
   }
   auto r = request(sock, req, 3700);

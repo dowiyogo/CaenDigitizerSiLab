@@ -21,8 +21,12 @@
 //    restauración); offsetDriftOk() lo comprueba. No se aplica a las escrituras de la restauración.
 //  - restorePlan(): escalones de ≤ max_step_V hacia el nominal, canal por canal, desde abajo o desde arriba
 //    (sobre el nominal, ≤ kMaxStepAboveV).
+//  - Seguimiento 2026-10-31 (7): RUp (V/s) de los canales de la sesión, solo con la sesión activa: checkRUp() exige
+//    kRUpMinVps ≤ RUp ≤ kRUpMaxVps (0.05-5 V/s; el Poller además el rango que informa la placa); notePreviousRUp() guarda el
+//    RUp leído antes de la primera escritura de la sesión en cada canal, y la restauración (Poller::advanceRestore) lo
+//    devuelve antes de cerrar la sesión. El RUp previo se persiste con la sesión.
 //  - El estado se persiste (JSON) para que un hvmon que arranca con una sesión activa restaure el
-//    nominal solo (Poller::enableBiasPersistence).
+//    nominal (y el RUp previo) solo (Poller::enableBiasPersistence).
 // Lógica pura, sin hardware ni hilos (la usa el hilo de sondeo; la prueban los tests).
 #pragma once
 
@@ -44,6 +48,10 @@ inline constexpr double kMaxStepCapV = 0.5;     // escalón máximo en cualquier
 // XPLUS-1: intervalo admitido para escribir el nominal registrado con el canal apagado (recuperación tras un corte)
 inline constexpr double kNominalMinV = 55.0;
 inline constexpr double kNominalMaxV = 70.0;
+// Seguimiento 2026-10-31 (7): RUp admitido dentro de una sesión de barrido y tolerancia de la relectura
+inline constexpr double kRUpMinVps = 0.05;
+inline constexpr double kRUpMaxVps = 5.0;
+inline constexpr double kRUpTolVps = 0.005;
 
 struct BiasLimits {
   std::vector<int> channels{0, 1, 2, 3, 4, 5, 6, 7};
@@ -74,7 +82,15 @@ class BiasSession {
   bool offsetDriftOk(int ch, double v0setRead, double vmon) const;    // |VMon − V0Set − desvío al nominal| ≤ max_offset_drift_V
   double nominalOffset(int ch) const { return offsetNominal_.at(ch); }
   std::vector<std::pair<int, double>> restorePlan(const std::map<int, double>& v0set) const;
-  void end() { active_ = false; }
+  // RUp (seguimiento 2026-10-31 (7)): límites de una escritura pedida desde fuera; RUp previo de cada canal (el primero que se
+  // ve en la sesión: notePreviousRUp devuelve true si lo registró ahora).
+  Status checkRUp(int ch, double vps) const;
+  bool notePreviousRUp(int ch, double vps);
+  const std::map<int, double>& rupPrevious() const { return rupPrevious_; }
+  void end() {
+    active_ = false;
+    rupPrevious_.clear();
+  }
   void updateOffset(int ch, double off) {
     if (offset_.count(ch)) offset_[ch] = off;
   }
@@ -92,6 +108,7 @@ class BiasSession {
   double baseMaxStepV_ = lim_.maxStepV;
   bool active_ = false;
   std::map<int, double> nominal_, offset_, offsetNominal_;
+  std::map<int, double> rupPrevious_;  // RUp antes de la primera escritura de la sesión (V/s)
   UtcNs startUtc_ = 0;
   std::string reason_;
 };

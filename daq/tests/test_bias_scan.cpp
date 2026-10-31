@@ -1,9 +1,11 @@
 // Tests del barrido de tensión de hvmon (DAQ2-14) con FakeHVBackend y ManualClock: límites de cada
 // escritura de V0Set, verificación de la rampa, abortos y restauración del nominal (pedida, tras un
-// trip y al arrancar hvmon con una sesión persistida).
+// trip y al arrancar hvmon con una sesión persistida). Seguimiento 2026-10-31 (7): RUp dentro de la sesión (fijar, leer,
+// restaurar el previo con bias-restore, abortar a mitad, fuera de rango, reinicio de hvmon con la sesión activa).
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <variant>
 
 #include "daq/core/clock.h"
 #include "daq/core/file_system.h"
@@ -49,11 +51,15 @@ struct Rig {
     c.allowCommands = allow;
     return c;
   }
+  std::vector<CommandRecord> cmds;  // registros de comando que irían a hv_changes
+  void drain() {
+    while (auto it = writer.try_pop())
+      if (const auto* k = std::get_if<CommandItem>(&*it)) cmds.push_back(k->rec);
+  }
   void run(std::chrono::milliseconds d) {
     const auto end = clock.now_steady() + d;
     while (clock.now_steady() < end) poller.step();
-    while (writer.try_pop()) {
-    }
+    drain();
   }
   nlohmann::json send(PollRequest r, std::chrono::milliseconds maxWait = 600s) {
     r.requester = "gtest";
@@ -62,8 +68,7 @@ struct Rig {
     EXPECT_TRUE(requests.try_push(std::move(r), DropPolicy::DropNewest));
     const auto end = clock.now_steady() + maxWait;
     while (f.wait_for(0s) != std::future_status::ready && clock.now_steady() < end) poller.step();
-    while (writer.try_pop()) {
-    }
+    drain();
     return f.wait_for(0s) == std::future_status::ready ? f.get() : nlohmann::json{{"ok", false}, {"result", "test_timeout"}};
   }
   nlohmann::json begin(std::map<int, double> exp = kNominal, double maxAboveV = 0.0, double maxStepV = -1.0) {
@@ -87,6 +92,14 @@ struct Rig {
     return send(std::move(r), 3600s);
   }
   double v0(int ch) { return backend.readChannels(3, {ch}, {"V0Set"}).value().get("V0Set", ch)->si; }
+  nlohmann::json rup(int ch, double vps) {
+    PollRequest r;
+    r.kind = PollRequest::Kind::RUp;
+    r.ch = ch;
+    r.value = vps;
+    return send(std::move(r), 60s);
+  }
+  double rupRead(int ch) { return backend.readChannels(3, {ch}, {"RUp"}).value().get("RUp", ch)->si; }
 };
 
 }  // namespace
@@ -503,4 +516,129 @@ TEST(BiasScanPoller, NominalV0SetRefusedWithoutRecordWithoutAllowOrDuringSession
     ASSERT_TRUE(r.begin().value("ok", false));  // sesión activa: la restauración del nominal es de la sesión
     EXPECT_EQ(nominalReq(r, 3).value("result", ""), "rejected");
   }
+}
+
+// ---- RUp dentro de la sesión de barrido (seguimiento 2026-10-31 (7)) -------------------------------------------------
+
+TEST(BiasSession, RUpLimitsAndPreviousValueArePersisted) {
+  BiasSession s;
+  std::map<int, double> vm;
+  for (const auto& [ch, v] : kNominal) vm[ch] = v - 0.3;
+  EXPECT_FALSE(s.checkRUp(0, 1.0));  // sin sesión
+  ASSERT_TRUE(s.begin(kNominal, kNominal, vm, "t", 1));
+  EXPECT_TRUE(s.checkRUp(0, 0.05));
+  EXPECT_TRUE(s.checkRUp(0, 5.0));
+  EXPECT_FALSE(s.checkRUp(0, 0.04));
+  EXPECT_FALSE(s.checkRUp(0, 5.01));
+  EXPECT_FALSE(s.checkRUp(0, NAN));
+  EXPECT_FALSE(s.checkRUp(8, 1.0));  // canal fuera de la sesión
+  EXPECT_TRUE(s.notePreviousRUp(3, 1.0));
+  EXPECT_FALSE(s.notePreviousRUp(3, 0.1));  // solo el primero de la sesión
+  EXPECT_DOUBLE_EQ(s.rupPrevious().at(3), 1.0);
+  BiasSession t;
+  ASSERT_TRUE(t.restore(s.toJson(2)));
+  EXPECT_DOUBLE_EQ(t.rupPrevious().at(3), 1.0);
+  t.end();
+  EXPECT_TRUE(t.rupPrevious().empty());
+}
+
+TEST(BiasScanPoller, RUpIsSetReadBackLoggedAndRestoredByBiasRestore) {
+  MemoryFileSystem fs;
+  Rig r(scenario(), fs);
+  r.run(5s);
+  ASSERT_TRUE(r.begin().value("ok", false));
+  EXPECT_NEAR(r.rupRead(0), 1.0, 1e-9);
+  auto res = r.rup(0, 2.0);
+  ASSERT_TRUE(res.value("ok", false)) << res.dump();
+  EXPECT_EQ(res.value("result", ""), "verified");
+  EXPECT_NEAR(r.rupRead(0), 2.0, 1e-9);
+  EXPECT_EQ(r.rup(0, 2.0).value("result", ""), "noop");
+  // RUp previo persistido con la sesión
+  const auto st = nlohmann::json::parse(fs.content("/state/hvmon_bias_state.json"));
+  EXPECT_DOUBLE_EQ(st["rup_previous_V_per_s"]["0"].get<double>(), 1.0);
+  // un escalón de V0Set con el RUp de la sesión se verifica igual
+  ASSERT_TRUE(r.v0set(0, 65.25).value("ok", false));
+  // registro en hv_changes: request, written, verified con param RUp y el valor en V/s
+  int verified = 0;
+  for (const auto& c : r.cmds)
+    if (c.param == "RUp" && c.phase == "verified" && c.ch == 0) {
+      ++verified;
+      EXPECT_DOUBLE_EQ(c.toJson()["value"].get<double>(), 2.0);
+      EXPECT_FALSE(c.reason.empty());
+    }
+  EXPECT_EQ(verified, 1);
+  EXPECT_EQ(r.backend.rupWrites(), 1u);
+  res = r.restore();
+  ASSERT_TRUE(res.value("ok", false)) << res.dump();
+  EXPECT_NEAR(r.rupRead(0), 1.0, 1e-9);
+  EXPECT_NEAR(r.v0(0), 65.75, 1e-6);
+  EXPECT_EQ(r.backend.rupWrites(), 2u);
+  EXPECT_FALSE(r.poller.bias().active());
+  EXPECT_TRUE(r.poller.bias().rupPrevious().empty());
+}
+
+TEST(BiasScanPoller, RUpOutOfRangeOrWithoutSessionIsRejectedWithoutWriting) {
+  MemoryFileSystem fs;
+  Rig q(scenario(), fs, false);
+  q.run(5s);
+  EXPECT_EQ(q.rup(0, 2.0).value("result", ""), "rejected");  // allow_commands = false
+  Rig r(scenario(), fs);
+  r.run(5s);
+  EXPECT_EQ(r.rup(0, 2.0).value("result", ""), "rejected");  // sin sesión
+  ASSERT_TRUE(r.begin().value("ok", false));
+  for (double v : {0.04, 5.5, -1.0}) EXPECT_EQ(r.rup(0, v).value("result", ""), "rejected") << v;
+  EXPECT_EQ(r.rup(8, 2.0).value("result", ""), "rejected");  // canal fuera de la sesión
+  // 0.1 V/s está dentro de 0.05-5 V/s pero bajo el mínimo que informa la placa (A7030DP: 1 V/s)
+  const auto low = r.rup(0, 0.1);
+  EXPECT_EQ(low.value("result", ""), "rejected");
+  EXPECT_NE(low.value("detail", "").find("placa"), std::string::npos) << low.dump();
+  EXPECT_EQ(r.backend.rupWrites(), 0u);
+  EXPECT_TRUE(r.poller.bias().rupPrevious().empty());
+  EXPECT_TRUE(r.restore().value("ok", false));
+}
+
+TEST(BiasScanPoller, AbortMidScanRestoresRUpNominalAndPower) {
+  MemoryFileSystem fs;
+  // de 30 a 50 s CH01 recibe 30 µA extra: trip durante la rampa del escalón
+  Rig r(scenario(nlohmann::json::array({{{"t_s", 30.0}, {"type", "current"}, {"slot", 3}, {"ch", 1}, {"extra_uA", 30.0}, {"duration_s", 20.0}}})), fs);
+  r.run(5s);
+  ASSERT_TRUE(r.begin().value("ok", false));
+  for (int ch = 0; ch < 8; ++ch) ASSERT_TRUE(r.rup(ch, 2.5).value("ok", false)) << ch;
+  ASSERT_TRUE(r.v0set(0, 65.25).value("ok", false));
+  const auto res1 = r.v0set(1, 65.25);  // se dispara a mitad: el barrido aborta (como biasscan.py)
+  r.run(30s);
+  EXPECT_EQ(r.backend.readChannels(3, {1}, {"Pw"}).value().get("Pw", 1)->raw, 0u) << res1.dump();
+  r.run(20s);  // vuelve la corriente normal
+  const auto res = r.restore();
+  ASSERT_TRUE(res.value("ok", false)) << res.dump();
+  for (int ch = 0; ch < 8; ++ch) {
+    EXPECT_NEAR(r.rupRead(ch), 1.0, 1e-9) << ch;
+    EXPECT_NEAR(r.v0(ch), kNominal.at(ch), 1e-6) << ch;
+    EXPECT_EQ(r.backend.readChannels(3, {ch}, {"Pw"}).value().get("Pw", ch)->raw, 1u) << ch;
+  }
+  EXPECT_EQ(r.backend.rupWrites(), 16u);  // 8 escrituras + 8 restauraciones
+  EXPECT_FALSE(r.poller.bias().active());
+}
+
+TEST(BiasScanPoller, HvmonStartingWithActiveSessionRestoresPreviousRUp) {
+  MemoryFileSystem fs;
+  {
+    Rig r(scenario(), fs);
+    r.run(5s);
+    ASSERT_TRUE(r.begin().value("ok", false));
+    ASSERT_TRUE(r.rup(2, 3.0).value("ok", false));
+    ASSERT_TRUE(r.v0set(2, 65.40).value("ok", false));
+  }
+  // "Reinicio" de hvmon (p. ej. el barrido murió y nadie llamó a bias restore): la placa quedó con RUp 3 V/s y V0Set bajo el
+  // nominal en CH02; el estado persistido tiene el RUp previo.
+  auto sc = scenario();
+  sc["slots"][0]["set"]["V0Set"][2] = 65.40;
+  sc["slots"][0]["set"]["RUp"][2] = 3.0;
+  Rig r2(sc, fs);
+  EXPECT_TRUE(r2.poller.bias().active());
+  r2.run(300s);
+  EXPECT_NEAR(r2.rupRead(2), 1.0, 1e-9);
+  EXPECT_NEAR(r2.v0(2), 65.90, 1e-6);
+  EXPECT_EQ(r2.backend.rupWrites(), 1u);
+  EXPECT_FALSE(r2.poller.bias().active());
 }

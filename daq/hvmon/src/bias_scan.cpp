@@ -36,6 +36,7 @@ Status BiasSession::begin(const std::map<int, double>& expected, const std::map<
     off[ch] = m->second - v->second;
   }
   nominal_ = nom;
+  rupPrevious_.clear();
   offset_ = off;
   offsetNominal_ = off;
   lim_.maxAboveV = maxAboveV;
@@ -60,6 +61,21 @@ Status BiasSession::checkStep(int ch, double target, double currentV0Set) const 
   if (std::max(target, currentV0Set) > nom + 1e-6 && std::fabs(target - currentV0Set) > kMaxStepAboveV + 1e-6)
     return Status::failure(-1, "escalón " + fmt(target - currentV0Set) + " V sobre el nominal mayor que " + fmt(kMaxStepAboveV) + " V");
   return okStatus();
+}
+
+Status BiasSession::checkRUp(int ch, double vps) const {
+  if (!active_) return Status::failure(-1, "sin sesión de barrido activa: RUp no se escribe");
+  if (!inSession(ch)) return Status::failure(-1, "CH" + std::to_string(ch) + " no es parte de la sesión de barrido");
+  if (!std::isfinite(vps)) return Status::failure(-1, "RUp pedido inválido");
+  if (vps < kRUpMinVps - 1e-9 || vps > kRUpMaxVps + 1e-9)
+    return Status::failure(-1, "RUp " + fmt(vps) + " V/s fuera de " + fmt(kRUpMinVps) + "-" + fmt(kRUpMaxVps) + " V/s");
+  return okStatus();
+}
+
+bool BiasSession::notePreviousRUp(int ch, double vps) {
+  if (!active_ || !inSession(ch) || rupPrevious_.count(ch)) return false;
+  rupPrevious_[ch] = vps;
+  return true;
 }
 
 bool BiasSession::reached(int ch, double target, double v0setRead, double vmon, double v0setBefore, double vmonBefore) const {
@@ -102,7 +118,10 @@ nlohmann::json BiasSession::toJson(UtcNs now) const {
   for (const auto& [ch, v] : nominal_) nom[std::to_string(ch)] = v;
   for (const auto& [ch, v] : offset_) off[std::to_string(ch)] = v;
   for (const auto& [ch, v] : offsetNominal_) off0[std::to_string(ch)] = v;
+  nlohmann::json rup = nlohmann::json::object();
+  for (const auto& [ch, v] : rupPrevious_) rup[std::to_string(ch)] = v;
   return {{"schema", "daqv2.hvmon_bias_session/1"}, {"active", active_}, {"nominal_V0Set_V", nom}, {"vmon_offset_V", off}, {"vmon_offset_nominal_V", off0},
+          {"rup_previous_V_per_s", rup},
           {"start_utc_ns", startUtc_}, {"start_utc", startUtc_ ? formatUtcIso(startUtc_) : ""}, {"reason", reason_},
           {"saved_utc", formatUtcIso(now)},
           {"limits", {{"max_below_V", lim_.maxBelowV}, {"max_step_V", lim_.maxStepV}, {"max_above_V", lim_.maxAboveV}, {"vmon_tol_V", lim_.vmonTolV},
@@ -121,6 +140,9 @@ Status BiasSession::restore(const nlohmann::json& j) {
     offsetNominal_ = offset_;  // estado anterior a DAQ2-17 sin el desvío al nominal: el último verificado
     if (j.contains("vmon_offset_nominal_V"))
       for (const auto& [k, v] : j.at("vmon_offset_nominal_V").items()) offsetNominal_[std::stoi(k)] = v.get<double>();
+    rupPrevious_.clear();  // seguimiento 2026-10-31 (7); los estados anteriores no lo tienen
+    if (j.contains("rup_previous_V_per_s"))
+      for (const auto& [k, v] : j.at("rup_previous_V_per_s").items()) rupPrevious_[std::stoi(k)] = v.get<double>();
     startUtc_ = j.value("start_utc_ns", static_cast<UtcNs>(0));
     reason_ = j.value("reason", "");
     active_ = j.value("active", false);

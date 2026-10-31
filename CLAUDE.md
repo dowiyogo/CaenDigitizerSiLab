@@ -170,7 +170,10 @@ authorizes it (rule 2). Pw off is verified by the Status `on` bit, not by VMon (
 discharges with tau ~110-150 s). Current mapping `hodo_mapping_2026_10_r2.json` (groups measured),
 October calibration `pe_calibration_2026_10_c1.json` (design 15.8).
 Writes: the only writes in the code base are `HVBackend::setChannelPw()`, `clearBoardAlarm()`
-(`ClrAlarm`) and, since DAQ2-14, `setChannelV0Set()`; `hvmon` refuses all of them unless its config has
+(`ClrAlarm`), since DAQ2-14 `setChannelV0Set()` and, since follow-up 2026-10-31 (7) (branch `daq/hvmon-rup-2026-10-31`, not
+deployed), `setChannelRUp()`: RUp only inside an active scan session (`hvctl bias rup --ch N --value V/s`), 0.05-5 V/s and inside
+the range the board reports (A7030DP: 1-500 V/s, so 0.1 V/s is refused), the previous RUp is persisted with the session and
+`bias restore` (also from `biasscan_safety.sh`, ExecStopPost, and at hvmon start with an active session) writes it back; `hvmon` refuses all of them unless its config has
 `allow_commands: true`, which needs explicit authorization in the task prompt. V0Set is a bounded write
 available only inside a `hvmon` scan session (`daq/hvmon/include/daq/hvmon/bias_scan.h`;
 `hvctl bias begin|set|restore|status`): the session starts only if the V0Set read back matches the

@@ -42,12 +42,16 @@
 # los análisis entre runs); IMon ≥ 14 µA -> SIGUSR1 al proceso -> Abort en el hilo principal (restauración). El desvío
 # VMon − V0Set que se aleje más de 0.15 V del desvío al nominal también aborta (hvmon y check_vmon).
 # Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS" | --max-hours H] [--self-check-only]
-#        [--steps L] [--max-above V] [--max-step V] [--authorize T] [--ext-s S] [--trigger-diag]
+#        [--steps L] [--max-above V] [--max-step V] [--authorize T] [--ext-s S] [--trigger-diag] [--rup V/s] [--set-rup]
 #   --sim: hvmon de prueba con FakeHVBackend, daqrun fake, duraciones cortas
 import calendar, glob, itertools, json, math, os, signal, statistics, subprocess, sys, threading, time
 
 SIM = "--sim" in sys.argv
 SELF_CHECK_ONLY = "--self-check-only" in sys.argv
+# Seguimiento 2026-10-31 (7): --set-rup fija RUp = --rup en CH00-07 con hvctl bias rup dentro de la sesión (hvmon de la rama
+# daq/hvmon-rup-2026-10-31: 0.05-5 V/s y el rango que informa la placa) en vez de solo comprobarlo; bias restore (fin, aborto o
+# ExecStopPost de la unidad con biasscan_safety.sh) devuelve el RUp previo de cada canal.
+SET_RUP = "--set-rup" in sys.argv
 REPO = "/home/xplus/digitizer/CaenDigitizerSiLab-jai"  # salidas (outputs/daq2-15/…) y binarios de prueba de la simulación
 # BIASSCAN_CODE_ROOT (seguimiento 2026-10-31 (4)): el código (este script, xy_estimator.py, macros de daq/tools, cabeceras de daq/core/include)
 # se toma del árbol donde está este archivo: el repositorio vivo o una copia fija instalada con daq/tools/biasscan/install_pinned.sh en
@@ -91,6 +95,7 @@ DUR = {"stab": 120, "sw": 120, "ext": float(_arg("--ext-s", "900")), "check": 12
 # René antes del barrido (GECO o una escritura nueva en hvmon que no existe todavía). El barrido comprueba al empezar que el RUp leído de
 # CH00-07 es el esperado (--rup, 0.1 V/s; 1.0 en simulación, que es el del fake) y, tras cada escritura de V0Set verificada, espera
 # 3 × (escalón / RUp) antes de la siguiente (0.25 V a 0.1 V/s: 7.5 s), para que la corriente de rampa de un canal no se sume a la del siguiente.
+# Con --set-rup (seguimiento 2026-10-31 (7)) el RUp no se comprueba al empezar: se escribe tras bias begin (ver SET_RUP).
 RUP_EXPECTED_V_PER_S = float(_arg("--rup", "1.0" if SIM else "0.1"))
 SETTLE_AFTER_WRITE_S = 3.0 * MAX_STEP_V / RUP_EXPECTED_V_PER_S
 # Opcional (precaución, no es la causa demostrada del corte del enlace del 2026-10-30): tasa del SW trigger del run de calibración; la duración
@@ -758,8 +763,10 @@ def main():
         if any(abs(a - b) > 0.005 for a, b in zip(read, NOMINAL)):
             raise Abort(f"V0Set leído {read} distinto del nominal esperado {NOMINAL}: no se empieza")
         rup = [hvstate()[ch].get("RUp_V_per_s") for ch in range(8)]
-        log(f"RUp leído: {rup} V/s (esperado {RUP_EXPECTED_V_PER_S:g} V/s; espera tras cada escritura {SETTLE_AFTER_WRITE_S:.1f} s)")
-        if any(r is None or abs(r - RUP_EXPECTED_V_PER_S) > 0.005 for r in rup):
+        log(f"RUp leído: {rup} V/s (esperado {RUP_EXPECTED_V_PER_S:g} V/s{', se fija con --set-rup tras bias begin' if SET_RUP else ''}; "
+            f"espera tras cada escritura {SETTLE_AFTER_WRITE_S:.1f} s)")
+        results["rup_before"] = rup
+        if not SET_RUP and any(r is None or abs(r - RUP_EXPECTED_V_PER_S) > 0.005 for r in rup):
             raise Abort(f"RUp leído {rup} distinto del esperado {RUP_EXPECTED_V_PER_S:g} V/s en CH00-07: no se empieza (hvmon no escribe RUp; "
                         f"fijarlo antes o pasar --rup con el valor real)")
         check_hv("inicio")
@@ -781,6 +788,17 @@ def main():
         log(f"bias begin: {res.get('result')} ({res.get('detail')})", res=res)
         if not res.get("ok"):
             raise Abort("bias begin: " + str(res.get("detail")))
+        if SET_RUP:
+            # Seguimiento 2026-10-31 (7): RUp de la sesión en CH00-07, cada escritura verificada por hvmon (relectura); un rechazo o un
+            # fallo aborta el barrido antes de cualquier V0Set (finish -> bias restore devuelve el RUp previo de los canales ya escritos).
+            results["rup_set"] = []
+            for ch in range(8):
+                r_ = hvctl("bias", "rup", "--ch", str(ch), "--value", f"{RUP_EXPECTED_V_PER_S:g}", "--authorize",
+                           f"{AUTH}: CH{ch:02d} RUp {RUP_EXPECTED_V_PER_S:g} V/s (rampa lenta del barrido)", timeout=700)
+                log(f"bias rup CH{ch:02d} = {RUP_EXPECTED_V_PER_S:g} V/s: {r_.get('result')} ({r_.get('detail')})", res=r_)
+                results["rup_set"].append({"ch": ch, "result": r_.get("result"), "detail": r_.get("detail")})
+                if not r_.get("ok"):
+                    raise Abort(f"bias rup CH{ch:02d}: {r_.get('result')} ({r_.get('detail')})")
         signal.signal(signal.SIGUSR1, _sigusr1)
         monitor = threading.Thread(target=_imon_monitor, args=(MONITOR_STOP,), name="imon", daemon=True)
         monitor.start()
@@ -1009,7 +1027,8 @@ def finish(results):
     try:
         time.sleep(5)  # el archivo de estado de hvmon se publica en el ciclo siguiente
         st = hvstate()
-        results["hv_final"] = {ch: {"V0Set_V": st[ch]["V0Set_V"], "VMon_V": st[ch]["VMon_V"], "Pw": st[ch]["Pw"], "Status": st[ch]["Status"]} for ch in range(8)}
+        results["hv_final"] = {ch: {"V0Set_V": st[ch]["V0Set_V"], "VMon_V": st[ch]["VMon_V"], "Pw": st[ch]["Pw"], "Status": st[ch]["Status"],
+                                    "RUp_V_per_s": st[ch].get("RUp_V_per_s")} for ch in range(8)}
         bad = [ch for ch in range(8) if abs(st[ch]["V0Set_V"] - NOMINAL[ch]) > 0.005 or st[ch]["Pw"] != 1]
         log(f"HV final: {'nominal y Pw = 1 en CH00-07' if not bad else 'NO nominal en ' + str(bad)}", hv=results["hv_final"])
     except Exception as e:  # noqa: BLE001

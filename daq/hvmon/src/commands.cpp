@@ -40,7 +40,7 @@ bool CommandHandler::isLong(const std::string& line) {
     const auto j = nlohmann::json::parse(line);
     const std::string cmd = j.value("cmd", "");
     return cmd == "pw" || cmd == "measure-offsets" || cmd == "notify-test" || cmd == "bias-begin" || cmd == "v0set" ||
-           cmd == "bias-restore" || cmd == "notify-summary" || cmd == "nominal-v0set";
+           cmd == "bias-restore" || cmd == "notify-summary" || cmd == "nominal-v0set" || cmd == "rup";
   } catch (...) {
     return false;
   }
@@ -158,6 +158,20 @@ nlohmann::json CommandHandler::dispatch(const nlohmann::json& req, const PeerCre
     PollRequest r;
     r.kind = PollRequest::Kind::NominalV0Set;
     r.ch = req["ch"].get<int>();
+    r.reason = reason;
+    r.requester = describePeer(peer);
+    return forward(std::move(r), 600.0);
+  }
+  if (cmd == "rup") {
+    // Seguimiento 2026-10-31 (7): RUp de un canal dentro de una sesión de barrido (límites y RUp previo: hilo de sondeo).
+    if (!req.contains("ch") || !req["ch"].is_number_integer()) return error("rup: falta \"ch\"");
+    if (!req.contains("value") || !req["value"].is_number()) return error("rup: falta \"value\" (V/s)");
+    const std::string reason = req.value("authorize", "");
+    if (reason.empty()) return error("rup: falta \"authorize\" (motivo de la escritura)");
+    PollRequest r;
+    r.kind = PollRequest::Kind::RUp;
+    r.ch = req["ch"].get<int>();
+    r.value = req["value"].get<double>();
     r.reason = reason;
     r.requester = describePeer(peer);
     return forward(std::move(r), 600.0);

@@ -23,7 +23,7 @@ nlohmann::json CommandRecord::toJson() const {
   auto j = nlohmann::json{{"type", "command"}, {"command_id", id}, {"t_utc_ns", tUtcNs}, {"t_utc", formatUtcIso(tUtcNs)},
                           {"slot", slot},      {"ch", ch},         {"param", param},    {"value", value},
                           {"phase", phase},    {"reason", reason}, {"requester", requester}, {"detail", detail}};
-  if (param == "V0Set") j["value"] = valueV;
+  if (param == "V0Set" || param == "RUp") j["value"] = valueV;  // V0Set en V, RUp en V/s (seguimiento 2026-10-31 (7))
   return j;
 }
 

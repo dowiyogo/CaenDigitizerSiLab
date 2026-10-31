@@ -10,6 +10,8 @@
 //   {"cmd":"pw","ch":3,"on":true,"authorize":"motivo"} escritura de Pw; requiere allow_commands
 //   {"cmd":"notify-test","ch":11}                     correo de PRUEBA (GAVE_UP sintético)
 //   {"cmd":"nominal-v0set","ch":3,"authorize":"..."}   XPLUS-1: V0Set al nominal registrado, solo con el canal apagado
+//   {"cmd":"rup","ch":3,"value":0.1,"authorize":"..."}  seguimiento 2026-10-31 (7): RUp (V/s) dentro de una sesión de barrido;
+//                                                     la restauración de la sesión (bias-restore) devuelve el RUp previo
 // Respuesta: {"ok":true,...} o {"ok":false,"error":"..."}. Las peticiones largas (pw,
 // measure-offsets) se atienden en un hilo propio para no bloquear status/read.
 // CommandHandler::handle() nunca lanza excepciones; CommandServer es el transporte.
