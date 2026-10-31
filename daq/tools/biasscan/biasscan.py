@@ -80,6 +80,19 @@ else:
     DEADLINE = _next10 if time.time() < _next10 else _next10 + 86400
 DUR = {"stab": 120, "sw": 120, "ext": float(_arg("--ext-s", "900")), "check": 120, "self": 600, "diag": 30} if not SIM else \
     {"stab": 5, "sw": 15, "ext": 20, "check": 10, "self": 15, "diag": 5}
+# Seguimiento 2026-10-31 (3): rampa lenta. En el escalón +0.25 V del 2026-10-30, la rampa a RUp = 1 V/s dio saltos de IMon de +2.6 a +7.9 µA
+# en segundos en CH00-03, y CH03 (7.5 µA a nominal) pasó I0Set = 15 µA 5 s y se disparó. Si el salto es corriente de carga (I = C·dV/dt),
+# baja 10 veces con RUp = 0.1 V/s. hvmon NO escribe RUp (sus únicas escrituras son Pw, ClrAlarm y V0Set de la sesión de barrido): RUp lo fija
+# René antes del barrido (GECO o una escritura nueva en hvmon que no existe todavía). El barrido comprueba al empezar que el RUp leído de
+# CH00-07 es el esperado (--rup, 0.1 V/s; 1.0 en simulación, que es el del fake) y, tras cada escritura de V0Set verificada, espera
+# 3 × (escalón / RUp) antes de la siguiente (0.25 V a 0.1 V/s: 7.5 s), para que la corriente de rampa de un canal no se sume a la del siguiente.
+RUP_EXPECTED_V_PER_S = float(_arg("--rup", "1.0" if SIM else "0.1"))
+SETTLE_AFTER_WRITE_S = 3.0 * MAX_STEP_V / RUP_EXPECTED_V_PER_S
+# Opcional (precaución, no es la causa demostrada del corte del enlace del 2026-10-30): tasa del SW trigger del run de calibración; la duración
+# se escala para conservar el número de eventos (100 Hz × 120 s = 12 000).
+SW_RATE_HZ = float(_arg("--sw-rate", "100"))
+if not SIM:
+    DUR["sw"] = 120.0 * 100.0 / SW_RATE_HZ
 # duración estimada de un escalón completo: runs + análisis + rampas
 STEP_EST_S = (DUR["stab"] + DUR["sw"] + DUR["ext"] + DUR["check"] + (0 if SELF_CHECK_ONLY else 4 * DUR["self"]) + 900) if not SIM else 60
 CHECK_T_PE = 8        # run de control del auto-trigger: un par a 8 p.e.
@@ -292,6 +305,9 @@ def set_bias(delta):
                 log(f"V0Set CH{ch:02d} -> {v:.3f} V (intento {attempt}): {res.get('result')} ({res.get('detail', '')})", ev="v0set", ch=ch,
                     value=v, res=res)
                 if res.get("ok") and res.get("result") in ("verified", "noop"):
+                    if res.get("result") == "verified":
+                        log(f"  espera de estabilización tras la escritura: {SETTLE_AFTER_WRITE_S:.1f} s (3 × {abs(step):.2f} V / {RUP_EXPECTED_V_PER_S:g} V/s)")
+                        time.sleep(3.0 * abs(step) / RUP_EXPECTED_V_PER_S)
                     break
                 if res.get("result") == "hazard":
                     raise Abort(f"V0Set CH{ch:02d} = {v:.3f} V: {res.get('detail')}")
@@ -735,6 +751,11 @@ def main():
         log(f"V0Set leído: {read}")
         if any(abs(a - b) > 0.005 for a, b in zip(read, NOMINAL)):
             raise Abort(f"V0Set leído {read} distinto del nominal esperado {NOMINAL}: no se empieza")
+        rup = [hvstate()[ch].get("RUp_V_per_s") for ch in range(8)]
+        log(f"RUp leído: {rup} V/s (esperado {RUP_EXPECTED_V_PER_S:g} V/s; espera tras cada escritura {SETTLE_AFTER_WRITE_S:.1f} s)")
+        if any(r is None or abs(r - RUP_EXPECTED_V_PER_S) > 0.005 for r in rup):
+            raise Abort(f"RUp leído {rup} distinto del esperado {RUP_EXPECTED_V_PER_S:g} V/s en CH00-07: no se empieza (hvmon no escribe RUp; "
+                        f"fijarlo antes o pasar --rup con el valor real)")
         check_hv("inicio")
         alive, detail = physics_alive()
         log(f"run de física antes de empezar: {'VIVO' if alive else 'NO VIVO'} ({detail})")
@@ -744,7 +765,8 @@ def main():
         # Campaña y configuraciones base
         camp = ["daqcampaign"] + (["--sim"] if SIM else ["--authorize", AUTH])
         sh([(REPO + "/daq/build/apps/daqcampaign/" if SIM else BIN + "/") + "daqcampaign"] + camp[1:] + ["open", CAMPAIGN], check=False)
-        swcfg = write_cfg("sw", "/data/daq/config/commissioning3_2026_10_21/toggle2_sw100_full.json", lambda c: None)
+        swcfg = write_cfg("sw", "/data/daq/config/commissioning3_2026_10_21/toggle2_sw100_full.json",
+                          lambda c: c["digitizer"].__setitem__("sw_trigger_rate_Hz", SW_RATE_HZ))
         extcfg = write_cfg("ext", PHYS_CFG, lambda c: c["run"].__setitem__("max_duration_s", 0))
         results["physics_before"] = physics_stop()
         phys_stopped = True

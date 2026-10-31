@@ -2,6 +2,8 @@
 # DAQ2-16: --self-check-only (solo el run de control del auto-trigger, con volcado de registros; sin los runs de auto-trigger).
 # DAQ2-17: barrido HACIA ARRIBA autorizado por René: ΔV = 0, +0.25, +0.50, +0.75, +1.00 V (escalones de 0.25 V, tope nominal + 1.0 V en
 # hvmon), run externo de 45 min, diagnóstico del trigger en ΔV = 0, guarda de corriente 12/14 µA; al final todo al nominal.
+# Seguimiento 2026-10-31 (3): --rup 0.1 (el barrido comprueba que RUp de CH00-07 sea 0.1 V/s y espera 3 × escalón/RUp tras cada escritura;
+# hvmon no escribe RUp: René lo fija antes). Campaña y --deadline de abajo son de un barrido anterior: cambiarlos al armar.
 # ExecStopPost: pase lo que pase, nominal restaurado (noop si la sesión ya se cerró) y run de física activo.
 [Unit]
 Description=DAQ2-17 barrido de tensión de noche hacia arriba (lo arranca biasscan_night.timer a las 02:00Z; corte 10:00Z)
@@ -9,7 +11,7 @@ After=hvmon.service
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 -I /home/xplus/digitizer/CaenDigitizerSiLab-jai/daq/tools/biasscan/biasscan.py --campaign biasscan_2026_10_24_night --deadline "2026-10-24 10:00:00" --self-check-only --steps 0,0.25,0.5,0.75,1.0 --max-above 1.0 --max-step 0.25 --ext-s 2700 --trigger-diag --authorize "DAQ2-17 upward bias scan, authorized by René"
+ExecStart=/usr/bin/python3 -I /home/xplus/digitizer/CaenDigitizerSiLab-jai/daq/tools/biasscan/biasscan.py --campaign biasscan_2026_10_24_night --deadline "2026-10-24 10:00:00" --self-check-only --steps 0,0.25,0.5,0.75,1.0 --max-above 1.0 --max-step 0.25 --ext-s 2700 --trigger-diag --rup 0.1 --authorize "DAQ2-17 upward bias scan, authorized by René"
 ExecStopPost=/home/xplus/digitizer/CaenDigitizerSiLab-jai/daq/tools/biasscan/biasscan_safety.sh
 KillSignal=SIGTERM
 TimeoutStopSec=900
