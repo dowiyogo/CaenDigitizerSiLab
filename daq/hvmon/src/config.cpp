@@ -28,6 +28,11 @@ Result<HvmonConfig> HvmonConfig::fromJson(const nlohmann::json& jIn, bool fakeBa
   if (fakeBackend) {  // salida separada por omisión para la fuente simulada
     if (!j.contains("state_dir")) j["state_dir"] = kSimStateDir;
     if (!j.contains("runtime_dir")) j["runtime_dir"] = defaultRuntimeDir() + "-sim";
+    // Seguimiento 2026-10-31 (9): sin auto_retry.state_file el estado de reintento (y, en su mismo directorio, el de la sesión de
+    // barrido, hvmon_bias_state.json) iba a ~/.local/state/daqv2, el del hvmon real. Con la fuente simulada va a state_dir.
+    if (!j.contains("auto_retry") || !j["auto_retry"].is_object()) j["auto_retry"] = nlohmann::json::object();
+    if (!j["auto_retry"].contains("state_file") && j["state_dir"].is_string())
+      j["auto_retry"]["state_file"] = j["state_dir"].get<std::string>() + "/hvmon_retry_state.json";
   }
   HvmonConfig c;
   c.runtimeDir = defaultRuntimeDir();
@@ -116,6 +121,9 @@ Result<HvmonConfig> HvmonConfig::fromJson(const nlohmann::json& jIn, bool fakeBa
     return R::failure(-1, std::string("slowcontrol_dir = ") + c.slowcontrolDir + " está dentro de " + kRealSlowcontrolDir +
                               ": un hvmon con " + (fakeBackend ? "FakeHVBackend" : "test_mode") +
                               " no puede escribir ahí (usar " + kSimSlowcontrolDir + ")");
+  if (fakeBackend && pathIsWithin(parentDirectory(c.retry.stateFile), parentDirectory(defaultRetryStateFile())))
+    return R::failure(-1, std::string("auto_retry.state_file = ") + c.retry.stateFile + " está en el directorio de estado del hvmon real (" +
+                              parentDirectory(defaultRetryStateFile()) + ", también hvmon_bias_state.json): con FakeHVBackend usar state_dir");
   if (fakeBackend && resolvePath(c.stateDir) == resolvePath(kRealStateDir))
     return R::failure(-1, std::string("state_dir = ") + c.stateDir + " es el estado real que leen hvctl y daqrun: " +
                               "con FakeHVBackend usar " + kSimStateDir);

@@ -194,7 +194,9 @@ are gzipped by `hvmon` after verification (design 8.5); readers must accept `.gz
 `/run/user/1000/daqv2-test`), `state_dir`, `slowcontrol_dir`, `state_file` and HTTP port.
 `hvmon --fake` (or `test_mode`) refuses `slowcontrol_dir` inside `/data/daq/slowcontrol` and, for
 fakes, the real state dir; with the keys absent it uses `/data/daq/sim/slowcontrol`,
-`/dev/shm/daqv2-sim`, `$XDG_RUNTIME_DIR/daqv2-sim`. E-mails from a fake or test_mode start with
+`/dev/shm/daqv2-sim`, `$XDG_RUNTIME_DIR/daqv2-sim`. Since follow-up 2026-10-31 (9) (branch `daq/hvmon-fake-state-2026-10-31`),
+a fake without `auto_retry.state_file` keeps its retry and scan-session state in `<state_dir>/` (`hvmon_retry_state.json`,
+`hvmon_bias_state.json`) and refuses a `state_file` inside the real `~/.local/state/daqv2`; before that it used the real files. E-mails from a fake or test_mode start with
 `[SIMULADO]`, notify-test with `[PRUEBA]`.
 Secrets: `DAQ_HV_HOST`, `DAQ_HV_USER`, `DAQ_HV_PASSWORD` (and `DAQ_SMTP_*`, `DAQ_NOTIFY_*`) from
 the environment or `~/.config/daqv2/secrets.env`; template `daq/config/secrets.env.example`.

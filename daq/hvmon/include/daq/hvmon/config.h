@@ -81,7 +81,9 @@ struct HvmonConfig {
   // simulación (kSimSlowcontrolDir, /dev/shm/daqv2-sim, $XDG_RUNTIME_DIR/daqv2-sim); con
   // test_mode, slowcontrol_dir ausente también es kSimSlowcontrolDir. Con fake o
   // test_mode, slowcontrol_dir dentro de /data/daq/slowcontrol se rechaza; con fake, también
-  // state_dir = /dev/shm/daqv2 (el estado que leen hvctl y daqrun).
+  // state_dir = /dev/shm/daqv2 (el estado que leen hvctl y daqrun). Con fake, auto_retry.state_file ausente es
+  // <state_dir>/hvmon_retry_state.json (ahí va también hvmon_bias_state.json) y uno explícito dentro del directorio
+  // de estado real (~/.local/state/daqv2 o $XDG_STATE_HOME/daqv2) se rechaza (seguimiento 2026-10-31 (9)).
   static Result<HvmonConfig> fromJson(const nlohmann::json& j, bool fakeBackend = false);
   static Result<HvmonConfig> fromFile(const std::string& path, bool fakeBackend = false);
   bool simulated = false;  // fake o test_mode: correos marcados [SIMULADO] y salida separada

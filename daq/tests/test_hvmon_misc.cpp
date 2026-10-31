@@ -140,6 +140,15 @@ TEST(HvmonConfig, SimulatedOutputNeverGoesToRealSlowcontrol) {
   }
   // Fake con el estado real: rechazado (lo leen hvctl y daqrun).
   EXPECT_FALSE(HvmonConfig::fromJson({{"state_dir", "/dev/shm/daqv2"}}, true).ok());
+  // Seguimiento 2026-10-31 (9): estado de reintento y de barrido del fake en state_dir, nunca en el del hvmon real.
+  EXPECT_EQ(fake.value().retry.stateFile, "/dev/shm/daqv2-sim/hvmon_retry_state.json");
+  auto fakeDir = HvmonConfig::fromJson({{"state_dir", "/dev/shm/daqv2-otro"}, {"auto_retry", {{"max_ramping_channels", 1}}}}, true);
+  ASSERT_TRUE(fakeDir.ok()) << fakeDir.error().message;
+  EXPECT_EQ(fakeDir.value().retry.stateFile, "/dev/shm/daqv2-otro/hvmon_retry_state.json");
+  auto fakeRealState = HvmonConfig::fromJson({{"auto_retry", {{"state_file", hvmon::defaultRetryStateFile()}}}}, true);
+  ASSERT_FALSE(fakeRealState.ok());
+  EXPECT_NE(fakeRealState.error().message.find("estado del hvmon real"), std::string::npos);
+  EXPECT_EQ(real.value().retry.stateFile, hvmon::defaultRetryStateFile());  // la fuente real no cambia
   // test_mode con la fuente real: slowcontrol_dir ausente va a simulación; explícito real, rechazado.
   const nlohmann::json retry{{"enabled_channels", {8}}, {"test_mode", {{"enabled", true}, {"channels", {8}}}}};
   auto tm = HvmonConfig::fromJson({{"allow_commands", true}, {"auto_retry", retry}});
