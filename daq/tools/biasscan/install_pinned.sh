@@ -29,7 +29,7 @@ done
 [ -n "$CAMPAIGN" ] && [ -n "$DEADLINE" ] || { echo "faltan --campaign y --deadline" >&2; exit 2; }
 FULL=$(git -C "$REPO" rev-parse --verify "$COMMIT^{commit}")
 SHORT=$(git -C "$REPO" rev-parse --short "$FULL")
-git -C "$REPO" show "$FULL:daq/tools/biasscan/biasscan.py" | grep -q BIASSCAN_CODE_ROOT \
+git -C "$REPO" show "$FULL:daq/tools/biasscan/biasscan.py" | grep -c BIASSCAN_CODE_ROOT > /dev/null \
   || { echo "el biasscan.py de $SHORT no tiene BIASSCAN_CODE_ROOT: la copia importaría el código del árbol vivo; usar un commit posterior" >&2; exit 3; }
 git -C "$REPO" cat-file -e "$FULL:daq/systemd/biasscan_night_pinned.service.in" \
   || { echo "el commit $SHORT no tiene daq/systemd/biasscan_night_pinned.service.in" >&2; exit 3; }
