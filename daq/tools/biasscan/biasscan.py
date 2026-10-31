@@ -43,6 +43,7 @@
 # VMon − V0Set que se aleje más de 0.15 V del desvío al nominal también aborta (hvmon y check_vmon).
 # Uso: biasscan.py [--sim] [--campaign NOMBRE] [--deadline "AAAA-MM-DD HH:MM:SS" | --max-hours H] [--self-check-only]
 #        [--steps L] [--max-above V] [--max-step V] [--authorize T] [--ext-s S] [--trigger-diag] [--rup V/s] [--set-rup]
+#        [--sw-only] [--sw-events "dV:N,..."] [--group-pos-cap "g:V,..."]
 #   --sim: hvmon de prueba con FakeHVBackend, daqrun fake, duraciones cortas
 import calendar, glob, itertools, json, math, os, signal, statistics, subprocess, sys, threading, time
 
@@ -52,6 +53,12 @@ SELF_CHECK_ONLY = "--self-check-only" in sys.argv
 # daq/hvmon-rup-2026-10-31: 0.05-5 V/s y el rango que informa la placa) en vez de solo comprobarlo; bias restore (fin, aborto o
 # ExecStopPost de la unidad con biasscan_safety.sh) devuelve el RUp previo de cada canal.
 SET_RUP = "--set-rup" in sys.argv
+# Seguimiento 2026-10-31 (9): barrido de V_bd (daq/tools/biasscan/vbd/, docs/biasscan_vbd_2026-10-31.md).
+#   --sw-only: en cada escalón solo la toma SW (sin run externo ni auto-trigger); un fallo del análisis SW en línea no omite el escalón (el
+#              análisis de V_bd se hace después, con vbd_analysis.py, sobre los crudos);
+#   --sw-events "0.15:12000,0:12000,-0.25:24000,-0.4:24000": eventos SW por escalón (duración = eventos / --sw-rate);
+#   --group-pos-cap "4:0.10": tope del escalón POSITIVO por grupo HV (grupo g = CH0(g−1)); los escalones ≤ 0 no cambian.
+SW_ONLY = "--sw-only" in sys.argv
 REPO = "/home/xplus/digitizer/CaenDigitizerSiLab-jai"  # salidas (outputs/daq2-15/…) y binarios de prueba de la simulación
 # BIASSCAN_CODE_ROOT (seguimiento 2026-10-31 (4)): el código (este script, xy_estimator.py, macros de daq/tools, cabeceras de daq/core/include)
 # se toma del árbol donde está este archivo: el repositorio vivo o una copia fija instalada con daq/tools/biasscan/install_pinned.sh en
@@ -104,7 +111,24 @@ SW_RATE_HZ = float(_arg("--sw-rate", "100"))
 if not SIM:
     DUR["sw"] = 120.0 * 100.0 / SW_RATE_HZ
 # duración estimada de un escalón completo: runs + análisis + rampas
-STEP_EST_S = (DUR["stab"] + DUR["sw"] + DUR["ext"] + DUR["check"] + (0 if SELF_CHECK_ONLY else 4 * DUR["self"]) + 900) if not SIM else 60
+SW_EVENTS = {round(float(k), 3): int(v) for k, v in (x.split(":") for x in _arg("--sw-events", "").split(",") if x)}
+GROUP_POS_CAP = {int(k): float(v) for k, v in (x.split(":") for x in _arg("--group-pos-cap", "").split(",") if x)}
+
+
+def sw_seconds(dv):
+    """duración de la toma SW del escalón: --sw-events / --sw-rate si se dio, si no la de siempre."""
+    n = SW_EVENTS.get(round(dv, 3))
+    return (n / SW_RATE_HZ if not SIM else min(DUR["sw"], n / SW_RATE_HZ)) if n else DUR["sw"]
+
+
+def step_delta(ch, delta):
+    """ΔV del canal SY5527 ch (grupo ch + 1) en el escalón delta: el positivo se limita con --group-pos-cap."""
+    cap = GROUP_POS_CAP.get(ch + 1)
+    return min(delta, cap) if (cap is not None and delta > 0) else delta
+
+
+STEP_EST_S = ((DUR["stab"] + max([sw_seconds(d) for d in STEPS] + [DUR["sw"]]) + 300) if SW_ONLY else
+              (DUR["stab"] + DUR["sw"] + DUR["ext"] + DUR["check"] + (0 if SELF_CHECK_ONLY else 4 * DUR["self"]) + 900)) if not SIM else 60
 CHECK_T_PE = 8        # run de control del auto-trigger: un par a 8 p.e.
 DIAG_SINGLE_PE = 20   # diagnóstico, grupo solo: 20 p.e. (a 8 p.e. un grupo solo dispararía a ~1e5 Hz)
 CHECK_MIN_FRAC = 0.10  # tasa medida < 10 % de la accidental prevista -> configuración que no funciona
@@ -303,7 +327,7 @@ def set_bias(delta):
     """Lleva CH00-07 a nominal + delta en escalones de ≤ MAX_STEP_V (todos los canales por escalón)."""
     st = check_hv("antes de cambiar V0Set")
     cur = [st[ch]["V0Set_V"] for ch in range(8)]
-    target = [round(NOMINAL[ch] + delta, 3) for ch in range(8)]
+    target = [round(NOMINAL[ch] + step_delta(ch, delta), 3) for ch in range(8)]  # seguimiento 9: --group-pos-cap
     while any(abs(cur[ch] - target[ch]) > 0.004 for ch in range(8)):
         for ch in range(8):
             if abs(cur[ch] - target[ch]) <= 0.004:
@@ -857,9 +881,20 @@ def run_step(step, i, dv, prevCal, swcfg, extcfg):
     step["hv_before_sw"] = {ch: v for ch, v in wait_stable("antes del run SW").items() if ch < 8}
     step["vmon_deviation_V"] = check_vmon("antes del run SW")
     log(f"  temperatura de la placa: {board_temp(step, 'antes del run SW')} °C")
-    sw = daqrun(swcfg, DUR["sw"])
+    sw = daqrun(swcfg, sw_seconds(dv))
     step["sw_run"] = sw
+    step["target_delta_V_by_group"] = {ch + 1: step_delta(ch, dv) for ch in range(8)}
     check_hv("después del run SW")
+    if SW_ONLY:
+        # seguimiento 9: solo la toma SW; el análisis en línea es informativo (a −0.4 V el ajuste de c1 no converge) y no omite el escalón
+        try:
+            step["sw"] = analyse_sw(sw, i, prevCal)
+            prevCal = step["sw"]["calibration"]
+        except Exception as e:  # noqa: BLE001
+            step["sw_analysis_error"] = str(e)
+            log(f"  análisis SW en línea falló (no se omite el escalón; V_bd con vbd_analysis.py): {e}")
+        log(f"  SW: {sw['events']} eventos (--sw-only: sin run externo ni auto-trigger)")
+        return prevCal
     step["sw"] = guarded(lambda: analyse_sw(sw, i, prevCal), "análisis SW")
     prevCal = step["sw"]["calibration"]
     log(f"  SW: {sw['events']} eventos; G mediana {step['sw']['G_median_mV']:.3f} mV ({step['sw']['n_G_ok']} canales con G)")
