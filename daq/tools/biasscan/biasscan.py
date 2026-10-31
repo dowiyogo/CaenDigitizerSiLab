@@ -48,8 +48,13 @@ import calendar, glob, itertools, json, math, os, signal, statistics, subprocess
 
 SIM = "--sim" in sys.argv
 SELF_CHECK_ONLY = "--self-check-only" in sys.argv
-REPO = "/home/xplus/digitizer/CaenDigitizerSiLab-jai"
-sys.path.insert(0, REPO + "/daq/tools/characterization")
+REPO = "/home/xplus/digitizer/CaenDigitizerSiLab-jai"  # salidas (outputs/daq2-15/…) y binarios de prueba de la simulación
+# BIASSCAN_CODE_ROOT (seguimiento 2026-10-31 (4)): el código (este script, xy_estimator.py, macros de daq/tools, cabeceras de daq/core/include)
+# se toma del árbol donde está este archivo: el repositorio vivo o una copia fija instalada con daq/tools/biasscan/install_pinned.sh en
+# ~/.local/share/daqv2/biasscan/<commit>/ (con BIASSCAN_COMMIT dentro). Las salidas siguen yendo a REPO.
+CODE = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+CODE_COMMIT = open(os.path.join(CODE, "BIASSCAN_COMMIT")).read().split()[0] if os.path.exists(os.path.join(CODE, "BIASSCAN_COMMIT")) else "árbol de trabajo"
+sys.path.insert(0, CODE + "/daq/tools/characterization")
 import xy_estimator as xy  # noqa: E402  estimador X·Y compartido (DAQ2-16)
 BIN = os.path.expanduser("~/.local/opt/daqv2/bin")
 HVCTL = ([REPO + "/daq/build/apps/hvctl/hvctl", "--socket", "/run/user/1000/daqv2-test/hvmon.sock"] if SIM else [BIN + "/hvctl"])
@@ -116,7 +121,7 @@ PHYS_CFG = "/data/daq/config/hodoscope_2026_10/physics_ext_B.json"
 C1 = os.path.expanduser("~/.local/opt/daqv2/share/calibration/pe_calibration_2026_10_c1.json")
 MAP = os.path.expanduser("~/.local/opt/daqv2/share/mapping/hodo_mapping_2026_10_r4.json")
 ENV = dict(os.environ, LD_LIBRARY_PATH=os.path.expanduser("~/root6/lib"), PATH=os.path.expanduser("~/root6/bin") + ":" + os.environ.get("PATH", ""))
-ROOTINC = 'gSystem->AddIncludePath("-I%s/daq/core/include")' % REPO
+ROOTINC = 'gSystem->AddIncludePath("-I%s/daq/core/include")' % CODE
 
 
 class Abort(Exception):
@@ -470,7 +475,7 @@ def _daqrun_once(cfg, seconds):
 
 def root(macro, *args, d="validation"):
     a = ",".join(json.dumps(x) if isinstance(x, str) else str(x).lower() if isinstance(x, bool) else str(x) for x in args)
-    sh(["root", "-l", "-b", "-q", "-e", ROOTINC, f"{REPO}/daq/tools/{d}/{macro}.C+({a})"], timeout=3000, heavy=True)
+    sh(["root", "-l", "-b", "-q", "-e", ROOTINC, f"{CODE}/daq/tools/{d}/{macro}.C+({a})"], timeout=3000, heavy=True)
 
 
 # ---------------------------------------------------------------- análisis de cada escalón
@@ -743,7 +748,8 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     log("=== DAQ2-15/17 barrido de tensión" + (" (SIMULACIÓN)" if SIM else "") + f"; campaña {CAMPAIGN}; límite "
         + time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(DEADLINE)))
-    results = {"steps": [], "aborted": None, "skipped": [], "skipped_steps": [], "current_step": None}
+    log(f"código: {CODE} (commit {CODE_COMMIT})", code_root=CODE, code_commit=CODE_COMMIT)
+    results = {"steps": [], "aborted": None, "skipped": [], "skipped_steps": [], "current_step": None, "code_root": CODE, "code_commit": CODE_COMMIT}
     phys_stopped = False
     try:
         st = hvstate()
@@ -958,7 +964,7 @@ def trigger_registers(run, i, tag="check"):
     if not run["segments"]:
         return {"error": "sin segmentos"}
     f = f"{OUT}/{tag}_step{i}_run_info.json"
-    sh(["root", "-l", "-b", "-q", f"{REPO}/daq/tools/biasscan/run_info_dump.C({json.dumps(run['segments'][0])}, {json.dumps(f)})"], timeout=300)
+    sh(["root", "-l", "-b", "-q", f"{CODE}/daq/tools/biasscan/run_info_dump.C({json.dumps(run['segments'][0])}, {json.dumps(f)})"], timeout=300)
     d = json.load(open(f))
     dig = (d.get("run_info") or {}).get("digitizer", {})
     wr, rd = dig.get("config_written", {}), dig.get("config_read", {})
@@ -1049,7 +1055,7 @@ def finish(results):
         for a in s["self"]:
             lines.append(f"   {a['pair']}: {a['rate_Hz']:.2f} Hz, X·Y {a['N_XY_in_time']}, accidentales previstos {a['acc_pred']:.1f}, razón {a['ratio_pred']:.2f}")
     try:
-        sh(["python3", "-I", REPO + "/daq/tools/biasscan/biasscan_report.py", OUT, JL], timeout=600)
+        sh(["python3", "-I", CODE + "/daq/tools/biasscan/biasscan_report.py", OUT, JL], timeout=600)
         ana = json.load(open(f"{OUT}/biasscan_analysis.json"))
         vbd = [(ch, r["V_bd"], r["sigma_V_bd"], r["overvoltage_nominal"]) for ch, r in ana["channels"].items() if "V_bd" in r]
         if vbd:

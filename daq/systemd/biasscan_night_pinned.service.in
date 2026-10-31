@@ -1,0 +1,17 @@
+# biasscan_night.service (copia fija) — generado por daq/tools/biasscan/install_pinned.sh desde el commit @COMMIT@.
+# Ejecuta la copia instalada en @CODE@ (no el árbol de trabajo del repositorio): cambiar de rama en el repositorio no cambia lo que corre.
+# DAQ2-17: barrido de tensión de noche hacia arriba (escalones de 0.25 V, tope nominal + 1.0 V en hvmon, guarda de corriente 12/14 µA);
+# seguimiento 2026-10-31 (3): --rup 0.1 por omisión en @EXTRA@ (el barrido comprueba RUp = 0.1 V/s en CH00-07; René lo fija antes en GECO).
+# ExecStopPost: pase lo que pase, nominal restaurado (noop si la sesión ya se cerró) y run de física activo (script de la misma copia).
+[Unit]
+Description=Barrido de tensión de noche (copia fija @COMMIT@; campaña @CAMPAIGN@; corte @DEADLINE@ UTC)
+After=hvmon.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I @CODE@/daq/tools/biasscan/biasscan.py --campaign @CAMPAIGN@ --deadline "@DEADLINE@" @EXTRA@ --authorize "DAQ2-17 upward bias scan, authorized by René"
+ExecStopPost=@CODE@/daq/tools/biasscan/biasscan_safety.sh
+KillSignal=SIGTERM
+TimeoutStopSec=900
+RuntimeMaxSec=32400
+Restart=no
