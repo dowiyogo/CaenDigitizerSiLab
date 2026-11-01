@@ -206,3 +206,33 @@ En total suman 14 802.6 s. Los 15 huecos, con sus 14 802.6 s, caen dentro de las
 | octubre, todas las determinadas | 14 | 43.6 ± 10.6 mm | 3.17/13 = 0.24 | 89.0 +31.5 −18.4 mm | 5.33/13 |
 
 El ajuste da la pendiente 1/L_eff con error gaussiano; σ_L = σ_k · L_eff², así que el peso 1/σ_L² y el corte «error < L_eff/2» favorecen los L_eff cortos.
+
+## Espectros MIP etiquetados, amplitud y carga (2026-11-01)
+
+`analysis/followup10_2026_11_01/{charge_extract.C, mip_tagged.py, mip_fit.C}`; salida en `outputs/hod2018_mip_tagged/2026-11-01_tagged/` (figura `mip_tagged_spectra`). Todos los números son [M].
+- **Selección:** etiqueta = alguna tira ortogonal del intervalo > 10 p.e.; sonda = cada tira viva de la capa > 3 p.e. medidos en su variable; mismo evento − mezclados; todas las tiras de la capa sumadas. Mayo v8 en tiempo bueno, octubre run 8 completo. p.e. primarios con F = 1.75 / 1.46.
+- **Carga:** Σ (p_loc − x) · 16 ns en [k−3, k+12] muestras alrededor del mínimo del pulso de la ventana signal, pedestal local p_loc = media de [k−12, k−4]. 1 p.e. en carga = mediana de pulsos oscuros aislados (sin otro pulso > 0.5 G en ±16 muestras) de amplitud 0.5-1.5 G, fuera de la ventana signal: 491-658 mV·ns en mayo y 395-575 mV·ns en octubre (Q1/G ≈ 115-130 ns).
+- **Ajuste:** Landau ⊗ Gauss (langaus) desde el primer bin sobre el umbral (2 p.e. primarios en mayo, 3 en octubre) hasta 60. «n.d.»: ajuste en el límite de un parámetro o error de MPV mayor que el MPV.
+
+MPV de la Landau (p.e. primarios) y razón MPV / mediana de la selección del seguimiento 6 (por capa, F de campaña; mayo XA 10.57, XB 11.71, YA 12.29, YB 10.00; octubre XA 9.25, XB 9.93, YA 8.56, YB 8.56):
+
+| Campaña | Capa | Intervalo | Amplitud: MPV | MPV/mediana | Carga: MPV | MPV/mediana |
+|---|---|---|---|---|---|---|
+| mayo | XA | 21-29 | 7.40 ± 1.60 | 0.70 | 7.85 ± 1.38 | 0.74 |
+| mayo | XA | 29-54 | 5.84 ± 1.37 | 0.55 | 6.19 ± 1.40 | 0.59 |
+| mayo | XB | 21-29 | 8.12 ± 1.55 | 0.69 | 8.11 ± 1.72 | 0.69 |
+| mayo | XB | 29-54 | 7.18 ± 0.69 | 0.61 | 7.72 ± 0.93 | 0.66 |
+| mayo | YA | 21-29 | 7.57 ± 1.61 | 0.62 | 8.84 ± 1.00 | 0.72 |
+| mayo | YA | 29-54 | 6.21 ± 1.46 | 0.51 | 4.95 ± 3.35 | 0.40 |
+| mayo | YB | 21-29 | 4.83 ± 3.48 | 0.48 | 5.63 ± 1.51 | 0.56 |
+| mayo | YB | 29-54 | 5.79 ± 1.00 | 0.58 | n.d. | — |
+| octubre | XA | 21-29 | 9.19 ± 1.79 | 0.99 | 8.65 ± 1.92 | 0.94 |
+| octubre | XA | 29-54 | 3.59 ± 2.45 | 0.39 | n.d. | — |
+| octubre | XB | 21-29 | n.d. | — | n.d. | — |
+| octubre | XB | 29-54 | 5.05 ± 1.40 | 0.51 | 6.01 ± 0.55 | 0.61 |
+| octubre | YA | 21-29 | n.d. | — | n.d. | — |
+| octubre | YA | 29-54 | n.d. | — | 5.66 ± 1.27 | 0.66 |
+| octubre | YB | 21-29 | 4.99 ± 1.84 | 0.58 | n.d. | — |
+| octubre | YB | 29-54 | n.d. | — | 4.48 ± 1.41 | 0.52 |
+
+Pico visible a ojo (figura completa `mip_tagged_spectra_all`): mayo XA, XB e YA en los dos intervalos (~8-10 p.e.), YB en ~5-6 p.e., cerca del umbral; octubre solo XA 21-29 (~10 p.e.) y XB 29-54 (~6 p.e.); en el resto de octubre los espectros suben hasta el umbral. Los parámetros de ajuste completos (anchura, σ, χ²/ndf, máximo de la función) están en `fits.csv`.
