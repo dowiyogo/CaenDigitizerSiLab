@@ -95,9 +95,82 @@ Valores que un informe posterior corrigió:
 | ch17, ch20 y ch22 «cambiaron de grupo HV» entre campañas | no cambiaron los MPPC; cambió qué MPPC lee cada canal | ídem | (7) §1.1 |
 | Mediana de p.e. primarios con bins de 0.25 p.e. y recorte (mayo 17.4 en p.e. medidos) | definición del seguimiento 1 (bins de 1 p.e.); 19.5 en mayo | el recorte por bin depende del ancho del bin | (6), Notas |
 | RUp = 0.1 V/s para el barrido lento (seguimientos 3 y 7) | la placa informa mínimo 1.0 V/s; hvmon lo rechazaría | rango del parámetro en la placa | (7) §2 |
+| Tasa de run B en tiempo vivo (huecos restados): 0.590 Hz | tasa estacionaria con t ≥ 5.25 h: 0.5947 ± 0.0017 Hz (142 544 triggers en 66.58 h, sin huecos) | los 15 huecos y la subida de la tasa están antes de 5.25 h | «Run B start», más abajo |
 
 ## Pendientes que siguen abiertos
 
 - **V_bd por canal con 3 o más voltajes:** necesita una toma nueva. El barrido está preparado, sin armar, en `daq/biasscan-vbd-2026-10-31` (`docs/biasscan_vbd_2026-10-31.md` en esa rama). Se arma solo con una decisión de René (seguimiento 9).
 - **Causa de la pérdida de hod2019:** la inspección del 2026-11-02 (checklist e.0).
 - **Sentido absoluto del orden de tiras de hod2018:** sin fijar. La prueba de orientación está preparada y no ejecutada (seguimiento 1, §5).
+
+## Run B start
+
+Comprobación del 2026-11-01 sobre run B (v8, 143 814 triggers), solo lectura. t se mide desde el primer trigger de v8 (2026-05-28 14:11:19 UTC). Todos los números son [M].
+- Ítem 1: `may_common.good_time` sobre `outputs/proceeding_hvdiag5/2026-10-31_full/work/hd64_may8_hits.bin`.
+- Ítems 2 a 4: rama `timestamp` de `lectura_vx1740_ext_nim_1M_v8.root`; el ajuste y el KS son los de `fit_exp_ks()` de `analysis/src/poisson_analysis.cxx`.
+
+**1. Tiempo bueno antes de 5.25 h.**
+- Hay 774 triggers con t < 5.25 h dentro del tiempo bueno (77 558 triggers en total).
+- El primero está en t = 4.8121 h; el intervalo EXCLUDE «start of run» termina en 4.8114 h.
+- Con t < 5.25 h hay 1270 triggers en total.
+
+**2. Huecos de DAQ (ΔT > 50 T/(N−1) = 89.906 s).**
+
+| # | inicio (h) | fin (h) | duración (s) |
+|---|---|---|---|
+| 1 | 0.0738 | 0.9399 | 3118.0 |
+| 2 | 0.9634 | 2.5442 | 5691.1 |
+| 3 | 2.6808 | 2.7101 | 105.6 |
+| 4 | 2.7583 | 2.7857 | 98.6 |
+| 5 | 2.7884 | 2.8515 | 227.2 |
+| 6 | 2.8545 | 2.8843 | 107.4 |
+| 7 | 2.9404 | 2.9916 | 184.3 |
+| 8 | 2.9916 | 3.0250 | 120.4 |
+| 9 | 3.0250 | 3.1413 | 418.8 |
+| 10 | 3.1413 | 3.1671 | 92.8 |
+| 11 | 3.1767 | 3.2127 | 129.7 |
+| 12 | 3.2413 | 3.3084 | 241.4 |
+| 13 | 3.3231 | 3.3546 | 113.1 |
+| 14 | 3.3572 | 3.4471 | 323.4 |
+| 15 | 3.4471 | 4.5112 | 3830.8 |
+
+En total suman 14 802.6 s. Los 15 huecos, con sus 14 802.6 s, caen dentro de las primeras 5.25 h.
+
+**3. Tasa de triggers en bines de 15 min, primeras 6 h.** La tasa es el número de triggers dividido por 900 s, sin corregir por huecos. La última columna es el tiempo de huecos dentro del bin.
+
+| bin (h) | triggers | tasa (Hz) | huecos en el bin (s) |
+|---|---|---|---|
+| 0.00-0.25 | 8 | 0.0089 | 634.4 |
+| 0.25-0.50 | 0 | 0.0000 | 900.0 |
+| 0.50-0.75 | 0 | 0.0000 | 900.0 |
+| 0.75-1.00 | 3 | 0.0033 | 815.4 |
+| 1.00-1.25 | 0 | 0.0000 | 900.0 |
+| 1.25-1.50 | 0 | 0.0000 | 900.0 |
+| 1.50-1.75 | 0 | 0.0000 | 900.0 |
+| 1.75-2.00 | 0 | 0.0000 | 900.0 |
+| 2.00-2.25 | 0 | 0.0000 | 900.0 |
+| 2.25-2.50 | 0 | 0.0000 | 900.0 |
+| 2.50-2.75 | 30 | 0.0333 | 264.9 |
+| 2.75-3.00 | 11 | 0.0122 | 647.8 |
+| 3.00-3.25 | 9 | 0.0100 | 762.5 |
+| 3.25-3.50 | 7 | 0.0078 | 837.3 |
+| 3.50-3.75 | 0 | 0.0000 | 900.0 |
+| 3.75-4.00 | 0 | 0.0000 | 900.0 |
+| 4.00-4.25 | 0 | 0.0000 | 900.0 |
+| 4.25-4.50 | 0 | 0.0000 | 900.0 |
+| 4.50-4.75 | 320 | 0.3556 | 40.2 |
+| 4.75-5.00 | 422 | 0.4689 | 0.0 |
+| 5.00-5.25 | 460 | 0.5111 | 0.0 |
+| 5.25-5.50 | 543 | 0.6033 | 0.0 |
+| 5.50-5.75 | 484 | 0.5378 | 0.0 |
+| 5.75-6.00 | 497 | 0.5522 | 0.0 |
+
+**4. Solo t ≥ 5.25 h.**
+- Hay 142 544 triggers y 142 543 intervalos.
+- Ningún intervalo supera el umbral de huecos, ni el del run completo (89.906 s) ni el propio de este conjunto (50 T/(N−1) = 84.077 s).
+
+| | todo el run | t ≥ 5.25 h |
+|---|---|---|
+| 1/⟨ΔT⟩ | 0.5898 Hz | 0.5947 Hz (⟨ΔT⟩ = 1.681544 s) |
+| λ_fit | 0.5943 ± 0.0017 Hz | 0.5947 ± 0.0017 Hz |
+| KS | D = 0.00300, p = 0.1502 | D = 0.00265, p = 0.2688 |
