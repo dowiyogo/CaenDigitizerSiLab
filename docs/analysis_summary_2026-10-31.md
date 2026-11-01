@@ -174,3 +174,24 @@ En total suman 14 802.6 s. Los 15 huecos, con sus 14 802.6 s, caen dentro de las
 | 1/⟨ΔT⟩ | 0.5898 Hz | 0.5947 Hz (⟨ΔT⟩ = 1.681544 s) |
 | λ_fit | 0.5943 ± 0.0017 Hz | 0.5947 ± 0.0017 Hz |
 | KS | D = 0.00300, p = 0.1502 | D = 0.00265, p = 0.2688 |
+
+## Objetivos por barra para Geant4 (2026-11-01)
+
+`analysis/followup10_2026_11_01/bar_targets.py`; tabla en `outputs/hod2018_bar_targets/2026-11-01_g4/bar_targets.csv` (SHA256 `1419f9a7…6339b`). Todos los números son [M].
+- **Filas:** 32 barras × 2 campañas × 4 intervalos de distancia al extremo de lectura (21-29, 29-37, 37-45, 45-54 mm) = 256 filas. Las 8 de X12 (ch3, muerto) van sin datos.
+- **Selección:** alguna tira ortogonal del intervalo > 10 p.e. en el mismo evento, menos mezclados. Amplitud de la sonda > 5 p.e. medidos. Mediana en bins de 1 p.e. medido, interpolada dentro del bin. p.e. primarios = medidos / F, con F = 1.75 (mayo) y 1.46 (octubre).
+- **Mediana fiable si n_net ≥ 15:** desde ahí el error relativo por remuestreo (200) queda bajo ~0.3 (una fila 0.34); debajo llega a 0.9-5.9.
+- **ε:** q/r_ref con mezclados, a 5 y 10 p.e. ε_MC (barra cruzada dada la etiqueta) va de 0.0388 a 0.0475.
+
+| | mayo v8 (77 558 triggers) | octubre run 8 (44 176) |
+|---|---|---|
+| filas con datos | 124 | 124 |
+| filas fiables (n_net ≥ 15) | 115 | 79 |
+| n_net por fila: mediana (máx.) | 42.5 (81.0) | 18.5 (35.0) |
+| mediana en p.e. primarios, filas fiables (mediana) | 9.81 | 8.65 |
+| ε/ε_MC a 5 p.e.: mediana (error mediano) | 0.950 (0.258) | 0.855 (0.300) |
+| ε/ε_MC a 10 p.e.: mediana (error mediano) | 0.822 (0.201) | 0.557 (0.217) |
+| L_eff determinado (de 31 barras) | 25 | 14 |
+| L_eff: mediana (rango) | 88 mm (38-1435) | 82 mm (34-606) |
+| L_eff con error < L_eff/2 | 6 | 1 |
+| no determinado: < 3 intervalos fiables / pendiente ≥ 0 | 2 / 4 | 13 / 4 |
