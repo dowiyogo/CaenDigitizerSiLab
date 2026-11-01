@@ -249,3 +249,26 @@ Pico visible a ojo (figura completa `mip_tagged_spectra_all`): mayo XA, XB e YA 
 - f(> T) = fracción de la función ajustada sobre T/1.75 p.e. primarios (2.86 y 5.71), normalizada a su integral en [0, 150]: por debajo de 2 p.e. primarios la función está extrapolada.
 - Referencia: ε_XY = 0.79 (5 p.e.) y 0.61 (10 p.e.). La comparación es aproximada: ε_XY exige las dos coordenadas sobre el umbral.
 - En 29-54 mm la amplitud queda con una Landau angosta y una Gauss ancha (σ 8.4 p.e.), con el máximo a 3.21 p.e., cerca del inicio del ajuste.
+
+**Versión para presentación** (`mip_talk.C`; figura `mip_tagged_spectra_talk.{png,pdf}`: mayo, 29-54 mm, carga, cuatro capas, 16 × 10 cm). Por capa e intervalo, moda de la función ajustada (no el parámetro MPV), fracción de la función ajustada sobre 5 y 10 p.e. medidos (2.86 y 5.71 primarios; normalizada a [0, 150], extrapolada bajo 2 p.e.) y su cuadrado, junto a ε_XY = 0.79 (5 p.e.) y 0.61 (10 p.e.); `talk_table.csv` [M]:
+
+| Capa | Intervalo | Variable | Moda del ajuste | f(>5) | f(>5)² | f(>10) | f(>10)² |
+|---|---|---|---|---|---|---|---|
+| XA | 21-29 mm | carga | 9.08 | 0.964 | 0.929 | 0.862 | 0.743 |
+| XA | 21-29 mm | amplitud | 8.81 | 0.950 | 0.902 | 0.834 | 0.695 |
+| XA | 29-54 mm | carga | 7.74 | 0.907 | 0.823 | 0.749 | 0.560 |
+| XA | 29-54 mm | amplitud | 7.32 | 0.900 | 0.809 | 0.728 | 0.529 |
+| XB | 21-29 mm | carga | 10.18 | 0.940 | 0.884 | 0.841 | 0.707 |
+| XB | 21-29 mm | amplitud | 10.06 | 0.936 | 0.875 | 0.829 | 0.688 |
+| XB | 29-54 mm | carga | 8.68 | 0.972 | 0.945 | 0.868 | 0.754 |
+| XB | 29-54 mm | amplitud | 8.02 | 0.974 | 0.948 | 0.850 | 0.723 |
+| YA | 21-29 mm | carga | 10.06 | 0.980 | 0.961 | 0.906 | 0.820 |
+| YA | 21-29 mm | amplitud | 9.31 | 0.925 | 0.856 | 0.802 | 0.643 |
+| YA | 29-54 mm | carga | 6.67 | 0.868 | 0.753 | 0.704 | 0.495 |
+| YA | 29-54 mm | amplitud | 7.68 | 0.899 | 0.808 | 0.735 | 0.540 |
+| YB | 21-29 mm | carga | 5.63 | 0.944 | 0.892 | 0.743 | 0.552 |
+| YB | 21-29 mm | amplitud | 5.21 | 0.898 | 0.806 | 0.689 | 0.475 |
+| YB | 29-54 mm | carga | pico bajo 3 p.e. (2.34) | 0.819 | 0.671 | 0.642 | 0.412 |
+| YB | 29-54 mm | amplitud | 6.03 | 0.958 | 0.917 | 0.756 | 0.572 |
+
+f² es una aproximación de exigir las dos coordenadas sobre el umbral con la misma distribución; ε_XY = 0.79 y 0.61 son las de mayo.
