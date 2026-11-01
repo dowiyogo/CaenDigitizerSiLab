@@ -195,3 +195,14 @@ En total suman 14 802.6 s. Los 15 huecos, con sus 14 802.6 s, caen dentro de las
 | L_eff: mediana (rango) | 88 mm (38-1435) | 82 mm (34-606) |
 | L_eff con error < L_eff/2 | 6 | 1 |
 | no determinado: < 3 intervalos fiables / pendiente ≥ 0 | 2 / 4 | 13 / 4 |
+
+**L_eff común por campaña** (media ponderada de L_eff con 1/σ², χ² contra el valor común) [M]:
+
+| | barras | ⟨L_eff⟩ | χ²/ndf | comprobación en 1/L_eff: 1/⟨1/L⟩ | χ²/ndf |
+|---|---|---|---|---|---|
+| mayo, error < L_eff/2 | 6 (X06, X08, X11, X15, Y09, Y14) | 43.6 ± 5.7 mm | 2.07/5 = 0.41 | 49.9 +7.6 −5.8 mm | 3.28/5 |
+| mayo, todas las determinadas | 25 | 48.6 ± 5.3 mm | 9.37/24 = 0.39 | 82.4 +11.1 −8.7 mm | 22.02/24 |
+| octubre, error < L_eff/2 | 1 (X02) | 33.6 ± 12.7 mm | — | 33.6 +20.5 −9.2 mm | — |
+| octubre, todas las determinadas | 14 | 43.6 ± 10.6 mm | 3.17/13 = 0.24 | 89.0 +31.5 −18.4 mm | 5.33/13 |
+
+El ajuste da la pendiente 1/L_eff con error gaussiano; σ_L = σ_k · L_eff², así que el peso 1/σ_L² y el corte «error < L_eff/2» favorecen los L_eff cortos.
