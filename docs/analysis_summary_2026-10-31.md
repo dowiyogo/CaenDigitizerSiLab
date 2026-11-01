@@ -236,3 +236,16 @@ MPV de la Landau (p.e. primarios) y razón MPV / mediana de la selección del se
 | octubre | YB | 29-54 | n.d. | — | 4.48 ± 1.41 | 0.52 |
 
 Pico visible a ojo (figura completa `mip_tagged_spectra_all`): mayo XA, XB e YA en los dos intervalos (~8-10 p.e.), YB en ~5-6 p.e., cerca del umbral; octubre solo XA 21-29 (~10 p.e.) y XB 29-54 (~6 p.e.); en el resto de octubre los espectros suben hasta el umbral. Los parámetros de ajuste completos (anchura, σ, χ²/ndf, máximo de la función) están en `fits.csv`.
+
+**Suma de las cuatro capas de mayo** (`mip_sum.C`; netos sumados, errores en cuadratura; mismo ajuste desde 2 hasta 60 p.e. primarios; `fits_may_sum.csv`) [M]:
+
+| Intervalo | Variable | n_net | MPV | Anchura de Landau | σ de la Gauss | χ²/ndf | Máximo de la función | f(> 5 p.e. medidos) | f(> 10 p.e. medidos) |
+|---|---|---|---|---|---|---|---|---|---|
+| 21-29 mm | amplitud | 1370 | 5.51 ± 1.96 | 0.90 ± 0.31 | 7.70 ± 1.72 | 70.2/54 | 7.36 | 0.881 | 0.737 |
+| 21-29 mm | carga | 1280 | 6.50 ± 1.59 | 1.35 ± 0.34 | 6.65 ± 1.72 | 55.8/54 | 8.60 | 0.906 | 0.778 |
+| 29-54 mm | amplitud | 3490 | 1.92 ± 1.46 | 0.65 ± 0.16 | 8.37 ± 1.07 | 76.7/54 | 3.21 | 0.822 | 0.639 |
+| 29-54 mm | carga | 3501 | 5.14 ± 1.49 | 1.26 ± 0.26 | 5.74 ± 1.56 | 51.4/54 | 7.00 | 0.880 | 0.721 |
+
+- f(> T) = fracción de la función ajustada sobre T/1.75 p.e. primarios (2.86 y 5.71), normalizada a su integral en [0, 150]: por debajo de 2 p.e. primarios la función está extrapolada.
+- Referencia: ε_XY = 0.79 (5 p.e.) y 0.61 (10 p.e.). La comparación es aproximada: ε_XY exige las dos coordenadas sobre el umbral.
+- En 29-54 mm la amplitud queda con una Landau angosta y una Gauss ancha (σ 8.4 p.e.), con el máximo a 3.21 p.e., cerca del inicio del ajuste.
