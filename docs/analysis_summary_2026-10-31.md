@@ -272,3 +272,30 @@ Pico visible a ojo (figura completa `mip_tagged_spectra_all`): mayo XA, XB e YA 
 | YB | 29-54 mm | amplitud | 6.03 | 0.958 | 0.917 | 0.756 | 0.572 |
 
 f² es una aproximación de exigir las dos coordenadas sobre el umbral con la misma distribución; ε_XY = 0.79 y 0.61 son las de mayo.
+
+## Revisión del proceeding (2026-11-02)
+
+Código en `analysis/followup11_2026_11_02/`; salidas en `outputs/proceeding_revision/2026-11-02_revision/`. Todos los números son [M] salvo que se indique.
+
+**1. Espectros MIP para el artículo: mayo, 29-54 mm, amplitud en p.e. medidos (sin dividir por F).** Selección de `mip_tagged.py`, bins de 1 p.e. medido (los espectros divididos por 1.75 reproducen `spectra.csv`, máx |Δ| 5e-5). El ajuste Landau ⊗ Gauss es el de la figura de la charla con el rango en p.e. medidos: de 4 a 105. Antes empezaba en 2 primarios = 3.5 medidos, y 4 es el borde de bin siguiente. Empezar en 3 incluye el bin [3, 4), que en YB tiene 109 ± 43 cuentas de exceso en el umbral, y el ajuste llega al límite (MPV 0.10). La moda es el máximo de la función ajustada. f(>T) es la fracción de la función por encima de T sobre [0, 262.5], extrapolada por debajo de 4.
+
+| Capa | n_net (4-105) | Moda (p.e.) | χ²/ndf | f(>5) | f(>5)² | f(>10) | f(>10)² |
+|---|---|---|---|---|---|---|---|
+| XA | 787 | 13.44 | 75.1/74 | 0.916 | 0.839 | 0.747 | 0.557 |
+| XB | 865 | 13.23 | 60.2/80 | 0.991 | 0.982 | 0.877 | 0.770 |
+| YA | 892 | 13.85 | 81.1/77 | 0.949 | 0.901 | 0.803 | 0.644 |
+| YB | 779 | 10.11 | 70.2/86 | 0.964 | 0.929 | 0.755 | 0.570 |
+
+Referencia: ε_XY = 0.79 (5 p.e.) y 0.61 (10 p.e.). En YB el σ de la Gauss queda en 0.01 (Landau sola).
+
+**2. Intervalos entre triggers con t ≥ 5.25 h.** 142 544 triggers, 142 543 intervalos, ninguno sobre 50 T/(N−1); sin corte de huecos. ⟨ΔT⟩ = 1.681544 s (1/⟨ΔT⟩ = 0.5947 Hz), λ_fit = 0.5947 ± 0.0017 Hz, KS D = 0.00265, p = 0.2688. Pendiente de ln(densidad) en [0.5, 6]: −1.0027 ± 0.0036 (χ²/ndf 47.8/53).
+
+**3. Incertidumbre de aceptancia de ε_XY (sin cambios, solo origen).**
+- **0.037 (5 p.e.) y 0.029 (10 p.e.):** son la suma en cuadratura de dos términos de `stage2.py`, ambos relativos a ε_XY.
+  - Aceptancia (f_2018): 3.50 % = estadística del MC (0.32 %) ⊕ placas z ± 2 mm (2.7 %) ⊕ cota de posición de 10 mm (2.2 %). Da 0.0275 a 5 p.e. y 0.0215 a 10 p.e.
+  - g: 0.03 / 0.98 = 3.06 % (diferencia con Meiga, 0.951). Da 0.0240 a 5 p.e. y 0.0188 a 10 p.e.
+  - Total: 4.65 % relativo. A 5 p.e. la suma da 0.0365 [I: cálculo]. El 0.037 viene del valor antes de HV-DIAG-5 (0.0279 ⊕ 0.0244 = 0.0371) y no se actualizó; redondeado, el 0.04 del texto no cambia. A 10 p.e. da 0.0285, de ahí el 0.029.
+- **Lo que NO entra:**
+  - el canal 3: f_2018 y g se calculan con las 16 barras X vivas;
+  - el orden de los bloques: g es el promedio de X arriba 0.9794 y Y arriba 0.9804, y su semidiferencia (0.0005) no se suma.
+- **Banda gris de `eff_vs_threshold.png`:** se dibujó con ε × 0.034977, es decir, solo el término de f_2018 (3.5 %), sin g. Lo hizo `proc_plot_eff.C` con `fig_eff_mayonly.json` (`f18_rel_syst` = 0.034977). El PNG publicado coincide en SHA256 con esa salida.
