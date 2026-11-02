@@ -2,6 +2,7 @@
 // work/fig_eff.json (stage2.py). Barras = error estadístico; cajas = syst del estimador (|q_mix − q_fuera|) / (f_2018 · g); banda
 // gris = syst de aceptancia (R1: MC ⊕ placas z ± 2 mm ⊕ cota de posición) sobre la serie de mayo; estrella = convención publicada
 // (p0 + 3.5 G) en su T equivalente (mediana por canal); eje derecho = q (j["f18"] = f_2018 · g). Estilo: proc_style.C.
+// Leyenda de la estrella: j["published_name"] si existe (2026-11-02, «run B, 50 mV threshold»), si no «May v8, workshop convention».
 // Uso: root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_eff.C("<fig_eff.json>", "<base de salida>")'
 #include <TAxis.h>
 #include <TGaxis.h>
@@ -72,7 +73,7 @@ void proc_plot_eff(const char* json, const char* base) {
   p->SetMarkerColor(proc::color(7));
   p->SetLineColor(proc::color(7));
   p->Draw("P SAME");
-  lg->AddEntry(p, "May v8, workshop convention", "pe");
+  lg->AddEntry(p, j.value("published_name", std::string("May v8, workshop convention")).c_str(), "pe");
   lg->Draw();
   auto* ax = new TGaxis(12.5, 0.0, 12.5, 1.3, 0.0, 1.3 * f18, 505, "+L");
   ax->SetLabelFont(43);
