@@ -299,3 +299,8 @@ Referencia: ε_XY = 0.79 (5 p.e.) y 0.61 (10 p.e.). En YB el σ de la Gauss qued
   - el canal 3: f_2018 y g se calculan con las 16 barras X vivas;
   - el orden de los bloques: g es el promedio de X arriba 0.9794 y Y arriba 0.9804, y su semidiferencia (0.0005) no se suma.
 - **Banda gris de `eff_vs_threshold.png`:** se dibujó con ε × 0.034977, es decir, solo el término de f_2018 (3.5 %), sin g. Lo hizo `proc_plot_eff.C` con `fig_eff_mayonly.json` (`f18_rel_syst` = 0.034977). El PNG publicado coincide en SHA256 con esa salida.
+
+**4. Figura de dos paneles `mip_spectra_paper_2p`.**
+- (a) ch10, el canal de XB con G más cerca de la mediana de la estación: G = 4.564 mV contra 4.5616 mV. Mayo v8 tiempo bueno, como amp_spectra_hod2018_pe.
+- (b) el panel (b) de `mip_tagged_spectra_paper` (moda 13.23 p.e., n_net 865).
+- Código: `amp_spectrum_xb.py` y `mip_paper_2p.C`.
