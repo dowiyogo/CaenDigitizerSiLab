@@ -3,6 +3,7 @@
 // gris = syst de aceptancia (R1: MC ⊕ placas z ± 2 mm ⊕ cota de posición) sobre la serie de mayo; estrella = convención publicada
 // (p0 + 3.5 G) en su T equivalente (mediana por canal); eje derecho = q (j["f18"] = f_2018 · g). Estilo: proc_style.C.
 // Leyenda de la estrella: j["published_name"] si existe (2026-11-02, «run B, 50 mV threshold»), si no «May v8, workshop convention».
+// Leyenda de la banda: j["band_name"] si existe (2026-11-03, «acceptance uncertainty (run B)»), si no «acceptance uncertainty (May v8)».
 // Uso: root -l -b -q daq/tools/proceeding/proc_style.C 'daq/tools/proceeding/proc_plot_eff.C("<fig_eff.json>", "<base de salida>")'
 #include <TAxis.h>
 #include <TGaxis.h>
@@ -52,7 +53,8 @@ void proc_plot_eff(const char* json, const char* base) {
       band->SetFillColorAlpha(proc::grey(), 0.35);
       band->SetLineColor(0);
       band->Draw("E3 SAME");
-      lg->AddEntry(band, "acceptance uncertainty (May v8)", "f");  // PROC-3: la banda va solo sobre mayo; su valor (rel) va en el pie
+      // PROC-3: la banda va solo sobre mayo; su valor (rel) va en el pie. Texto: j["band_name"] si existe (2026-11-03, «run B»).
+      lg->AddEntry(band, j.value("band_name", std::string("acceptance uncertainty (May v8)")).c_str(), "f");
     }
     gs->SetFillStyle(0);
     gs->SetLineColor(col);

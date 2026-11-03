@@ -96,6 +96,7 @@ Valores que un informe posterior corrigió:
 | Mediana de p.e. primarios con bins de 0.25 p.e. y recorte (mayo 17.4 en p.e. medidos) | definición del seguimiento 1 (bins de 1 p.e.); 19.5 en mayo | el recorte por bin depende del ancho del bin | (6), Notas |
 | RUp = 0.1 V/s para el barrido lento (seguimientos 3 y 7) | la placa informa mínimo 1.0 V/s; hvmon lo rechazaría | rango del parámetro en la placa | (7) §2 |
 | Tasa de run B en tiempo vivo (huecos restados): 0.590 Hz | tasa estacionaria con t ≥ 5.25 h: 0.5947 ± 0.0017 Hz (142 544 triggers en 66.58 h, sin huecos) | los 15 huecos y la subida de la tasa están antes de 5.25 h | «Run B start», más abajo |
+| Modelo de longitud sensible de hod2019 (PROC-3, `sensitive_length.py`): L ≈ 21 mm reproduce r_X a 35 mV; 86 X·Y predichas | z ≈ 3.2 mm (X) y 2.1 mm (Y); 0 X·Y predichas (< 0.16 al 95 %) | el histograma 2D descartaba las trayectorias sin cruce en la otra coordenada: su P_X era P(X ∧ alguna Y) | seguimiento 12, punto C |
 
 ## Pendientes que siguen abiertos
 
@@ -320,6 +321,8 @@ Referencia: ε_XY = 0.79 (5 p.e.) y 0.61 (10 p.e.). En YB el σ de la Gauss qued
 
 **10. `eff_vs_threshold` con g = 0.9551.** ε, errores y estrella × 0.98/0.95512; banda 4.648 %; leyendas «run B» y «run B, workshop threshold (p0 + 3.5 G)». ε_XY(5) = 0.8056, ε_XY(10) = 0.6296; estrella 0.930 ± 0.162 en T = 4.43 p.e. Copiada a `figs/2026-11-02-revision`.
 
+**11. Leyenda de la banda de `eff_vs_threshold` (2026-11-03).** «acceptance uncertainty (May v8)» → «acceptance uncertainty (run B)»; nada más. Clave opcional `band_name` en `proc_plot_eff.C`; con el JSON anterior el PNG sale idéntico byte a byte al publicado (956714bb…). Salida `outputs/proceeding_revision/2026-11-03_band_legend/`; commit a49d72b en `figs/2026-11-02-revision` (PNG f6b3c530…, PDF e68fa94b…).
+
 ## hod2019 contra grupo HV y estabilidad diurna de hod2018 (2026-11-03)
 
 Seguimiento 12, solo lectura de las ntuplas XPLUS-4b de v8 y run 8. Código en `analysis/followup12_2026_11_03/`; tablas, figuras de inspección y README en
@@ -374,3 +377,76 @@ Seguimiento 12, solo lectura de las ntuplas XPLUS-4b de v8 y run 8. Código en `
   - Por canal: mediana de Pearson G–DCR −0.51 y −0.49.
   - [I] El signo es el de un OV que cambia por V_bd(T) con V_bias fijo. Un cambio de V_bias daría G y DCR con el mismo signo.
 - **ΔT equivalente:** ΔT = (ΔG/G)·OV/(dV_bd/dT) con OV = 1.2 V y 50 mV/°C [S]: derivada bajo ese supuesto. No hay registro de temperatura para comprobarla.
+
+**C. Prueba geométrica: ¿hod2019 detecta solo cerca del extremo con MPPC?** (`h19_end_mc.py`, `h19_end_test.py`; mismo directorio, `C_h19_end/`).
+- **MC del banco de stage5:** 1e8 rayos, 2 639 979 triggers. hod2019 en z = 98.4 mm, eficiencia 1 a menos de z del extremo. Extremos de lectura por capa según kCfg_2026_05: X par = Delantera, impar = Trasera; Y par = Opuesta, impar = Frontal. Se prueban las dos asignaciones de signo.
+- **Probabilidades [estimado]:**
+
+  | | z = 2 mm | 3 mm | 5 mm | 8 mm |
+  |---|---|---|---|---|
+  | P_X | 0.0086 | 0.0133 | 0.0235 | 0.0409 |
+  | P_Y | 0.0087 | 0.0134 | 0.0236 | 0.0410 |
+
+- **z que reproduce lo medido:** z_X = 3.2 mm y z_Y = 2.1 mm a 35 mV; 14.7 y 13.1 mm a 3 mV.
+- **Coincidencias predichas:** en las z ajustadas, P(Y | X) = 0 y P(hod2018 | X) = 0 en todas las asignaciones. Las primeras X·Y aparecen con z ≥ 16.75 mm y las primeras trayectorias que cruzan hod2018 con z ≥ 8.25 mm. Predichas: 0 X·Y y 0 de dos estaciones (< 0.16 al 95 %), contra 3 y 1 observadas.
+- **Datos [M]:**
+  - Las 3 X·Y > 35 mV tienen X e Y en la misma muestra (kS 261, 261 y 259); el evento de dos estaciones es una de ellas (X8 ch51, Y15 ch40).
+  - El Y encendido es la barra Y con el extremo más cercano al de la barra X solo en 4 de 16 orientaciones, y solo en ese evento; en los otros dos tiene rango 3-14.
+  - Por canal: Delantera 1696 contra Trasera 398 en X, Opuesta 588 contra Frontal 767 en Y; ch49, ch39 y ch43 sin impactos. El MC predice capas iguales y barras casi uniformes (χ²/15 de 974 a 1924).
+- **Conclusión [I]:** la hipótesis del extremo reproduce r_X y r_Y solo porque z queda libre. El déficit de X·Y lo sobre-explica: predice ninguna coincidencia de un mismo muón, mientras que hay 3 X·Y sincronizadas y 1 de dos estaciones. Tampoco reproduce la distribución por canal.
+
+## Resolución temporal y posición en el solapamiento de hod2018, run B (2026-11-03)
+
+Seguimiento 13. Solo lectura del crudo v8, tiempo bueno (77 558 triggers). Código en `analysis/followup13_2026_11_03/`; tablas, figuras de inspección y README en `outputs/hod2018_timing/2026-11-03_followup13/`. Nada para el artículo.
+
+**A. Resolución temporal** (`time_extract.C`, `time_res.py`).
+- **Selección:** muón etiquetado = tira X y tira Y más altas, las dos > 10 p.e. medidos (ch3 fuera). 2459 eventos; mezclados (Y del evento siguiente) 1243. Los histogramas son mismo − mezclados.
+- **Tiempos:**
+  - CFD 0.5: interpolación lineal en el frente de subida, con el pedestal local [k−12, k−4].
+  - El frente de subida medio dura unas 2 muestras: 0.23-0.27 en k−2, 0.80-0.82 en k−1.
+  - kmin = muestra del mínimo × 16 ns.
+- **Correcciones:**
+  - Desplazamiento por canal: rango −0.82 a +1.95 ns, RMS 0.72 ns.
+  - Propagación, s·(d_X − d_Y): d se toma de la tira ortogonal y del extremo de lectura por capa. s ajustada = 0.0155 ± 0.0094 ns/mm, no significativa; σ(d_X − d_Y) = 13.8 mm. Cambia σ en menos de 0.06 ns.
+- **CFD 0.5, con desplazamientos y propagación [M]:**
+
+  | menor amplitud (p.e.) | n (mismo) | σ(Δt) ns | RMS ±3σ ns | σ por tira = σ/√2 ns |
+  |---|---|---|---|---|
+  | 10-15 | 1105 | 2.59 ± 0.12 | 2.68 | 1.83 ± 0.09 |
+  | 15-20 | 573 | 2.17 ± 0.10 | 2.32 | 1.53 ± 0.07 |
+  | 20-30 | 472 | 1.90 ± 0.10 | 2.15 | 1.34 ± 0.07 |
+  | > 30 | 182 | 1.91 ± 0.15 | 1.95 | 1.35 ± 0.11 |
+  | todas | 2332 | 2.27 ± 0.06 | 2.42 | 1.60 ± 0.04 |
+
+  - Sin correcciones: σ = 2.65, 2.45, 2.23 y 1.78 ns. Con el pedestal del tramo (cfd50_bl): σ = 2.44, 2.51, 1.96 y 1.96 ns.
+- **Mínimo de muestra [M]:**
+  - σ gaussiana: 9.22, 8.95, 7.94 y 7.61 ns. RMS ±3σ: 8.77, 8.51, 7.33 y 6.81 ns. Por tira (RMS/√2): 6.20 a 4.81 ns.
+  - La gaussiana no describe bien la distribución, que es discreta (χ² 25.1/2 en 10-15).
+  - Fracción neta en Δk = 0: 0.58, 0.66, 0.77 y 0.92.
+  - El CFD mejora la resolución por tira en un factor 3.4-3.9 (RMS/√2 del mínimo de muestra contra σ/√2 del CFD).
+- [I] σ por tira de 1.3-1.8 ns con muestreo de 16 ns, mejor a mayor amplitud hasta unos 20 p.e. y plano por encima. El supuesto X = Y no está comprobado.
+
+**B. Posición dentro del solapamiento** (`overlap_mc.py`, `overlap_ratio.py`).
+- **Selección:** etiqueta ortogonal > 10 p.e.; exactamente dos tiras de la coordenada > 5 p.e., vecinas en el orden de posición; R = a1/(a1 + a2). X: 653 pares, mezclados 234.0. Y: 637 pares, mezclados 232.0.
+- **MC del banco** (stage5, 3e7 rayos, 791 485 triggers; misma selección por camino > 0; X arriba e Y arriba):
+  - L1 = L2 en el 77.5-79 % de los pares, porque las dos capas son planos separados 3 mm en z y la trayectoria atraviesa el espesor completo de las dos barras. R_path = 0.5 en esos pares; el resto son cruces por el borde.
+  - Posición del cruce en el plano medio: RMS 0.40 mm; 77-79 % dentro de ±0.5 mm.
+  - dR_path/du = −0.138 a −0.144 /mm, con correlación −0.50 a −0.51, causada por los cruces por el borde.
+- **Anchos de R [M datos, estimado MC]:**
+
+  | | X | Y |
+  |---|---|---|
+  | datos netos: media, RMS, σ_IQR | 0.502, 0.173, 0.204 | 0.544, 0.206, 0.222 |
+  | datos dentro del par: RMS, σ_IQR | 0.171, 0.182 | 0.162, 0.151 |
+  | MC camino: RMS, σ_IQR | 0.115-0.111, 0 | 0.110-0.113, 0 |
+  | MC + fotoestadística (13 p.e., F = 1.75): RMS, σ_IQR | 0.128, 0.139-0.140 | 0.128, 0.136-0.142 |
+  | MC + espectro medido: RMS, σ_IQR | 0.193, 0.198-0.199 | 0.191, 0.188-0.189 |
+
+  - Medianas por par de R: de 0.43 a 0.60 en X y de 0.27 a 0.75 en Y. La de Y llega a 0.75 con ch30, de mediana 43 p.e. Son diferencias de respuesta entre tiras, que ensanchan la distribución global de Y.
+  - La corrección de atenuación con el L_eff por capa no cambia el ancho: X 0.175, Y 0.202.
+- **Resolución en posición [estimado]:**
+  - σ_R de la fotoestadística sola = 0.128. Con |dR/du| ≈ 0.14 /mm, σ_u = 0.89-0.93 mm.
+  - Eso es más que el RMS de la posición dentro del solapamiento (0.40 mm): el cociente no aporta posición dentro del solapamiento.
+  - La resolución la da el solapamiento mismo: 1 mm/√12 = 0.29 mm si fuera uniforme.
+- **Conclusión [I]:** R no sigue el cociente de caminos. El MC lo predice concentrado en 0.5, y el ancho medido (0.16-0.17 dentro del par) supera el límite fotoestadístico (0.128) y queda cerca del modelo con el espectro medido, que incluye Landau y la dispersión de ganancias. La amplitud no da posición dentro del solapamiento de 1 mm.
+
