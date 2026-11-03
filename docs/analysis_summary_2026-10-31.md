@@ -319,3 +319,58 @@ Referencia: ε_XY = 0.79 (5 p.e.) y 0.61 (10 p.e.). En YB el σ de la Gauss qued
 **9. Objetivos por capa de mayo para Geant4 (`may_layer_targets.py`, `layer_fit.C`).** `outputs/hod2018_may_targets/2026-11-02/may_layer_targets.csv`: 4 capas × 4 intervalos de distancia, p.e. medidos, F = 1.75 (p = 0.429) en la cabecera. La fila de control 29-54 reproduce las modas y n de `paper_table.csv`. L_eff de la mediana [M]: XA 114.5 ± 43.0 mm (χ² 14.20/2), XB 79.8 ± 28.4 (1.82/2), YA 79.1 ± 20.4 (1.85/2), YB 97.5 ± 42.6 (2.17/2). XA 37-45: moda en el borde del ajuste (4.000), no determinada.
 
 **10. `eff_vs_threshold` con g = 0.9551.** ε, errores y estrella × 0.98/0.95512; banda 4.648 %; leyendas «run B» y «run B, workshop threshold (p0 + 3.5 G)». ε_XY(5) = 0.8056, ε_XY(10) = 0.6296; estrella 0.930 ± 0.162 en T = 4.43 p.e. Copiada a `figs/2026-11-02-revision`.
+
+## hod2019 contra grupo HV y estabilidad diurna de hod2018 (2026-11-03)
+
+Seguimiento 12, solo lectura de las ntuplas XPLUS-4b de v8 y run 8. Código en `analysis/followup12_2026_11_03/`; tablas, figuras de inspección y README en
+`outputs/hod_stability/2026-11-03_followup12/`. Mayo = run B; octubre = run 8 (2026-10-22 20:20 a 10-23 13:36 UTC, después de la pérdida de hod2019).
+
+**A. hod2019 en tiempo contra el grupo HV de hod2018** (`h19_hvgroup.py`).
+- **Definiciones:**
+  - Impacto de hod2019: aS > 35 mV, o > 3 mV.
+  - Impacto de hod2018: aS > 5·G (G de PROC).
+  - R = impactos de hod2018 en triggers con hod2019 / esperado de los triggers sin hod2019. Se calcula para el mismo grupo HV y para los otros.
+  - DR = R_same/R_other; bootstrap de 200 réplicas.
+- **Mapas:** planilla «Voltajes Hodoscopio» (central), grupos medidos en DAQ2-10 (r4) y grupos 1-2 medidos en mayo.
+- **Resultado en mayo, tiempo bueno (77 558 triggers) [M]:**
+
+  | | DR, planilla | DR, DAQ2-10 | DR, grupos 1-2 de mayo |
+  |---|---|---|---|
+  | 35 mV (2086 triggers) | 1.065 ± 0.082 | 0.894 ± 0.090 | 1.211 ± 0.138 |
+  | 3 mV | 0.960 ± 0.017 | 1.009 ± 0.019 | 1.055 ± 0.034 (fuera de tiempo 1.083 ± 0.046) |
+
+  - Δk (hod2019 − hod2018) igual en el mismo grupo y en los otros: con 35 mV, mediana −1 y sd 2.88 contra 2.81 muestras.
+  - Mayor pulso de hod2018: f(> 5 p.e.) 0.515 con hod2019 > 35 mV, contra 0.535 en todos los triggers.
+- **Conclusión:** los impactos en tiempo de hod2019 de mayo no están asociados a pulsos de hod2018 del mismo grupo HV [M].
+- **Pulsos > 35 mV:** los 2086 están en la ventana signal y ninguno fuera de tiempo, pero no van con más actividad de hod2018 (R_other 0.94 ± 0.03) [M].
+- **Octubre (hod2019 muerto):**
+  - 19 triggers con > 35 mV y 112 con > 3 mV de 44 176. Son triggers con mucha actividad en hod2018 (mediana del mayor pulso 10.04 contra 3.87 p.e.).
+  - Sin dependencia del grupo con el mapa de la planilla: DR 0.83 ± 0.13 y 1.03 ± 0.05 [M].
+
+**B. Estabilidad diurna de hod2018** (`fit_gain_hourly.C`, `diurnal.py`).
+- **Bins:** 1 h UTC. Mayo: 66 bins desde t = 5.81 h, 34 en tiempo bueno. Octubre: 18 bins, de 17:20 a 10:36 hora local, menos de 24 h.
+- **G por canal y hora:** ajuste de picos de 2-5 p.e. con p0 fijo al valor del run, sobre el espectro `spec` (método de PROC).
+  - gain_fit.h por hora se descartó: acepta 777 de 2336 canal-hora.
+- **DCR > 0.5 p.e. y p_ct = N(> 1.5)/N(> 0.5):** de la región pre-trigger, con el umbral de la G de cada hora.
+- **Niveles de la estación (mediana de los bins buenos) [M]:**
+  - mayo: G 4.712 mV, DCR 2734 kHz, p_ct 0.326 (0.264 corregido por apilamiento);
+  - octubre: G 3.869 mV, DCR 2343 kHz, p_ct 0.259 (0.199 corregido).
+- **Modulación de G/G_ref** (sinusoide de 24 h más deriva, errores escalados por √(χ²/ndf)) [M]:
+
+  | | pico a pico | máximo (hora local) | χ²/ndf | ΔT equivalente [I] |
+  |---|---|---|---|---|
+  | mayo, tiempo bueno | 1.60 ± 0.78 % | 7.1 ± 1.5 h | 216.4/30 | 0.38 ± 0.19 °C (plegado 0.55) |
+  | octubre, sin deriva | 3.06 ± 0.57 % | 11.4 ± 0.6 h (borde de los datos) | 87.4/15 | 0.74 ± 0.14 °C (rango 1.41) |
+
+  - Variantes de mayo, pico a pico: región pre-trigger 1.28 ± 0.51 %; p0 libre 1.08 ± 0.80 %.
+  - Mayo: el cambio mayor es la primera noche, del 28 al 29: G sube de 0.97 a 1.01 entre las 21 h y las 06 h, justo después del arranque inestable. En las noches 2 y 3, G queda dentro de ±1 %.
+  - Octubre: G sube casi monótonamente, de 0.99 (21-01 h) a 1.04 (10 h).
+  - En las dos campañas G es mínimo al anochecer y sube hacia la mañana.
+  - El DCR de mayo deriva −2.18 ± 0.12 %/día a lo largo de run B; G no deriva (−0.03 ± 0.18 %/día).
+- **Correlación entre bins (tiempo bueno) [M]:**
+  - G–DCR: Pearson −0.554 (mayo) y −0.730 (octubre).
+  - G–p_ct: +0.731 y +0.870.
+  - d ln p_ct / d ln G: 0.95 ± 0.16 y 1.26 ± 0.18.
+  - Por canal: mediana de Pearson G–DCR −0.51 y −0.49.
+  - [I] El signo es el de un OV que cambia por V_bd(T) con V_bias fijo. Un cambio de V_bias daría G y DCR con el mismo signo.
+- **ΔT equivalente:** ΔT = (ΔG/G)·OV/(dV_bd/dT) con OV = 1.2 V y 50 mV/°C [S]: derivada bajo ese supuesto. No hay registro de temperatura para comprobarla.
