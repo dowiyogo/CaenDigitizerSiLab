@@ -97,6 +97,7 @@ Valores que un informe posterior corrigió:
 | RUp = 0.1 V/s para el barrido lento (seguimientos 3 y 7) | la placa informa mínimo 1.0 V/s; hvmon lo rechazaría | rango del parámetro en la placa | (7) §2 |
 | Tasa de run B en tiempo vivo (huecos restados): 0.590 Hz | tasa estacionaria con t ≥ 5.25 h: 0.5947 ± 0.0017 Hz (142 544 triggers en 66.58 h, sin huecos) | los 15 huecos y la subida de la tasa están antes de 5.25 h | «Run B start», más abajo |
 | Modelo de longitud sensible de hod2019 (PROC-3, `sensitive_length.py`): L ≈ 21 mm reproduce r_X a 35 mV; 86 X·Y predichas | z ≈ 3.2 mm (X) y 2.1 mm (Y); 0 X·Y predichas (< 0.16 al 95 %) | el histograma 2D descartaba las trayectorias sin cruce en la otra coordenada: su P_X era P(X ∧ alguna Y) | seguimiento 12, punto C |
+| Errores de f(>5) y f(>10) de `may_layer_targets.csv` por muestras de la covarianza (YA 29-37: f(>5) = 0.9990 ± 0.0051) | bootstrap de eventos con reajuste (YA 29-37: 0.9990 ± 0.0152, p16-p84 0.9882-0.9999) | las muestras fuera de los límites se descartaban y el error salía corto cerca de 1 | «Objetivos de octubre…», más abajo |
 
 ## Pendientes que siguen abiertos
 
@@ -449,4 +450,26 @@ Seguimiento 13. Solo lectura del crudo v8, tiempo bueno (77 558 triggers). Códi
   - Eso es más que el RMS de la posición dentro del solapamiento (0.40 mm): el cociente no aporta posición dentro del solapamiento.
   - La resolución la da el solapamiento mismo: 1 mm/√12 = 0.29 mm si fuera uniforme.
 - **Conclusión [I]:** R no sigue el cociente de caminos. El MC lo predice concentrado en 0.5, y el ancho medido (0.16-0.17 dentro del par) supera el límite fotoestadístico (0.128) y queda cerca del modelo con el espectro medido, que incluye Landau y la dispersión de ganancias. La amplitud no da posición dentro del solapamiento de 1 mm.
+
+## Objetivos de octubre, errores por bootstrap y dispersión entre tiras (2026-11-04)
+
+Seguimiento 14. Código en `analysis/followup14_2026_11_04/`.
+
+**1. Objetivos de octubre** (`outputs/hod2018_oct_targets/2026-11-04/oct_layer_targets.csv`). Run 8 completo, 44 176 triggers, F = 1.46 (p = 0.315). El mismo código con mayo reproduce byte a byte `may_layer_targets.csv`. Avisos: 9 de 16 filas con la moda en el borde del ajuste (no determinada); YA 37-45 con fit_status = 1; ch22 y ch31 con la G mediana de la estación; L_eff [M]: XA 46.9 ± 8.8 mm (χ² 0.29/2), XB 116.2 ± 65.7 (5.10/2), YA 165.5 ± 119.8 (0.96/2), YB 1681 ± 18992 (1.07/2), esta última no determinada.
+
+**2. Errores de f(>T) por bootstrap de eventos** (`*_layer_targets_v2_bootstrap.csv`; mayo en `outputs/hod2018_may_targets/2026-11-04_bootstrap/`). 200 remuestreos de los eventos con etiqueta, ajuste completo de cada uno; solo ajustes con status 0 (mayo 191-200, octubre 193-200 por fila). Los valores centrales no cambian.
+- Razón bootstrap/covarianza [M]: f(>5), mayo 1.10-4.14 (mediana 1.60), octubre 1.35-18.25 (mediana 1.79); f(>10), mayo 1.11-2.70 (1.29), octubre 0.89-2.04 (1.31).
+- La distribución de f es asimétrica; el archivo da p16 y p84. Con la moda cerca de 5 p.e. el ajuste alterna entre soluciones: mayo XA 37-45, f(>5) = 0.708 ± 0.131, p16-p84 0.629-0.915.
+
+**3. Dispersión de luz entre tiras, 29-54 mm** (`outputs/hod2018_strip_spread/2026-11-04/strip_spread.csv`). S = sd/media de la mediana etiquetada por tira [M]; S_stat = lo esperado solo por estadística.
+
+| | mayo S ± stat | S_stat | S_intr | octubre S ± stat | S_stat | S_intr |
+|---|---|---|---|---|---|---|
+| XA | 0.203 ± 0.038 | 0.101 | 0.177 | 0.294 ± 0.053 | 0.126 | 0.266 |
+| XB | 0.247 ± 0.044 | 0.093 | 0.228 | 0.161 ± 0.034 | 0.127 | 0.098 |
+| YA | 0.145 ± 0.033 | 0.108 | 0.096 | 0.131 ± 0.042 | 0.111 | 0.068 |
+| YB | 0.572 ± 0.045 | 0.097 | 0.564 | 0.651 ± 0.061 | 0.139 | 0.636 |
+| YB sin Y13 | 0.314 ± 0.056 | 0.111 | 0.293 | 0.176 ± 0.068 | 0.168 | 0.052 |
+
+Y13 (mismo MPPC: mayo ch30, octubre ch29) tiene mediana 40 y 32 p.e. Compatibles con solo estadística (p > 0.1): mayo YA, octubre XB, YA y YB sin Y13. El error por tener 7-8 tiras (S/√(2(n−1))) es 0.035-0.174. S mezcla luz, ganancia G y geometría; no se separan aquí.
 
