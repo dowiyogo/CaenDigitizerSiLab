@@ -9,7 +9,8 @@
 //  P5 σ(t_X − t_Y) por bin de la menor amplitud (time_res.csv: CFD 0.5, con desplazamientos y propagación).
 //  P6 perfiles de impacto x e y a 10 p.e., stationary_goodtime (impact_map_runB_T10.csv): canal muerto sombreado, uniones del cableado marcadas.
 //  P7 G/G_ref por bin de 1 h contra la hora local de Chile (diurnal_bins.csv, bins buenos), mayo y octubre; pico a pico de poster_numbers.json.
-//  P8 ocupación por tira de hod2018 y hod2019 (fig_stage3.json, la entrada de occupancy_2018_2019).
+//  P8 ocupación por tira de hod2018 (5 p.e.) y hod2019 (3 mV), dos paneles 2.2:1 (fig_stage3.json, la entrada de occupancy_2018_2019).
+// Revisión 1 (2026-11-13): tamaños de texto por tamaño impreso (TextSizes), «disparo(s)» en lugar de «trigger(s)», leyendas de P1, P4, P6.
 // Uso (desde la raíz): root -l -b -q analysis/sochifi_poster_2026_11_13/poster_style.C 'analysis/sochifi_poster_2026_11_13/poster_figs.C("<out>")'
 #include <TBox.h>
 #include <TF1.h>
@@ -22,6 +23,7 @@
 #include <TLatex.h>
 #include <TLegend.h>
 #include <TLine.h>
+#include <TPad.h>
 #include <TMath.h>
 #include <TTree.h>
 
@@ -29,6 +31,7 @@
 #include <cmath>
 #include <fstream>
 #include <map>
+#include <stdexcept>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -86,6 +89,31 @@ double langaufun(double* x, double* par) {
   }
   return par[2] * step * sum * invsq2pi / par[3];
 }
+// tamaños de texto por figura, en fracción de la altura del pad (revisión 1, 2026-11-13): ≥ 5 mm impresos en A0.
+//  P1 columna completa (≈ 18 × 13.5 cm): 5 mm = 0.037 de la altura; P4, P5, P6 media columna (≈ 12.5 × 9.4 cm): 5 mm = 0.053;
+//  P8 columna completa 2.2:1 (≈ 25 × 11.4 cm): 5 mm = 0.044.
+struct TextSizes {
+  double label, title, legend, xoff, yoff;
+};
+const TextSizes kFull{0.052, 0.058, 0.050, 1.15, 1.30};
+const TextSizes kHalf{0.060, 0.065, 0.058, 1.12, 1.30};
+const TextSizes kWide{0.055, 0.060, 0.052, 1.05, 1.05};
+void applySizes(TH1* h, const TextSizes& t) {
+  for (TAxis* a : {h->GetXaxis(), h->GetYaxis()}) {
+    a->SetLabelSize(t.label);
+    a->SetTitleSize(t.title);
+  }
+  h->GetXaxis()->SetTitleOffset(t.xoff);
+  h->GetYaxis()->SetTitleOffset(t.yoff);
+}
+void halfMargins() {
+  gPad->SetLeftMargin(0.19); gPad->SetRightMargin(0.04); gPad->SetBottomMargin(0.19); gPad->SetTopMargin(0.05);
+}
+TLegend* legendT(double x1, double y1, double x2, double y2, double ts) {
+  auto* l = legend(x1, y1, x2, y2);
+  l->SetTextSize(ts);
+  return l;
+}
 }  // namespace
 
 // ------------------------------------------------------------------------------------------------ P1
@@ -110,13 +138,14 @@ void P1(const std::string& out) {
   double s = 0;
   for (double v : dt) s += v;
   const double dt_mean = s / dt.size();
-  auto* h = new TH1D("h_dt", ";tiempo entre triggers / media;densidad", 100, 0, 10);
+  auto* h = new TH1D("h_dt", ";intervalo entre disparos / media;densidad", 100, 0, 10);
   long long nout = 0;
   for (double v : dt) { const double x = v / dt_mean; if (x < 10) h->Fill(x); else ++nout; }
   printf("P1: triggers %zu, intervalos %zu, <dT> = %.1f us, en [0,10) %.0f, sobre 10 %lld\n", keep.size(), dt.size(), dt_mean, h->Integral(), nout);
   h->Scale(1.0 / h->Integral() / 0.1);
   auto* c = poster_canvas("c_p1");
   c->SetLogy();
+  applySizes(h, kFull);
   h->SetLineColor(poster::color(5));
   h->SetLineWidth(4);
   h->SetMinimum(0.5 * h->GetMinimum(0));
@@ -127,11 +156,12 @@ void P1(const std::string& out) {
   fth->SetLineWidth(5);
   fth->SetLineStyle(9);
   fth->Draw("SAME");
-  auto* lg = legend(0.30, 0.62, 0.95, 0.93);
+  // abajo a la izquierda: para x < 4.6 la densidad es > 0.01, la curva pasa por encima de la leyenda
+  auto* lg = legendT(0.19, 0.19, 0.66, 0.47, kFull.legend);
   lg->AddEntry(h, "run B, desde 5.25 h", "l");
   lg->AddEntry(fth, "exponencial", "l");
   lg->AddEntry((TObject*)nullptr, "#lambda = 0.5947#pm0.0017 Hz", "");
-  lg->AddEntry((TObject*)nullptr, "test de Kolmogorov-Smirnov: p = 0.27", "");
+  lg->AddEntry((TObject*)nullptr, "Kolmogorov-Smirnov: p = 0.27", "");
   lg->Draw();
   poster_save(c, out + "/P1_intervalos_trigger");
 }
@@ -225,11 +255,13 @@ void P3(const std::string& out) {
 void P4(const std::string& out) {
   auto j = readJson(R + "proceeding_hvdiag5/2026-10-31_full/work/doublehit_confirmed.json");
   auto* c = poster_canvas("c_p4");
+  halfMargins();
   auto* fr = new TH1F("fr4", ";umbral T (p.e.);fracci\363n de dos barras f_{2}", 10, 2.5, 12.5);
+  applySizes(fr, kHalf);
   fr->SetMinimum(0.0);
-  fr->SetMaximum(0.75);
+  fr->SetMaximum(0.82);
   fr->Draw("AXIS");
-  auto* lg = legend(0.18, 0.70, 0.95, 0.93);
+  auto* lg = legendT(0.21, 0.72, 0.95, 0.93, kHalf.legend);
   lg->SetNColumns(2);
   int k = 0;
   for (const char* pl : {"X", "Y"}) {
@@ -251,7 +283,7 @@ void P4(const std::string& out) {
     l->Draw("L SAME");
     g->Draw("P SAME");
     lg->AddEntry(g, Form("%s medido", pl), "pe");
-    lg->AddEntry(l, Form("%s MC, detecci\363n perfecta", pl), "l");
+    lg->AddEntry(l, Form("%s MC ideal", pl), "l");
     ++k;
   }
   lg->Draw();
@@ -264,9 +296,11 @@ void P5(const std::string& out) {
   auto rows = readCsv(R + "hod2018_timing/2026-11-03_followup13/A_time/time_res.csv");
   const std::vector<std::string> bins{"10-15", "15-20", "20-30", ">30"};
   auto* c = poster_canvas("c_p5");
+  halfMargins();
   auto* fr = new TH1F("fr5", ";menor amplitud de X e Y (p.e.);#sigma(t_{X}#minust_{Y}) (ns)", 4, 0.5, 4.5);
-  for (int i = 0; i < 4; ++i) fr->GetXaxis()->SetBinLabel(i + 1, i == 3 ? "m\341s de 30" : bins[i].c_str());
-  fr->GetXaxis()->SetLabelSize(0.065);
+  applySizes(fr, kHalf);
+  for (int i = 0; i < 4; ++i) fr->GetXaxis()->SetBinLabel(i + 1, i == 3 ? "> 30" : bins[i].c_str());
+  fr->GetXaxis()->SetLabelSize(0.075);  // con «más de 30» ROOT achicaba las etiquetas para que cupieran en el bin
   fr->SetMinimum(0);
   fr->SetMaximum(3.5);
   fr->Draw("AXIS");
@@ -280,9 +314,12 @@ void P5(const std::string& out) {
       }
   g->SetMarkerStyle(20); g->SetMarkerColor(poster::color(5)); g->SetLineColor(poster::color(5)); g->SetLineWidth(3);
   g->Draw("P SAME");
-  auto* tx = new TLatex(0.93, 0.89, "fracci\363n constante 0.5, muestreo de 16 ns");
-  tx->SetNDC(); tx->SetTextAlign(33); tx->SetTextSize(poster::kLegend);
+  auto* tx = new TLatex(0.93, 0.90, "fracci\363n constante 0.5");
+  tx->SetNDC(); tx->SetTextAlign(33); tx->SetTextSize(kHalf.legend);
   tx->Draw();
+  auto* tx2 = new TLatex(0.93, 0.82, "muestreo de 16 ns");
+  tx2->SetNDC(); tx2->SetTextAlign(33); tx2->SetTextSize(kHalf.legend);
+  tx2->Draw();
   poster_save(c, out + "/P5_resolucion_temporal");
 }
 
@@ -307,8 +344,10 @@ void P6(const std::string& out) {
     }
     double ymax = 0;
     for (int b = 1; b <= 31; ++b) ymax = std::max(ymax, h->GetBinContent(b) + h->GetBinError(b));
-    const double ytop = 1.65 * ymax;
+    const double ytop = 1.75 * ymax;
     auto* c = poster_canvas(Form("c_p6%s", ax));
+    halfMargins();
+    applySizes(h, kHalf);
     h->SetMinimum(0); h->SetMaximum(ytop);
     h->SetLineColor(poster::color(5)); h->SetMarkerColor(poster::color(5)); h->SetMarkerStyle(20); h->SetLineWidth(3);
     h->Draw("E1");
@@ -323,7 +362,7 @@ void P6(const std::string& out) {
         if (core && !bdead) bdead = bx;
       }
       auto* t = new TLatex(0.5 * (h->GetBinLowEdge(dead.front() + 1) + h->GetBinLowEdge(dead.back())), 0.5 * ymax, "canal muerto");
-      t->SetTextAngle(90); t->SetTextAlign(22); t->SetTextSize(0.05);
+      t->SetTextAngle(90); t->SetTextAlign(22); t->SetTextSize(kHalf.legend);
       t->Draw();
     }
     TBox* bj = nullptr;
@@ -334,12 +373,12 @@ void P6(const std::string& out) {
     }
     h->Draw("E1 SAME");
     gPad->RedrawAxis();
-    auto* lg = legend(0.18, 0.76, 0.95, 0.93);
+    auto* lg = legendT(0.21, 0.76, 0.95, 0.93, kHalf.legend);
     lg->SetNColumns(1);
-    lg->AddEntry(h, "hod2018, run B, umbral 10 p.e.", "pe");
-    if (bj) lg->AddEntry(bj, "uni\363n del orden tomada del cableado", "f");
+    lg->AddEntry(h, "run B, 10 p.e.", "pe");
+    if (bj) lg->AddEntry(bj, "uni\363n seg\372n cableado", "f");
     lg->Draw();
-    printf("P6 %s: %ld triggers, celdas de union %zu, celdas del canal muerto %zu\n", ax, ntrig, junction.size(), dead.size());
+    printf("P6 %s: %ld disparos, celdas de union %zu, celdas del canal muerto %zu\n", ax, ntrig, junction.size(), dead.size());
     poster_save(c, out + Form("/P6_perfil_impacto_%s", ax));
   }
 }
@@ -383,64 +422,90 @@ void P7(const std::string& out) {
 }
 
 // ------------------------------------------------------------------------------------------------ P8
+// revisión 1: dos paneles lado a lado (2.2:1), eje y común «impactos por 1000 disparos»: izquierda hod2018 a 5 p.e. (X e Y, bandas MC,
+// canal muerto), derecha hod2019 a 3 mV (X e Y). Mismos datos que occupancy_2018_2019 (fig_stage3.json). Bandas MC normalizadas a la suma medida
+// (como en occupancy_2018_2019).
 void P8(const std::string& out) {
   auto j = readJson(R + "proceeding_hvdiag5/2026-10-31_full/work/fig_stage3.json");
-  auto* c = poster_canvas("c_p8");
-  c->Divide(2, 2, 0.001, 0.001);
-  const std::map<std::string, std::string> lab{{"hod2018 X", "hod2018, plano X"}, {"hod2018 Y", "hod2018, plano Y"},
-                                               {"hod2019 X", "hod2019, plano X"}, {"hod2019 Y", "hod2019, plano Y"}};
-  int p = 0;
-  for (const auto& panel : j["occ"]) {
-    c->cd(++p);
-    gPad->SetLeftMargin(0.19); gPad->SetRightMargin(0.03); gPad->SetBottomMargin(0.19); gPad->SetTopMargin(0.04);
-    double ymax = 0, ymin = 0;
-    for (const auto& s : panel["series"])
-      for (int i = 0; i < 16; ++i) {
-        ymax = std::max(ymax, s["y"][i].get<double>() + s["e"][i].get<double>());
-        ymin = std::min(ymin, s["y"][i].get<double>() - s["e"][i].get<double>());
-      }
-    auto* fr = new TH1F(Form("fr8_%d", p), ";coordenada de la tira;impactos por 1000 triggers", 16, -0.5, 15.5);
-    fr->SetMinimum(ymin < 0 ? 1.15 * ymin : 0);
-    fr->SetMaximum(1.6 * ymax);
-    fr->GetXaxis()->SetLabelSize(0.065); fr->GetYaxis()->SetLabelSize(0.065);
-    fr->GetXaxis()->SetTitleSize(0.07); fr->GetYaxis()->SetTitleSize(0.07);
-    fr->GetXaxis()->SetTitleOffset(1.1); fr->GetYaxis()->SetTitleOffset(1.25);
+  std::map<std::string, const nlohmann::json*> P;
+  for (const auto& panel : j["occ"]) P[panel["panel"].get<std::string>()] = &panel;
+  auto series = [&](const std::string& panel, const std::string& name) -> const nlohmann::json& {
+    for (const auto& s : (*P.at(panel))["series"])
+      if (s["name"] == name) return s;
+    throw std::runtime_error("serie no encontrada: " + panel + " " + name);
+  };
+  const std::vector<std::pair<std::string, std::string>> left{{"hod2018 X", "5 p.e."}, {"hod2018 Y", "5 p.e."}},
+      right{{"hod2019 X", "3 mV"}, {"hod2019 Y", "3 mV"}};
+  double ymax = 0;
+  for (const auto* side : {&left, &right})
+    for (const auto& [pn, sn] : *side) {
+      const auto& s = series(pn, sn);
+      for (int i = 0; i < 16; ++i) ymax = std::max(ymax, s["y"][i].get<double>() + s["e"][i].get<double>());
+    }
+  for (const char* pn : {"hod2018 X", "hod2018 Y"})
+    for (int i = 0; i < 16; ++i) ymax = std::max(ymax, (*P.at(pn))["mc"][i].get<double>() + (*P.at(pn))["mc_err"][i].get<double>());
+  const double ytop = 1.85 * ymax;
+  auto* c = new TCanvas("c_p8", "", 3300, 1500);
+  c->SetWindowSize(3300 + (3300 - c->GetWw()), 1500 + (1500 - c->GetWh()));
+  const double xs = 0.535;
+  auto* pl = new TPad("p8l", "", 0.0, 0.0, xs, 1.0);
+  auto* pr = new TPad("p8r", "", xs, 0.0, 1.0, 1.0);
+  for (auto* pd : {pl, pr}) { pd->SetTopMargin(0.05); pd->SetBottomMargin(0.18); pd->Draw(); }
+  pl->SetLeftMargin(0.17); pl->SetRightMargin(0.015);
+  pr->SetLeftMargin(0.045); pr->SetRightMargin(0.03);
+  int ip = 0;
+  for (auto* pd : {pl, pr}) {
+    pd->cd();
+    const bool isL = pd == pl;
+    auto* fr = new TH1F(Form("fr8_%d", ip++), isL ? ";coordenada de la tira;impactos por 1000 disparos" : ";coordenada de la tira;", 16, -0.5, 15.5);
+    applySizes(fr, kWide);
+    fr->GetYaxis()->SetTitleOffset(1.15);
+    if (!isL) fr->GetYaxis()->SetLabelSize(0);  // eje y común: rótulos solo a la izquierda
+    fr->SetMinimum(0);
+    fr->SetMaximum(ytop);
     fr->Draw("AXIS");
-    for (int k = 0; k < 16; ++k)
-      if (panel["dead"][k].get<bool>()) {
-        auto* bx = new TBox(k - 0.5, fr->GetMinimum(), k + 0.5, fr->GetMaximum());
-        bx->SetFillColorAlpha(poster::grey(), 0.55); bx->SetLineWidth(0);
-        bx->Draw();
-        auto* t = new TLatex(k, 0.5 * ymax, "canal muerto");
-        t->SetTextAngle(90); t->SetTextAlign(22); t->SetTextSize(0.055);
-        t->Draw();
+    // la banda del canal muerto (X12) empieza en x ≈ 0.78 del pad izquierdo: la leyenda termina antes
+    auto* lg = legendT(isL ? 0.20 : 0.08, isL ? 0.62 : 0.72, isL ? 0.76 : 0.80, 0.94, kWide.legend);
+    lg->SetNColumns(2);
+    lg->SetHeader(isL ? "hod2018, 5 p.e." : "hod2019, 3 mV");
+    if (isL) {
+      const auto& px = *P.at("hod2018 X");
+      for (int k = 0; k < 16; ++k)
+        if (px["dead"][k].get<bool>()) {
+          auto* bx = new TBox(k - 0.5, 0, k + 0.5, ytop);
+          bx->SetFillColorAlpha(poster::grey(), 0.55); bx->SetLineWidth(0);
+          bx->Draw();
+          auto* t = new TLatex(k, 0.30 * ytop, "canal muerto (X)");
+          t->SetTextAngle(90); t->SetTextAlign(22); t->SetTextSize(kWide.legend);
+          t->Draw();
+        }
+      int kk = 0;
+      for (const char* pn : {"hod2018 X", "hod2018 Y"}) {
+        const auto& pp = *P.at(pn);
+        auto* band = new TGraphErrors(16);
+        for (int k = 0; k < 16; ++k) { band->SetPoint(k, k, pp["mc"][k].get<double>()); band->SetPointError(k, 0.45, pp["mc_err"][k].get<double>()); }
+        band->SetFillColorAlpha(poster::color(kk == 0 ? 5 : 6), 0.25); band->SetLineColor(0);
+        band->Draw("2 SAME");
+        lg->AddEntry(band, kk == 0 ? "MC X" : "MC Y", "f");
+        ++kk;
       }
-    auto* lg = legend(0.21, 0.80, 0.97, 0.95);
-    lg->SetNColumns(3);
-    lg->SetTextSize(0.06);
-    if (!panel["mc"].is_null()) {
-      auto* band = new TGraphErrors(16);
-      for (int k = 0; k < 16; ++k) { band->SetPoint(k, k, panel["mc"][k].get<double>()); band->SetPointError(k, 0.45, panel["mc_err"][k].get<double>()); }
-      band->SetFillColorAlpha(poster::color(2), 0.45); band->SetLineColor(poster::color(2));
-      band->Draw("2 SAME");
-      lg->AddEntry(band, "MC (norm.)", "f");
     }
     int k = 0;
-    for (const auto& s : panel["series"]) {
+    for (const auto& [pn, sn] : isL ? left : right) {
+      const auto& s = series(pn, sn);
       auto* g = new TGraphErrors(16);
       for (int i = 0; i < 16; ++i) { g->SetPoint(i, i + (k == 0 ? -0.12 : 0.12), s["y"][i].get<double>()); g->SetPointError(i, 0, s["e"][i].get<double>()); }
       const int col = poster::color(k == 0 ? 5 : 6);
-      g->SetMarkerStyle(k == 0 ? 20 : 24); g->SetMarkerSize(1.4); g->SetMarkerColor(col); g->SetLineColor(col); g->SetLineWidth(3);
+      g->SetMarkerStyle(k == 0 ? 20 : 21); g->SetMarkerSize(1.7); g->SetMarkerColor(col); g->SetLineColor(col); g->SetLineWidth(3);
       g->Draw("P SAME");
-      lg->AddEntry(g, s["name"].get<std::string>().c_str(), "pe");
+      lg->AddEntry(g, k == 0 ? "plano X" : "plano Y", "pe");
+      printf("P8: %s %s, suma de la serie %.3f\n", pn.c_str(), sn.c_str(), [&] { double t = 0; for (int i = 0; i < 16; ++i) t += s["y"][i].get<double>(); return t; }());
       ++k;
     }
     lg->Draw();
-    auto* t = new TLatex(0.22, 0.76, lab.at(panel["panel"].get<std::string>()).c_str());
-    t->SetNDC(); t->SetTextAlign(13); t->SetTextSize(0.065);
-    t->Draw();
     gPad->RedrawAxis();
   }
+  c->cd();
   poster_save(c, out + "/P8_ocupacion_hod2018_hod2019");
 }
 
