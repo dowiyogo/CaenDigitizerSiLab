@@ -11,6 +11,7 @@
 //  P7 G/G_ref por bin de 1 h contra la hora local de Chile (diurnal_bins.csv, bins buenos), mayo y octubre; pico a pico de poster_numbers.json.
 //  P8 ocupación por tira de hod2018 (5 p.e.) y hod2019 (3 mV), dos paneles 2.2:1 (fig_stage3.json, la entrada de occupancy_2018_2019).
 // Revisión 1 (2026-11-13): tamaños de texto por tamaño impreso (TextSizes), «disparo(s)» en lugar de «trigger(s)», leyendas de P1, P4, P6.
+// Revisión 2 (2026-11-13): P3poster y P6xposter (claves 'a', 'b'): rótulos para público general, mismos datos; E1 en e1_event.C.
 // Uso (desde la raíz): root -l -b -q analysis/sochifi_poster_2026_11_13/poster_style.C 'analysis/sochifi_poster_2026_11_13/poster_figs.C("<out>")'
 #include <TBox.h>
 #include <TF1.h>
@@ -509,6 +510,103 @@ void P8(const std::string& out) {
   poster_save(c, out + "/P8_ocupacion_hod2018_hod2019");
 }
 
+// ------------------------------------------------------------------------------------------------ revisión 2: P3 y P6x para público general
+// Mismos datos y números que P3 y P6 (x); solo rótulos, leyendas y tamaños (media columna, kHalf). Claves 'a' (P3) y 'b' (P6x).
+void P3poster(const std::string& out) {
+  auto j = readJson(R + "proceeding_revision/2026-11-03_band_legend/fig_eff_g09551_bandrunB.json");
+  const auto& s = j["series"][0];
+  const double rel = j["f18_rel_syst"];
+  const int n = static_cast<int>(s["eps"].size());
+  auto* c = poster_canvas("c_p3p");
+  halfMargins();
+  auto* fr = new TH1F("fr3p", ";umbral (fotoelectrones);eficiencia X\267Y", 10, 2.5, 12.5);
+  applySizes(fr, kHalf);
+  fr->SetMinimum(0.0);
+  fr->SetMaximum(1.2);
+  fr->Draw("AXIS");
+  auto* band = new TGraphErrors(n), *g = new TGraphErrors(n), *gs = new TGraphErrors(n);
+  for (int i = 0; i < n; ++i) {
+    const double T = j["T"][i], e = s["eps"][i];
+    band->SetPoint(i, T, e); band->SetPointError(i, 0.5, e * rel);
+    g->SetPoint(i, T, e); g->SetPointError(i, 0, s["stat"][i].get<double>());
+    gs->SetPoint(i, T, e); gs->SetPointError(i, 0.12, s["syst"][i].get<double>());
+    printf("P3p: T %d eps %.4f stat %.4f estimador %.4f aceptancia %.4f\n", j["T"][i].get<int>(), e, s["stat"][i].get<double>(), s["syst"][i].get<double>(), e * rel);
+  }
+  band->SetFillColorAlpha(poster::grey(), 0.40); band->SetLineColor(0);
+  band->Draw("E3 SAME");
+  gs->SetFillStyle(0); gs->SetLineColor(poster::color(0)); gs->SetLineWidth(3);
+  gs->Draw("2 SAME");
+  g->SetMarkerStyle(20); g->SetMarkerColor(poster::color(0)); g->SetLineColor(poster::color(0)); g->SetLineWidth(3);
+  g->Draw("P SAME");
+  gPad->RedrawAxis();
+  auto* lg = legendT(0.22, 0.22, 0.95, 0.45, kHalf.legend);
+  lg->AddEntry(g, "medido (run B)", "pe");
+  lg->AddEntry(gs, "incertidumbre del m\351todo", "f");
+  lg->AddEntry(band, "incertidumbre de aceptancia", "f");
+  lg->Draw();
+  poster_save(c, out + "/P3_eficiencia_umbral");
+}
+
+void P6xposter(const std::string& out) {
+  auto rows = readCsv(R + "hod2018_impact_map/2026-11-12_impact_map_runB/stationary_goodtime/impact_map_runB_T10.csv");
+  std::vector<double> edges{-16.5};
+  for (int k = 0; k < 30; ++k) edges.push_back(-14.5 + k);
+  edges.push_back(16.5);
+  auto* h = new TH1D("h6xp", ";posici\363n x (mm);cuentas restadas por mm", 31, edges.data());
+  std::vector<int> junction, dead;
+  long ntrig = 0;
+  for (auto& r : rows) {
+    if (r["axis"] != "x") continue;
+    const int b = std::stoi(r["cell_index"]) + 1;
+    h->SetBinContent(b, std::stod(r["counts_per_mm"]));
+    h->SetBinError(b, std::stod(r["counts_per_mm_err"]));
+    if (r["flags"].find("junction_from_cabling") != std::string::npos) junction.push_back(b);
+    if (r["dead_channel_flag"] == "1") dead.push_back(b);
+    ntrig = std::stol(r["triggers_denominator"]);
+  }
+  double ymax = 0;
+  for (int b = 1; b <= 31; ++b) ymax = std::max(ymax, h->GetBinContent(b) + h->GetBinError(b));
+  const double ytop = 1.75 * ymax;
+  auto* c = poster_canvas("c_p6xp");
+  halfMargins();
+  applySizes(h, kHalf);
+  h->SetMinimum(0); h->SetMaximum(ytop);
+  h->SetLineColor(poster::color(5)); h->SetMarkerColor(poster::color(5)); h->SetMarkerStyle(20); h->SetLineWidth(3);
+  h->Draw("E1");
+  for (int b : dead) {  // celdas 23-25 sin cuentas posibles y vecinas 22, 26 en gris claro (como P6)
+    const bool core = (b != dead.front() && b != dead.back());
+    auto* bx = new TBox(h->GetBinLowEdge(b), 0, h->GetBinLowEdge(b + 1), ytop);
+    bx->SetFillColorAlpha(poster::grey(), core ? 0.55 : 0.25);
+    bx->SetLineWidth(0);
+    bx->Draw();
+  }
+  if (!dead.empty()) {
+    auto* t = new TLatex(0.5 * (h->GetBinLowEdge(dead.front() + 1) + h->GetBinLowEdge(dead.back())), 0.5 * ymax, "canal sin se\361al");
+    t->SetTextAngle(90); t->SetTextAlign(22); t->SetTextSize(kHalf.legend);
+    t->Draw();
+  }
+  double jlo = 1e9, jhi = -1e9;
+  for (int b : junction) {
+    auto* bj = new TBox(h->GetBinLowEdge(b), 0, h->GetBinLowEdge(b + 1), 1.12 * ymax);  // termina bajo el rótulo
+    bj->SetFillStyle(3354); bj->SetFillColor(poster::color(1)); bj->SetLineWidth(0);
+    bj->Draw();
+    jlo = std::min(jlo, h->GetBinLowEdge(b));
+    jhi = std::max(jhi, h->GetBinLowEdge(b + 1));
+  }
+  if (!junction.empty()) {
+    auto* t = new TLatex(0.5 * (jlo + jhi), 1.16 * ymax, "uni\363n incierta");
+    t->SetTextAlign(21); t->SetTextSize(kHalf.legend); t->SetTextColor(poster::color(1));
+    t->Draw();
+  }
+  h->Draw("E1 SAME");
+  gPad->RedrawAxis();
+  auto* lg = legendT(0.21, 0.82, 0.60, 0.93, kHalf.legend);
+  lg->AddEntry(h, "medido, 10 p.e.", "pe");
+  lg->Draw();
+  printf("P6xp: %ld disparos, celdas de union %zu, celdas del canal sin senal %zu\n", ntrig, junction.size(), dead.size());
+  poster_save(c, out + "/P6_perfil_impacto_x");
+}
+
 void poster_figs(const char* out, const char* which = "12345678") {
   poster_style();
   setvbuf(stdout, nullptr, _IONBF, 0);
@@ -521,4 +619,6 @@ void poster_figs(const char* out, const char* which = "12345678") {
   if (w.find('6') != std::string::npos) P6(o);
   if (w.find('7') != std::string::npos) P7(o);
   if (w.find('8') != std::string::npos) P8(o);
+  if (w.find('a') != std::string::npos) P3poster(o);
+  if (w.find('b') != std::string::npos) P6xposter(o);
 }
