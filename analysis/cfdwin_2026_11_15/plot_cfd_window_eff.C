@@ -1,5 +1,6 @@
 // plot_cfd_window_eff.C — seguimiento 2026-11-15: ε_XY de hod2018 contra el umbral T para la ventana de 144 ns (stage2) y las ventanas CFD de
-// ±8 y ±16 ns, una columna por campaña presente en el CSV de cfd_window_eff.py. Barras internas: estadística; externas: estadística ⊕ estimador
+// ±8 y ±16 ns (y, si están, las coincidencias por pares |t_X − t_Y| < 8, 16 ns, marcadores abiertos), una columna por campaña presente en el CSV
+// (formato de cfd_window_eff.py, 16 columnas, o de cfd_window_eff2.py / eps_xy_cfd_window.csv, 17 columnas con noise_times). Barras internas: estadística; externas: estadística ⊕ estimador
 // (la aceptancia, común a las tres ventanas, va en el texto). Figura de inspección.
 // Uso: root -l -b -q 'analysis/cfdwin_2026_11_15/plot_cfd_window_eff.C("<csv>", "<prefijo de salida>")'
 #include <TCanvas.h>
@@ -32,14 +33,21 @@ void plot_cfd_window_eff(const char* csv, const char* prefix) {
     std::string x;
     while (std::getline(ss, x, ',')) c.push_back(x);
     if (c.size() < 16) continue;
+    const int o = c.size() >= 17 ? 1 : 0;  // columna noise_times en el formato de la versión 2
+    if (o && c[3] == "uniform") continue;
+    std::string win = c[2];
+    if (win == "median8") win = "cfd8";
+    if (win == "median16") win = "cfd16";
     if (!d.count(c[0])) camps.push_back(c[0]);
-    d[c[0]][c[2]].push_back({std::stod(c[1]), std::stod(c[12]), std::stod(c[13]), std::stod(c[14])});
+    d[c[0]][win].push_back({std::stod(c[1]), std::stod(c[12 + o]), std::stod(c[13 + o]), std::stod(c[14 + o])});
   }
-  const std::vector<std::string> wins{"144ns", "cfd16", "cfd8"};
-  const std::vector<std::string> labs{"144 ns signal window", "CFD #cbar t #minus t_{ref} #cbar < 16 ns", "CFD #cbar t #minus t_{ref} #cbar < 8 ns"};
-  const std::vector<int> col{TColor::GetColor("#2a78d6"), TColor::GetColor("#eb6834"), TColor::GetColor("#1baf7a")};
-  const std::vector<int> mk{20, 21, 33};
-  const std::vector<double> dx{-0.25, 0.0, 0.25};
+  const std::vector<std::string> wins{"144ns", "cfd16", "cfd8", "pair16", "pair8"};
+  const std::vector<std::string> labs{"144 ns signal window", "CFD window #pm16 ns around median t_{ref}", "CFD window #pm8 ns around median t_{ref}",
+                                      "X-Y pair, #Deltat < 16 ns", "X-Y pair, #Deltat < 8 ns"};
+  const std::vector<int> col{TColor::GetColor("#2a78d6"), TColor::GetColor("#eb6834"), TColor::GetColor("#1baf7a"), TColor::GetColor("#eb6834"),
+                              TColor::GetColor("#1baf7a")};
+  const std::vector<int> mk{20, 21, 33, 25, 27};
+  const std::vector<double> dx{-0.3, -0.15, 0.0, 0.15, 0.3};
   const int nc = static_cast<int>(camps.size());
   TCanvas cv("cv", "", 700 * nc, 560);
   cv.Divide(nc, 1);
@@ -51,12 +59,12 @@ void plot_cfd_window_eff(const char* csv, const char* prefix) {
     gPad->SetGridy();
     auto* fr = new TH1F(Form("fr%d", ic), "", 10, 2, 11);
     fr->SetMinimum(0.0);
-    fr->SetMaximum(1.4);
+    fr->SetMaximum(1.5);
     fr->GetXaxis()->SetTitle("threshold T (measured p.e.)");
     fr->GetYaxis()->SetTitle("#varepsilon_{XY}");
     fr->Draw();
     keep.push_back(fr);
-    auto* lg = new TLegend(0.16, 0.15, 0.62, 0.33);
+    auto* lg = new TLegend(0.50, 0.56, 0.89, 0.83);
     lg->SetBorderSize(0);
     lg->SetFillStyle(0);
     lg->SetHeader(camps[ic].c_str());
@@ -90,7 +98,7 @@ void plot_cfd_window_eff(const char* csv, const char* prefix) {
     TLatex t;
     t.SetNDC();
     t.SetTextSize(0.03);
-    t.DrawLatex(0.16, 0.85, "inner bar: stat; outer: stat #oplus estimator; acceptance 4.65 % common");
+    t.DrawLatex(0.15, 0.86, "inner bar: stat; outer: stat #oplus estimator; acceptance 4.65 % common");
   }
   cv.SaveAs((std::string(prefix) + ".png").c_str());
   cv.SaveAs((std::string(prefix) + ".pdf").c_str());
