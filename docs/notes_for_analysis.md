@@ -122,3 +122,8 @@ Datos en `/data/daq/raw/commissioning_2026_10/` (campaña cerrada); resultados e
   19:10Z (tarde) suben junto con IMon, sobre todo la cara Trasera de hod2019 X: el mismo patrón
   que la fuga de luz de mayo, no confirmado.
 - Hueco de trigger de 55.296 s a las ~18:39:45Z (run 8), causa no determinada.
+- (2026-11-16, rama analysis/ratio-reconcile-2026-11-16, outputs/hod2018_ratio_reconcile/2026-11-16/ punto 2) Mapeo Y de hod2018 alrededor
+  de Y07-Y09: intercambiar los canales de octubre de Y07 e Y08 baja el χ² de la razón oct/mayo por canal de 67.86 a 45.91 (/30) y elimina los
+  dos desvíos > 3σ, pero el perfil a lo largo de la barra de octubre pone ch23 en capa B y ch24 en capa A, como el mapeo actual. En mayo, ch28
+  (Y09, capa B) tiene pendiente de perfil +0.0384 ± 0.0100 por índice X, el signo de la capa A. Revisar el orden de mayo de Y07-Y09 en
+  stage3.json; no se cambió nada.
