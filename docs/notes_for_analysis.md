@@ -127,3 +127,6 @@ Datos en `/data/daq/raw/commissioning_2026_10/` (campaña cerrada); resultados e
   dos desvíos > 3σ, pero el perfil a lo largo de la barra de octubre pone ch23 en capa B y ch24 en capa A, como el mapeo actual. En mayo, ch28
   (Y09, capa B) tiene pendiente de perfil +0.0384 ± 0.0100 por índice X, el signo de la capa A. Revisar el orden de mayo de Y07-Y09 en
   stage3.json; no se cambió nada.
+  Respuesta (2026-11-16, rama analysis/spectra-export-2026-11-16, outputs/hod2018_spectra_export/2026-11-16/ punto 3): en mayo ch28 coincide sobre
+  todo con ch21 (Y10) y ch20 (Y08), sus vecinas de la capa A, así que leía Y09 (capa B) como dice stage3.json; un intercambio ch20 ↔ ch28 queda
+  excluido. La pendiente de perfil positiva de ch28 en mayo sigue sin explicación (en octubre la misma barra tiene la de la capa B).
